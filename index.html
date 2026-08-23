@@ -359,7 +359,9 @@ dialog textarea{width:100%;min-height:180px;background:var(--bg);color:var(--ink
    keskeny kijelző mind elmozdítja a doboz tetejét. Ezért mérünk.
 
    A jel a tartalom fölött ÚSZIK: nem foglal helyet, nem tol el semmit. */
-.top{ position:relative }
+/* A .top mar position:sticky - az is viszonyitasi pont az abszolut
+   gyermeknek, tehat NEM szabad position:relative-re allitani. Az elso
+   valtozat megtette, es ezzel elvette a fejlec tapadasat. */
 .jelgomb{ position:absolute; left:50%; transform:translateX(-50%);
   top:0; padding:0; border:0; background:none; cursor:pointer;
   line-height:0; z-index:6;
@@ -369,6 +371,15 @@ dialog textarea{width:100%;min-height:180px;background:var(--bg);color:var(--ink
 .jel{ --smcz-logo-color:var(--brass) }
 .jelgomb:hover .jel{ --smcz-logo-color:var(--rust) }
 .jelgomb:focus-visible{ outline:2px solid var(--brass); outline-offset:3px; border-radius:6px }
+
+/* BEZARO X a jobb felso sarokban. A lenti Bezaras gomb megmarad, de az ember
+   a bezarast a sarokban keresi - kulonosen hosszu, gorgetheto ablaknal, ahol
+   a lenti gomb kicsuszik a kepbol. */
+#impDlg{ position:relative }
+.dlgx{ position:absolute; top:10px; right:12px; width:28px; height:28px;
+  border:1px solid transparent; border-radius:6px; background:none;
+  color:var(--faint); font-size:15px; line-height:1; cursor:pointer; padding:0 }
+.dlgx:hover{ color:var(--ink); border-color:var(--line); background:var(--raised) }
 </style>
 </head>
 <body>
@@ -499,6 +510,7 @@ dialog textarea{width:100%;min-height:180px;background:var(--bg);color:var(--ink
 </dialog>
 
 <dialog id="impDlg">
+  <button class="dlgx" id="impX" type="button" title="Bezárás" aria-label="Bezárás">&#10005;</button>
   <h3>Raktár beolvasása</h3>
   <p style="color:var(--dim);font-size:13px;margin:0 0 12px">Három út közül választhatsz: kézi
   beillesztés lentebb, egy gomb a játékban, vagy az egész kalkulátor a játék felületén.
@@ -2759,6 +2771,16 @@ if(document.fonts && document.fonts.ready) document.fonts.ready.then(igazitJel);
 setTimeout(igazitJel, 0);
 
 $("impClose").onclick = () => $("impDlg").close();
+$("impX").onclick = () => $("impDlg").close();
+
+/* Az ablak bezarasa utan a fokuszjelzes a logon maradna: ESC-cel zarva a
+   bongeszo visszaadja neki a fokuszt, es mivel billentyuzetrol tortent, ki is
+   rajzolja a keretet. Ez ertelmes viselkedes, de itt zavaro - a felhasznalo
+   nem "visszatert" a gombra, hanem csak becsukta az ablakot. */
+$("impDlg").addEventListener("close", () => {
+  const g = $("jelGomb");
+  if(g && document.activeElement === g) g.blur();
+});
 $("impCheck").onclick = renderImportPreview;
 $("impPaste").onclick = async () => {
   try{
