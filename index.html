@@ -658,6 +658,7 @@ footer{ display:flex; align-items:center; gap:6px; flex-wrap:wrap }
   <div class="drow">
     <button id="dataApply">Visszatöltés</button>
     <button id="dataDownload">Mentés fájlba</button>
+    <button id="dataLink">Hivatkozás másik eszközre</button>
     <button id="dataClose">Bezárás</button>
     <span class="msg" id="dataMsg"></span>
   </div>
@@ -2785,6 +2786,39 @@ function buildBookmarklet(){
     "if(!w){try{navigator.clipboard.writeText(u)}catch(e){}prompt('A megnyitas le lett tiltva. Masold ki ezt a cimet:',u)}})()";
   $("bmLink").setAttribute("href", code);
 }
+/* HIVATKOZÁS MÁSIK ESZKÖZRE.
+
+   A beolvasó oldal (importFromHash) régóta kész: a cím # utáni részéből
+   képes raktárat és karakteradatot betölteni. A kifelé irányú hiányzott -
+   a weboldal nem tudott ilyen hivatkozást KÉSZÍTENI.
+
+   Erre a telefonos használat miatt van szükség: ott sem a könyvjelző, sem a
+   Tampermonkey nem elérhető, tehát a raktár beolvasása nem megy. Gépen
+   viszont igen - és onnan egyetlen hivatkozással átvihető.
+
+   A tömör alak ugyanaz, amit a parseShort olvas: "id:darab" párok vesszővel
+   elválasztva, a végződő három nulla nélkül. Így a hivatkozás rövid marad.
+
+   FIGYELEM: a cím # utáni része NEM megy el a szervernek - a böngésző nem
+   küldi el. Tehát a raktáradat ettől sem hagyja el a gépet, hacsak te magad
+   nem küldöd el valakinek. */
+function rovidRaktar(){
+  return Object.keys(stock).filter(id => stock[id] > 0).map(id => {
+    const r = /000$/.test(id) ? id.slice(0, -3) : id;
+    return r + ":" + stock[id];
+  }).join(",");
+}
+
+function hivatkozasKeszit(){
+  const reszek = [];
+  const imp = rovidRaktar();
+  if(imp) reszek.push("imp=" + encodeURIComponent(imp));
+  if(char) reszek.push("k=" + encodeURIComponent(
+    char.name + "|" + char.prof + "|" + char.skill));
+  if(!reszek.length) return null;
+  return location.origin + location.pathname + "#" + reszek.join("&");
+}
+
 function importFromHash(){
   const h = location.hash.replace(/^#/, "");
   if(!h) return;
@@ -3078,6 +3112,16 @@ $("openData").onclick = () => {
   $("dataText").value = JSON.stringify({ stock, names:custom, levels }, null, 1);
   $("dataMsg").textContent = "";
   $("dataDlg").showModal();
+};
+$("dataLink").onclick = () => {
+  const u = hivatkozasKeszit();
+  if(!u){ $("dataMsg").textContent = "Nincs mit átvinni: a raktárad üres."; return; }
+  $("dataText").value = u;
+  $("dataText").focus();
+  $("dataText").setSelectionRange(0, u.length);
+  try { navigator.clipboard && navigator.clipboard.writeText(u); } catch(e){ /* marad a kijeloles */ }
+  $("dataMsg").textContent = "Kész - küldd el magadnak, és a másik eszközön nyisd meg. "
+    + "A # utáni rész nem megy el a szervernek.";
 };
 $("dataClose").onclick = () => $("dataDlg").close();
 $("dataApply").onclick = () => {
