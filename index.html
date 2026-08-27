@@ -622,8 +622,16 @@ footer{ display:flex; align-items:center; gap:6px; flex-wrap:wrap }
 </div>
 
 <section id="stockView" hidden>
-  <p class="eyebrow">Teljes raktár <span id="stockMeta"></span></p>
-  <p style="color:var(--dim);font-size:13.5px;margin:0">Minden tétel szerepel itt, ami bármelyik receptben előfordul - alapanyagok és más mesterségek termékei is. Kereséssel bármit felvehetsz, akkor is, ha épp egyik recepthez sem tartozik.</p>
+  <p class="eyebrow">Termékbeszerzők <span id="beszCim"></span></p>
+  <p style="color:var(--dim);font-size:13.5px;margin:0 0 10px">Ha valaki megrendelésre
+  gyűjt neked, itt tarthatod nyilván. A megbízás úgy számít, mintha már megvolna -
+  de külön jelöléssel, mert ez a te feljegyzésed, nem mérés.</p>
+  <label class="lvl" style="margin-bottom:10px"><input type="checkbox" id="beszKapcs" style="width:auto">
+    beszámít a számításba</label>
+  <div id="beszDoboz"></div>
+
+  <p class="eyebrow" style="margin-top:30px">Teljes raktár <span id="stockMeta"></span></p>
+  <p style="color:var(--dim);font-size:13.5px;margin:0 0 4px">Minden tétel szerepel itt, ami bármelyik receptben előfordul - alapanyagok és más mesterségek termékei is. Kereséssel bármit felvehetsz, akkor is, ha épp egyik recepthez sem tartozik.</p>
   <div class="stockbar" style="grid-template-columns:1fr auto auto auto">
     <input class="search" type="search" id="stockSearch" placeholder="Keresés név szerint - így vehetsz fel új tételt…">
     <label><input type="checkbox" id="onlyOwned" checked> csak amiből van</label>
@@ -632,13 +640,6 @@ footer{ display:flex; align-items:center; gap:6px; flex-wrap:wrap }
   </div>
   <div id="stockGroups"></div>
 
-  <p class="eyebrow" style="margin-top:30px">Termékbeszerzők <span id="beszCim"></span></p>
-  <p style="color:var(--dim);font-size:13.5px;margin:0 0 10px">Ha valaki megrendelésre
-  gyűjt neked, itt tarthatod nyilván. A megbízás úgy számít, mintha már megvolna -
-  de külön jelöléssel, mert ez a te feljegyzésed, nem mérés.</p>
-  <label class="lvl" style="margin-bottom:10px"><input type="checkbox" id="beszKapcs" style="width:auto">
-    beszámít a számításba</label>
-  <div id="beszDoboz"></div>
 </section>
 
 <div id="updBar" hidden>
@@ -2085,6 +2086,10 @@ function chain(rootIds){
 
    Tárolás localStorage-ban, géphez kötve. A hivatkozásba EGYELŐRE nem
    kerül bele: előbb a kézi bevitelnek kell bizonyítania. */
+/* A kapcsoló állapota is megmarad. A deklarációnak a beszVarhato ELŐTT kell
+   állnia, mert az használja - let esetén a korábbi hivatkozás hibát adna. */
+let beszAll = localStorage.getItem("mk-besz-all") === "1";
+
 const BESZ_KULCS = "mk-beszerzok";
 let beszerzok = [];
 try {
@@ -2316,7 +2321,6 @@ function renderRecipes(){
    profIds(r.p).includes(0) sosem igaz, tehat kulon agat kap. */
 const MIND_PROF = 0;
 let hatasSzuro = "";   /* ures = nincs szures */
-let beszAll = localStorage.getItem("mk-besz-all") === "1";
 /* A szűrő HÁROM CSOPORTBAN sorolja a típusokat, mert így a hosszúság nem
    zavaró: az Ellátmány elöl van, a Képesség alul. A darabszám megmondja,
    érdemes-e rákattintani, mielőtt megteszed. */
@@ -3514,7 +3518,7 @@ initUpdateCheck();
 refreshUndo();
 $("seg").querySelectorAll("[data-mode]").forEach(x =>
   x.setAttribute("aria-selected", x.dataset.mode === sel.mode));
-renderChips(); renderHatasSzuro(); syncLevel(); renderRecipes(); renderPlan();
+renderChips(); renderHatasSzuro(); renderBesz(); syncLevel(); renderRecipes(); renderPlan();
 importFromHash();
 </script>
 </body>
