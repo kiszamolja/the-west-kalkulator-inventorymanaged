@@ -496,6 +496,22 @@ footer{ display:flex; align-items:center; gap:6px; flex-wrap:wrap }
   #beszDb{ flex:0 0 80px }
   #beszAdd{ flex:1 1 auto }
 }
+
+/* A + a csoport fejlécében, halványan - nem versenyzik a névvel. */
+.bplusz{ border:1px solid var(--line); background:none; color:var(--brass);
+  cursor:pointer; font-size:14px; line-height:1; width:26px; height:26px;
+  border-radius:4px; margin-left:8px; margin-right:auto }
+.bplusz:hover{ border-color:var(--brass);
+  background:color-mix(in srgb, var(--brass) 12%, transparent) }
+.bujsor{ display:flex; gap:7px; flex-wrap:wrap; padding:8px 0 4px }
+.bujsor input{ font:inherit; font-size:12.5px; padding:6px 8px; min-height:38px;
+  border:1px solid var(--brass); border-radius:4px;
+  background:var(--panel); color:var(--ink) }
+.bujTargy{ flex:1 1 160px; min-width:0 }
+.bujDb{ width:64px; text-align:right }
+.bujOk{ font:inherit; font-size:12.5px; padding:0 14px; min-height:38px;
+  cursor:pointer; border:1px solid var(--brass); color:var(--brass);
+  background:transparent; border-radius:4px }
 </style>
 </head>
 <body>
@@ -2948,6 +2964,11 @@ function hivatkozasKeszit(){
      pont vagy a kötőjel ott ütközne. A név úgyis kódolást igényel. */
   if(char) reszek.push("k=" + encodeURIComponent(
     char.name + "|" + char.prof + "|" + char.skill));
+  /* Az AVATÁR is menjen: enélkül a másik eszközön kezdőbetűk állnak a kép
+     helyén, és a felület máshogy néz ki, mint az eredetin. A beolvasó oldal
+     már ma is szűri: csak akkor fogadja el, ha nincs benne futtatható
+     tartalom - ez fontos, mert a kép leírása kívülről jön. */
+  if(avatar) reszek.push("av=" + encodeURIComponent(avatar));
   if(!reszek.length) return null;
   return location.origin + location.pathname + "#" + reszek.join("&");
 }
@@ -2981,13 +3002,22 @@ function renderBesz(){
   const lista = [...csop.entries()].map(([nev, sorok]) => {
     const utolso = sorok.map(t => t.mikor || "").sort().pop() || "";
     return `<div class="bcsop"><div class="bfej"><b>${mesc(nev)}</b>`
+      + `<button class="bplusz" type="button" data-bplusz="${mesc(nev)}"
+           title="Új tétel ehhez a beszerzőhöz" aria-label="Új tétel ehhez a beszerzőhöz">+</button>`
       + (utolso ? `<span class="mono">${mesc(utolso)}</span>` : "")
       + `</div>` + sorok.map(t =>
         `<div class="bsor">${ico(t.id, "sm") || ""}<span>${mesc(dispName(t.id))}</span>`
         + `<b>${Number(t.db)}</b>`
         + `<button class="btorol" data-btorol="${mesc(t.kulcs)}" type="button"
              title="Levétel a listáról" aria-label="Levétel a listáról">&#10005;</button></div>`
-      ).join("") + `</div>`;
+      ).join("")
+      + `<div class="bujsor" data-bujsor="${mesc(nev)}" hidden>
+           <input class="bujTargy" list="beszTetelek" autocomplete="off" spellcheck="false"
+             placeholder="Tárgy" aria-label="Tárgy">
+           <input class="bujDb" inputmode="numeric" value="1" aria-label="Darabszám">
+           <button class="bujOk" type="button">hozzáadás</button>
+         </div>`
+      + `</div>`;
   }).join("");
 
   doboz.innerHTML = `<div class="besuj">
@@ -3019,6 +3049,63 @@ function renderBesz(){
     });
     beszMent(); renderBesz(); renderRecipes(); renderPlan();
   };
+  /* A + a csoport ALATT nyit egy sort, nem a fenti űrlaphoz ugrat.
+
+     Kétszáz sornál a fenti űrlap a képernyőn kívül van: odaugorva elvesztenéd
+     szem elől azt a beszerzőt, akihez épp hozzáadsz. Így viszont a helyén
+     marad minden, és látod, kihez írsz.
+
+     EGYSZERRE EGY sor lehet nyitva - a másik nyitásakor az előző becsukódik.
+     Esc mentés nélkül zár. */
+  const zarMind = () => doboz.querySelectorAll("[data-bujsor]")
+    .forEach(x => { x.hidden = true; });
+
+  doboz.querySelectorAll("[data-bplusz]").forEach(g => {
+    g.onclick = () => {
+      const nev = g.dataset.bplusz;
+      const sor = doboz.querySelector(`[data-bujsor="${CSS.escape(nev)}"]`);
+      const nyitva = sor && !sor.hidden;
+      zarMind();
+      if(sor && !nyitva){
+        sor.hidden = false;
+        sor.querySelector(".bujTargy").value = "";
+        sor.querySelector(".bujDb").value = "1";
+        sor.querySelector(".bujTargy").focus();
+      }
+    };
+  });
+
+  const felvesz = (nev, targyMezo, dbMezo) => {
+    const beirt = ekNelkul(targyMezo.value.trim());
+    const db = Math.floor(Number(dbMezo.value));
+    let id = "";
+    if(beirt){
+      id = tetelek.find(t => ekNelkul(t.nev) === beirt)?.id
+        || tetelek.find(t => ekNelkul(t.nev).startsWith(beirt))?.id || "";
+    }
+    if(!nev || !id || !(db > 0)) return false;
+    beszerzok.push({
+      kulcs: String(Date.now()) + "-" + Math.random().toString(36).slice(2,7),
+      nev: nev, id: String(id), db: db,
+      mikor: new Date().toISOString().slice(0,10)
+    });
+    beszMent(); renderBesz(); renderRecipes(); renderPlan();
+    return true;
+  };
+
+  doboz.querySelectorAll("[data-bujsor]").forEach(sor => {
+    const nev = sor.dataset.bujsor;
+    const targy = sor.querySelector(".bujTargy");
+    const db = sor.querySelector(".bujDb");
+    sor.querySelector(".bujOk").onclick = () => felvesz(nev, targy, db);
+    [targy, db].forEach(m => {
+      m.onkeydown = e => {
+        if(e.key === "Escape"){ e.preventDefault(); zarMind(); }
+        else if(e.key === "Enter"){ e.preventDefault(); felvesz(nev, targy, db); }
+      };
+    });
+  });
+
   doboz.querySelectorAll("[data-btorol]").forEach(b => {
     b.onclick = () => {
       beszerzok = beszerzok.filter(x => String(x.kulcs) !== b.dataset.btorol);
