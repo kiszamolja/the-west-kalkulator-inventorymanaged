@@ -458,6 +458,44 @@ footer{ display:flex; align-items:center; gap:6px; flex-wrap:wrap }
   .alairas{ margin-left:0; padding-left:0; width:100%; text-align:center;
     margin-top:6px }
 }
+
+/* ---------- termékbeszerzők ---------- */
+/* A megbízás száma KÉKEN, csillaggal - hogy első pillantásra elváljon a
+   valódi készlettől, ami mérés, nem feljegyzés. */
+.need .besz{ color:var(--lep3); margin-left:3px }
+.need .csill{ font-size:11px; vertical-align:top }
+.beszlab{ list-style:none; font-size:11.5px; color:var(--dim); margin-top:4px }
+
+.besuj{ display:flex; flex-wrap:wrap; gap:7px; align-items:center;
+  padding:10px 12px; border:1px solid var(--line); border-radius:4px;
+  background:var(--raised) }
+.besuj input{ font:inherit; font-size:12.5px; padding:6px 8px; min-height:38px;
+  border:1px solid var(--line); border-radius:4px;
+  background:var(--panel); color:var(--ink) }
+#beszNev{ flex:0 0 150px; min-width:0 }
+#beszTargy{ flex:1 1 170px; min-width:0 }
+#beszDb{ width:64px; text-align:right }
+#beszAdd{ font:inherit; font-size:12.5px; padding:0 14px; min-height:38px;
+  cursor:pointer; border:1px solid var(--brass); color:var(--brass);
+  background:transparent; border-radius:4px }
+#beszAdd:hover{ background:color-mix(in srgb, var(--brass) 12%, transparent) }
+
+.bcsop{ margin-top:12px }
+.bfej{ display:flex; justify-content:space-between; align-items:baseline;
+  border-bottom:1px solid var(--line); padding-bottom:3px }
+.bsor{ display:grid; grid-template-columns:auto minmax(0,1fr) auto auto;
+  align-items:center; gap:8px; padding:5px 0 }
+.bsor span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.bsor b{ text-align:right; font-variant-numeric:tabular-nums; min-width:48px }
+.btorol{ border:0; background:none; color:var(--faint); cursor:pointer;
+  font-size:12px; padding:4px 6px; border-radius:4px; min-height:32px }
+.btorol:hover{ color:var(--rust); background:color-mix(in srgb, var(--rust) 12%, transparent) }
+
+@media (max-width:700px){
+  #beszNev, #beszTargy{ flex:1 0 100% }
+  #beszDb{ flex:0 0 80px }
+  #beszAdd{ flex:1 1 auto }
+}
 </style>
 </head>
 <body>
@@ -570,6 +608,14 @@ footer{ display:flex; align-items:center; gap:6px; flex-wrap:wrap }
     <button class="icon" id="stockClear" style="width:auto;padding:0 14px" title="Teljes raktár nullázása">Mindent nulláz</button>
   </div>
   <div id="stockGroups"></div>
+
+  <p class="eyebrow" style="margin-top:30px">Termékbeszerzők <span id="beszCim"></span></p>
+  <p style="color:var(--dim);font-size:13.5px;margin:0 0 10px">Ha valaki megrendelésre
+  gyűjt neked, itt tarthatod nyilván. A megbízás úgy számít, mintha már megvolna -
+  de külön jelöléssel, mert ez a te feljegyzésed, nem mérés.</p>
+  <label class="lvl" style="margin-bottom:10px"><input type="checkbox" id="beszKapcs" style="width:auto">
+    beszámít a számításba</label>
+  <div id="beszDoboz"></div>
 </section>
 
 <div id="updBar" hidden>
@@ -2000,8 +2046,51 @@ function chain(rootIds){
 }
 /* targets: [{i, q}] - egyszerre több végtermék is tervezhető */
 /* a célként megjelölt termékek saját készlete alapból nem számít bele */
+/* TERMÉKBESZERZŐK - MEGBÍZÁSOK NYILVÁNTARTÁSA.
+
+   A játékban vannak termékbeszerzők: játékosok, akik megrendelésre gyűjtenek
+   adott tételt, adott mennyiségben. A kalkulátor eddig csak azt tudta, mi
+   hiányzik - azt nem, mi van már úton.
+
+   EZ AZ EGYETLEN ADAT, AMI NEM A JÁTÉKBÓL JÖN. Kézzel beírt nyilvántartás,
+   amit senki nem ellenőriz - ezért kap külön színt és csillagot.
+
+   A panelben ugyanez már megvan. Ott a gyártás gomb miatt szét kellett
+   választani a valódi és a virtuális készletet: a gomb kérést küld, és a
+   szerver a függőben lévő megbízást nem ismeri el. ITT NINCS GYÁRTÁS, tehát
+   ez a megkötés elesik - a virtuális készlet egységesen működik.
+
+   Tárolás localStorage-ban, géphez kötve. A hivatkozásba EGYELŐRE nem
+   kerül bele: előbb a kézi bevitelnek kell bizonyítania. */
+const BESZ_KULCS = "mk-beszerzok";
+let beszerzok = [];
+try {
+  const b = JSON.parse(localStorage.getItem(BESZ_KULCS) || "null");
+  if(Array.isArray(b)) beszerzok = b.filter(x => x && x.id && x.nev && x.db > 0);
+} catch(e){ beszerzok = []; }
+function beszMent(){
+  try { localStorage.setItem(BESZ_KULCS, JSON.stringify(beszerzok)); } catch(e){}
+}
+
+/* Tárgyanként összegzett várható mennyiség. NEM beszerzőnként: ha a Fából
+   Károlynál tíz, Inéznél negyven van kiadva, a sorban +50 áll. */
+function beszVarhato(){
+  const ki = {};
+  if(!beszAll) return ki;
+  beszerzok.forEach(x => { ki[String(x.id)] = (ki[String(x.id)] || 0) + Number(x.db || 0); });
+  return ki;
+}
+
 function planPool(ts){
   const pool = Object.assign({}, stock);
+  /* A MEGBÍZÁS VIRTUÁLIS KÉSZLET: itt adódik hozzá, EGY helyen - így magától
+     beszámít mindenhová, ami ebből dolgozik: a láncba, a gyűrűbe, a
+     hiánylistába, a chipekbe és a másolásba.
+
+     KÖVETKEZMÉNY: ami teljesen fedve van megbízással, eltűnik a
+     hiánylistáról. Ez nem hiba, hanem ugyanennek a döntésnek a másik oldala. */
+  const v = beszVarhato();
+  Object.keys(v).forEach(id => { pool[id] = (Number(pool[id]) || 0) + v[id]; });
   ts.forEach(t => { if(t.x !== false) delete pool[t.i]; });
   return pool;
 }
@@ -2204,6 +2293,7 @@ function renderRecipes(){
    profIds(r.p).includes(0) sosem igaz, tehat kulon agat kap. */
 const MIND_PROF = 0;
 let hatasSzuro = "";   /* ures = nincs szures */
+let beszAll = localStorage.getItem("mk-besz-all") === "1";
 /* A szűrő HÁROM CSOPORTBAN sorolja a típusokat, mert így a hosszúság nem
    zavaró: az Ellátmány elöl van, a Képesség alul. A darabszám megmondja,
    érdemes-e rákattintani, mielőtt megteszed. */
@@ -2520,9 +2610,34 @@ function refreshNumbers(){
     if(!li) return;
     li.classList.toggle("full", b.rest === 0);
     li.style.setProperty("--w", (b.need ? Math.min(100, b.have / b.need * 100) : 100) + "%");
-    li.querySelector(`[data-num="${id}"]`).innerHTML = `${b.have}<em> / ${b.need}</em>`;
+    /* ELŐBB A RAKTÁR, UTÁNA A MEGBÍZÁS.
+
+       A b.have már tartalmazza a megbízást, mert a planPool oda adta hozzá.
+       A kijelzéshez viszont szét kell bontani: a zöld a VALÓDI raktárkészlet,
+       a kék a megbízás. Ha fordítva számolnánk, olyan szám jönne ki, ami se
+       nem készlet, se nem megbízás - csak a képlet mellékterméke. */
+    const varh = beszVarhato()[String(id)] || 0;
+    const valos = Math.min(Number(stock[id]) || 0, b.have);
+    const rendelt = Math.max(0, b.have - valos);
+    li.querySelector(`[data-num="${id}"]`).innerHTML =
+      `${valos}${rendelt ? `<span class="besz">+${rendelt}<span class="csill">*</span></span>` : ""}<em> / ${b.need}</em>`;
     li.querySelector(`[data-sub="${id}"]`).textContent = b.rest ? `még ${b.rest} kell` : "megvan";
   });
+  /* A csillag lábjegyzete csak akkor jelenik meg, ha van egyáltalán csillagos
+     sor - enélkül minden listán ott állna egy magyarázat a semmire. */
+  const volt = needOrder.some(id => {
+    const b = plan.byId[id];
+    return b && b.have > Math.min(Number(stock[id]) || 0, b.have);
+  });
+  const regi = $("needs").querySelector(".beszlab");
+  if(regi) regi.remove();
+  if(volt){
+    const li = document.createElement("li");
+    li.className = "beszlab";
+    li.textContent = "* megbízásból várható, még nincs nálad";
+    $("needs").appendChild(li);
+  }
+
   const top = plan.base.slice().sort((a,b) => b.rest - a.rest)[0];
   $("summary").innerHTML = plan.missing === 0
     ? `Minden nyersanyag megvan. Már csak <b>${plan.crafts} gyártás</b> van hátra.`
@@ -2760,10 +2875,24 @@ function renderImportPreview(){
 }
 
 /* ---- rövid formátum: 711:48,1855:81 ---- */
+/* KÉTFÉLE ELVÁLASZTÓT ÉRTÜNK.
+
+   A régi alak vesszőt és kettőspontot használ: "711:84,741:12". Ezeket a
+   böngésző a címben átkódolja %2C és %3A alakra - három karakter egy helyett,
+   ami egy 138 tételes hivatkozás hosszának a negyedét vitte.
+
+   Az új alak pontot és kötőjelet használ: "711-84.741-12". Ezeket a böngésző
+   NEM kódolja át, tehát a cím rövidebb marad.
+
+   A RÉGIT IS ÉRTENÜNK KELL: a korábban elküldött hivatkozásaid különben
+   üres raktárral nyílnának meg, és a the-west-import.user.js is a régi
+   alakot készíti - ahhoz nem nyúltunk. */
 function parseShort(str){
   const out = {};
-  str.split(",").forEach(pair => {
-    const m = pair.match(/^(\d+):(\d+)$/);
+  const ujAlak = str.indexOf(".") >= 0 || str.indexOf("-") >= 0;
+  const darabok = ujAlak ? str.split(".") : str.split(",");
+  darabok.forEach(pair => {
+    const m = pair.match(ujAlak ? /^(\d+)-(\d+)$/ : /^(\d+):(\d+)$/);
     if(!m) return;
     const id = m[1].length > 4 || Number(m[1]) < 100000 ? m[1] + "000" : m[1];
     if(recipeMap.has(id) || baseIds.includes(id)) out[id] = parseInt(m[2]);
@@ -2803,20 +2932,99 @@ function buildBookmarklet(){
    küldi el. Tehát a raktáradat ettől sem hagyja el a gépet, hacsak te magad
    nem küldöd el valakinek. */
 function rovidRaktar(){
+  /* Pont és kötőjel: ezeket a böngésző nem kódolja át a címben, ellentétben
+     a vesszővel és a kettősponttal - így a hivatkozás harmadával rövidebb. */
   return Object.keys(stock).filter(id => stock[id] > 0).map(id => {
     const r = /000$/.test(id) ? id.slice(0, -3) : id;
-    return r + ":" + stock[id];
-  }).join(",");
+    return r + "-" + stock[id];
+  }).join(".");
 }
 
 function hivatkozasKeszit(){
   const reszek = [];
   const imp = rovidRaktar();
   if(imp) reszek.push("imp=" + encodeURIComponent(imp));
+  /* A karakteradatnál marad a függőleges vonal: a névben bármi lehet, és a
+     pont vagy a kötőjel ott ütközne. A név úgyis kódolást igényel. */
   if(char) reszek.push("k=" + encodeURIComponent(
     char.name + "|" + char.prof + "|" + char.skill));
   if(!reszek.length) return null;
   return location.origin + location.pathname + "#" + reszek.join("&");
+}
+
+/* A megbízások szakasza: fent az űrlap, alatta a folyamatban lévők
+   BESZERZŐNKÉNT csoportosítva, a név mellett a LEGUTÓBBI felvitel dátumával.
+
+   Soronként EGYETLEN gomb, egy ×. Az leveszi a listáról, akár megkaptad,
+   akár lemondta. Két gomb nem kell: ha a teljesített megbízás a listán
+   maradna, a kalkulátor DUPLÁN SZÁMOLNA - a tíz fa bekerül a raktárba, és a
+   megbízás is ott van. */
+function renderBesz(){
+  const doboz = $("beszDoboz");
+  if(!doboz) return;
+  $("beszKapcs").checked = beszAll;
+  $("beszCim").textContent = beszerzok.length
+    ? beszerzok.length + " tétel" : "";
+
+  const nevek = [...new Set(beszerzok.map(x => String(x.nev)))].sort((a,b)=>a.localeCompare(b,"hu"));
+  const tetelek = [...new Set(Object.keys(BASE_NAMES).concat(RECIPES.map(r => String(r.i))))]
+    .map(id => ({ id: id, nev: dispName(id) }))
+    .sort((a,b) => a.nev.localeCompare(b.nev, "hu"));
+
+  const csop = new Map();
+  beszerzok.forEach(x => {
+    const k = String(x.nev);
+    if(!csop.has(k)) csop.set(k, []);
+    csop.get(k).push(x);
+  });
+
+  const lista = [...csop.entries()].map(([nev, sorok]) => {
+    const utolso = sorok.map(t => t.mikor || "").sort().pop() || "";
+    return `<div class="bcsop"><div class="bfej"><b>${mesc(nev)}</b>`
+      + (utolso ? `<span class="mono">${mesc(utolso)}</span>` : "")
+      + `</div>` + sorok.map(t =>
+        `<div class="bsor">${ico(t.id, "sm") || ""}<span>${mesc(dispName(t.id))}</span>`
+        + `<b>${Number(t.db)}</b>`
+        + `<button class="btorol" data-btorol="${mesc(t.kulcs)}" type="button"
+             title="Levétel a listáról" aria-label="Levétel a listáról">&#10005;</button></div>`
+      ).join("") + `</div>`;
+  }).join("");
+
+  doboz.innerHTML = `<div class="besuj">
+      <input id="beszNev" list="beszNevek" autocomplete="off" spellcheck="false"
+        placeholder="Beszerző neve" aria-label="Beszerző neve">
+      <datalist id="beszNevek">${nevek.map(n => `<option value="${mesc(n)}"></option>`).join("")}</datalist>
+      <input id="beszTargy" list="beszTetelek" autocomplete="off" spellcheck="false"
+        placeholder="Tárgy" aria-label="Tárgy">
+      <datalist id="beszTetelek">${tetelek.map(t => `<option value="${mesc(t.nev)}"></option>`).join("")}</datalist>
+      <input id="beszDb" inputmode="numeric" value="1" aria-label="Darabszám">
+      <button id="beszAdd" type="button">hozzáadás</button>
+    </div>`
+    + (lista || `<p class="empty" style="margin-top:10px">Nincs folyamatban lévő megbízás.</p>`);
+
+  $("beszAdd").onclick = () => {
+    const nev = $("beszNev").value.trim();
+    const beirt = ekNelkul($("beszTargy").value.trim());
+    const db = Math.floor(Number($("beszDb").value));
+    let id = "";
+    if(beirt){
+      id = tetelek.find(t => ekNelkul(t.nev) === beirt)?.id
+        || tetelek.find(t => ekNelkul(t.nev).startsWith(beirt))?.id || "";
+    }
+    if(!nev || !id || !(db > 0)) return;
+    beszerzok.push({
+      kulcs: String(Date.now()) + "-" + Math.random().toString(36).slice(2,7),
+      nev: nev, id: String(id), db: db,
+      mikor: new Date().toISOString().slice(0,10)
+    });
+    beszMent(); renderBesz(); renderRecipes(); renderPlan();
+  };
+  doboz.querySelectorAll("[data-btorol]").forEach(b => {
+    b.onclick = () => {
+      beszerzok = beszerzok.filter(x => String(x.kulcs) !== b.dataset.btorol);
+      beszMent(); renderBesz(); renderRecipes(); renderPlan();
+    };
+  });
 }
 
 function importFromHash(){
@@ -2855,7 +3063,7 @@ function importFromHash(){
     if(learned && learned.length) msg.push(`${learned.length} megtanult recept`);
   }
   save();
-  renderChar(); renderChips(); renderHatasSzuro(); syncLevel(); renderRecipes(); renderPlan();
+  renderChar(); renderChips(); renderHatasSzuro(); renderBesz(); syncLevel(); renderRecipes(); renderPlan();
   showView(false);
   if(msg.length) flashSaved("Beolvasva: " + msg.join(" · "));
 }
@@ -3112,6 +3320,11 @@ $("openData").onclick = () => {
   $("dataText").value = JSON.stringify({ stock, names:custom, levels }, null, 1);
   $("dataMsg").textContent = "";
   $("dataDlg").showModal();
+};
+$("beszKapcs").onchange = () => {
+  beszAll = $("beszKapcs").checked;
+  localStorage.setItem("mk-besz-all", beszAll ? "1" : "0");
+  renderBesz(); renderRecipes(); renderPlan();
 };
 $("dataLink").onclick = () => {
   const u = hivatkozasKeszit();
