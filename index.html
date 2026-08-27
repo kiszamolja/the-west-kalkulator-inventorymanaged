@@ -2625,6 +2625,7 @@ function renderNeeds(){
   $("needs").innerHTML = needOrder.map(id => {
     const b = plan.byId[id];
     return `<li class="need" data-need="${id}">
+      <i class="fill"></i>
       <i class="fillb"></i>
       <div class="needmain">${ico(id,"lg")}<div><div class="nm">${b.name}${munkaIkonok(id)}</div><div class="sub" data-sub="${id}"></div>
         <div class="miniset"><button data-dec="${id}">−</button>
@@ -3016,6 +3017,16 @@ function hivatkozasKeszit(){
    akár lemondta. Két gomb nem kell: ha a teljesített megbízás a listán
    maradna, a kalkulátor DUPLÁN SZÁMOLNA - a tíz fa bekerül a raktárba, és a
    megbízás is ott van. */
+/* MI HIÁNYZIK A FELVÉTELHEZ. Üres szövegre a Number("") nullát ad, a
+   betűkre NaN-t - mindkettőt kiszűri a db > 0. A sorrend a mezők
+   sorrendje: név, tárgy, darabszám. */
+function beszBaj(nev, id, db){
+  if(!nev) return "Írd be a beszerző nevét.";
+  if(!id)  return "Válassz tárgyat a listából.";
+  if(!(db > 0)) return "Add meg a darabszámot.";
+  return "";
+}
+
 function renderBesz(){
   const doboz = $("beszDoboz");
   if(!doboz) return;
@@ -3050,7 +3061,7 @@ function renderBesz(){
       + `<div class="bujsor" data-bujsor="${mesc(nev)}" hidden>
            <input class="bujTargy" list="beszTetelek" autocomplete="off" spellcheck="false"
              placeholder="Tárgy" aria-label="Tárgy">
-           <input class="bujDb" inputmode="numeric" value="1" aria-label="Darabszám">
+           <input class="bujDb" inputmode="numeric" value="" placeholder="Darabszám" aria-label="Darabszám">
            <button class="bujOk" type="button">hozzáadás</button>
          </div>`
       + `</div>`;
@@ -3063,7 +3074,7 @@ function renderBesz(){
       <input id="beszTargy" list="beszTetelek" autocomplete="off" spellcheck="false"
         placeholder="Tárgy" aria-label="Tárgy">
       <datalist id="beszTetelek">${tetelek.map(t => `<option value="${mesc(t.nev)}"></option>`).join("")}</datalist>
-      <input id="beszDb" inputmode="numeric" value="1" aria-label="Darabszám">
+      <input id="beszDb" inputmode="numeric" value="" placeholder="Darabszám" aria-label="Darabszám">
       <button id="beszAdd" type="button">hozzáadás</button>
     </div>`
     + (lista || `<p class="empty" style="margin-top:10px">Nincs folyamatban lévő megbízás.</p>`);
@@ -3077,7 +3088,12 @@ function renderBesz(){
       id = tetelek.find(t => ekNelkul(t.nev) === beirt)?.id
         || tetelek.find(t => ekNelkul(t.nev).startsWith(beirt))?.id || "";
     }
-    if(!nev || !id || !(db > 0)) return;
+    /* NÉMA ELUTASÍTÁS HELYETT MONDJUK MEG, MI HIÁNYZIK.
+
+       A darabszám üresen indul, tehát a kihagyása most már gyakori tévedés.
+       Enélkül a gomb megnyomására egyszerűen nem történne semmi. */
+    const baj = beszBaj(nev, id, db);
+    if(baj){ flashSaved(baj); return; }
     beszerzok.push({
       kulcs: String(Date.now()) + "-" + Math.random().toString(36).slice(2,7),
       nev: nev, id: String(id), db: db,
@@ -3105,7 +3121,7 @@ function renderBesz(){
       if(sor && !nyitva){
         sor.hidden = false;
         sor.querySelector(".bujTargy").value = "";
-        sor.querySelector(".bujDb").value = "1";
+        sor.querySelector(".bujDb").value = "";
         sor.querySelector(".bujTargy").focus();
       }
     };
@@ -3119,7 +3135,8 @@ function renderBesz(){
       id = tetelek.find(t => ekNelkul(t.nev) === beirt)?.id
         || tetelek.find(t => ekNelkul(t.nev).startsWith(beirt))?.id || "";
     }
-    if(!nev || !id || !(db > 0)) return false;
+    const baj = beszBaj(nev, id, db);
+    if(baj){ flashSaved(baj); return false; }
     beszerzok.push({
       kulcs: String(Date.now()) + "-" + Math.random().toString(36).slice(2,7),
       nev: nev, id: String(id), db: db,
