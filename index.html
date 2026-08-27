@@ -516,8 +516,14 @@ footer{ display:flex; align-items:center; gap:6px; flex-wrap:wrap }
 /* A megbízásból várható rész a sávban: a zöld készlet UTÁN következik,
    halványkéken. A bal széle ott kezdődik, ahol a zöld véget ér. */
 .need .fillb{ position:absolute; top:0; bottom:0; left:var(--w,0%);
-  width:var(--wb,0%); background:color-mix(in srgb, var(--lep3) 22%, transparent);
-  border-right:1px solid color-mix(in srgb, var(--lep3) 45%, transparent) }
+  width:var(--wb,0%); background:color-mix(in srgb, var(--lep3) 22%, transparent) }
+/* A KERET CSAK OTT, AHOL VAN MEGBÍZÁS.
+
+   Megbízás nélkül a --wb nulla, a doboznak nincs szélessége, de a kerete
+   akkor is kirajzolódik - és mivel a .fillb a .fill UTÁN jön, felülírja a
+   zöld sáv szegélyét. Így kék vonal jelenne meg ott, ahol egy darab
+   megrendelés sincs. */
+.need.beszsav .fillb{ border-right:1px solid color-mix(in srgb, var(--lep3) 45%, transparent) }
 .node .csill{ font-size:10px; vertical-align:top; color:var(--lep3) }
 </style>
 </head>
@@ -2449,7 +2455,14 @@ function renderPlan(){
   $("ringArc").setAttribute("stroke-dashoffset", arc * (1 - plan.pct / 100));
   $("ringPct").textContent = plan.pct + "%";
   renderSteps();
-  needOrder = plan.base.slice().sort((a,b) => b.rest - a.rest || a.name.localeCompare(b.name,"hu")).map(b => b.id);
+  /* AMIBŐL NULLA KELL, AZ NEM TÉTEL.
+
+     A chain() az egész receptfát bejárja, akkor is, ha egy ág teljesen
+     fedve van - a Bőrszíj alatt így a Sarló és a Bőr is idekerülne, nulla
+     szükséglettel. A számolást nem érinti: nullát adnak a százalékhoz, a
+     hiányhoz és a gyártásszámhoz is. */
+  needOrder = plan.base.filter(b => b.need > 0)
+    .sort((a,b) => b.rest - a.rest || a.name.localeCompare(b.name,"hu")).map(b => b.id);
   renderNeeds();
 }
 function buildTree(id, need, path, pool){
@@ -2490,7 +2503,7 @@ function treeHTML(node, root){
   if(node.cycle) meta = `<span class="mt">körkörös recept</span>`;
   else if(node.craft) meta = `<span class="mt">${profLabel(node.p)} · ${node.lvl}</span>` +
     (node.t ? `<span class="lock">${lockLabel(node.t)}</span>` : "") +
-    (covered ? `<span class="mt ok">raktárból fedezve</span>`
+    (covered ? `<span class="mt ok">${honnan(node.have)} · megvan</span>`
              : `<span class="mt">${node.have ? honnan(node.have) + " · " : ""}${node.batches}× gyártás</span>`);
   else meta = node.rest === 0
     ? `<span class="mt ok">${honnan(node.have)} · megvan</span>`
@@ -2620,8 +2633,19 @@ function logCraft(id){
   renderPlan(); renderRecipes(); save();
   flashSaved(`${r.n} legyártva`);
 }
+/* VAN-E MEGBÍZÁS A FEDEZETBEN. A have már tartalmazza a megbízást, tehát
+   ha nagyobb a valódi készletnél, akkor a különbség megbízásból jött.
+
+   AZ EGÉSZ TERVET NÉZZÜK, nem csak a látható sorokat: ha egy gyártott
+   tétel teljesen megbízásból van fedve, a hozzávalói el sem jutnak a
+   listáig - mégis a megbízás tartja fedve a tervet. */
+function beszFedez(){
+  if(!plan || !plan.byId) return false;
+  return Object.values(plan.byId).some(b =>
+    b.have > Math.min(Number(stock[b.id]) || 0, b.have));
+}
 function renderNeeds(){
-  $("needCount").textContent = plan.base.length + " tétel";
+  $("needCount").textContent = needOrder.length + " tétel";
   $("needs").innerHTML = needOrder.map(id => {
     const b = plan.byId[id];
     return `<li class="need" data-need="${id}">
@@ -2632,7 +2656,9 @@ function renderNeeds(){
           <input data-in="${id}" inputmode="numeric" value="${stock[id] || 0}" aria-label="${b.name} készlet">
           <button data-inc="${id}">+</button></div></div></div>
       <div class="num" data-num="${id}"></div></li>`;
-  }).join("") || `<p class="empty">Ehhez a recepthez nem kell gyűjtened semmit.</p>`;
+  }).join("") || `<p class="empty">${beszFedez()
+      ? "Minden hozzávaló megvan vagy megrendelve."
+      : "Ehhez a recepthez nem kell gyűjtened semmit."}</p>`;
   $("needs").querySelectorAll("[data-in]").forEach(inp => {
     inp.oninput = () => setStock(inp.dataset.in, parseInt(inp.value) || 0, false);
   });
@@ -2669,6 +2695,7 @@ function refreshNumbers(){
     const varh = beszVarhato()[String(id)] || 0;
     const valos = Math.min(Number(stock[id]) || 0, b.have);
     const rendelt = Math.max(0, b.have - valos);
+    li.classList.toggle("beszsav", rendelt > 0);
     li.querySelector(`[data-num="${id}"]`).innerHTML =
       `${valos}${rendelt ? `<span class="besz">+${rendelt}<span class="csill">*</span></span>` : ""}<em> / ${b.need}</em>`;
     li.querySelector(`[data-sub="${id}"]`).textContent = b.rest ? `még ${b.rest} kell` : "megvan";
@@ -3306,7 +3333,8 @@ $("copy").onclick = async () => {
   const sorok = plan.base.filter(b => b.rest).map(b => masolSor(b.id, b.rest, b.name));
   const txt = sorok.length
     ? masolFejlec("Még ennyit gyűjts").concat(sorok).join("\n")
-    : "Minden alapanyag megvan.";
+    : beszFedez() ? "Minden hozzávaló megvan vagy megrendelve."
+                  : "Minden alapanyag megvan.";
   try{ await navigator.clipboard.writeText(txt); $("copy").textContent = "Vágólapra másolva"; }
   catch{ $("copy").textContent = "A másolás nem sikerült"; }
   setTimeout(() => $("copy").textContent = "Hiánylista másolása", 1600);
