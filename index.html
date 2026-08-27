@@ -512,6 +512,13 @@ footer{ display:flex; align-items:center; gap:6px; flex-wrap:wrap }
 .bujOk{ font:inherit; font-size:12.5px; padding:0 14px; min-height:38px;
   cursor:pointer; border:1px solid var(--brass); color:var(--brass);
   background:transparent; border-radius:4px }
+
+/* A megbízásból várható rész a sávban: a zöld készlet UTÁN következik,
+   halványkéken. A bal széle ott kezdődik, ahol a zöld véget ér. */
+.need .fillb{ position:absolute; top:0; bottom:0; left:var(--w,0%);
+  width:var(--wb,0%); background:color-mix(in srgb, var(--lep3) 22%, transparent);
+  border-right:1px solid color-mix(in srgb, var(--lep3) 45%, transparent) }
+.node .csill{ font-size:10px; vertical-align:top; color:var(--lep3) }
 </style>
 </head>
 <body>
@@ -2460,14 +2467,30 @@ function treeHTML(node, root){
   const cls = ["node", root ? "root" : node.craft ? "craft" : "base",
                (covered && !root) ? "covered" : "", short ? "short" : ""].filter(Boolean).join(" ");
   let meta = "";
+  /* A FÁBAN IS SZÉTBONTVA. A node.have már tartalmazza a megbízást, tehát a
+     "99 raktárból" azt állítaná, hogy a raktáradban van - pedig egy darab
+     sincs ott. A csillag ugyanaz a jel, amit a Mit gyűjts oszlopban a
+     felhasználó már megtanult.
+
+     ELŐBB A RAKTÁR, UTÁNA A MEGBÍZÁS: a valódi készlet fogy elsőként, a
+     megbízás csak a maradékot fedezi. Fordítva olyan szám jönne ki, ami se
+     nem készlet, se nem megbízás. */
+  const honnan = (have) => {
+    const valos = Math.min(Number(stock[node.id]) || 0, have);
+    const rendelt = Math.max(0, have - valos);
+    if(!rendelt) return have + " raktárból";
+    if(!valos) return rendelt + " megrendelve<span class=\"csill\">*</span>";
+    return valos + " raktárból, " + rendelt + " megrendelve<span class=\"csill\">*</span>";
+  };
+
   if(node.cycle) meta = `<span class="mt">körkörös recept</span>`;
   else if(node.craft) meta = `<span class="mt">${profLabel(node.p)} · ${node.lvl}</span>` +
     (node.t ? `<span class="lock">${lockLabel(node.t)}</span>` : "") +
     (covered ? `<span class="mt ok">raktárból fedezve</span>`
-             : `<span class="mt">${node.have ? node.have + " raktárból · " : ""}${node.batches}× gyártás</span>`);
+             : `<span class="mt">${node.have ? honnan(node.have) + " · " : ""}${node.batches}× gyártás</span>`);
   else meta = node.rest === 0
-    ? `<span class="mt ok">${node.have} raktárból · megvan</span>`
-    : `<span class="mt">${node.have ? node.have + " raktárból · " : ""}még ${node.rest} kell</span>`;
+    ? `<span class="mt ok">${honnan(node.have)} · megvan</span>`
+    : `<span class="mt">${node.have ? honnan(node.have) + " · " : ""}még ${node.rest} kell</span>`;
   const kids = node.kids.length;
   return `<li class="${kids ? "has-kids" : ""}">
     <div class="${cls}">${kids ? `<button class="toggle" aria-label="Ág nyitása és zárása"></button>`
@@ -2598,6 +2621,7 @@ function renderNeeds(){
   $("needs").innerHTML = needOrder.map(id => {
     const b = plan.byId[id];
     return `<li class="need" data-need="${id}">
+      <i class="fillb"></i>
       <div class="needmain">${ico(id,"lg")}<div><div class="nm">${b.name}${munkaIkonok(id)}</div><div class="sub" data-sub="${id}"></div>
         <div class="miniset"><button data-dec="${id}">−</button>
           <input data-in="${id}" inputmode="numeric" value="${stock[id] || 0}" aria-label="${b.name} készlet">
@@ -2625,7 +2649,12 @@ function refreshNumbers(){
     const li = $("needs").querySelector(`[data-need="${id}"]`);
     if(!li) return;
     li.classList.toggle("full", b.rest === 0);
-    li.style.setProperty("--w", (b.need ? Math.min(100, b.have / b.need * 100) : 100) + "%");
+    /* A SÁV KÉT SZAKASZA: a zöld a valódi készlet, a halványkék a megbízás.
+       A kettő együtt sem lépheti túl a sávot. */
+    const bValos = Math.min(Number(stock[id]) || 0, b.have);
+    li.style.setProperty("--w", (b.need ? Math.min(100, bValos / b.need * 100) : 100) + "%");
+    li.style.setProperty("--wb", (b.need
+      ? Math.min(100 - (bValos / b.need * 100), (b.have - bValos) / b.need * 100) : 0) + "%");
     /* ELŐBB A RAKTÁR, UTÁNA A MEGBÍZÁS.
 
        A b.have már tartalmazza a megbízást, mert a planPool oda adta hozzá.
@@ -2763,11 +2792,14 @@ function allItems(){
   ];
 }
 function renderStock(){
-  const q = $("stockSearch").value.trim().toLowerCase();
+  /* ÉKEZET NÉLKÜLI KERESÉS itt is. Ez kimaradt, amikor a receptkeresőbe
+     bevezettük: a raktári mező végig sima toLowerCase-t használt, tehát a
+     "furesz" nem találta meg a Fűrészt. */
+  const q = ekNelkul($("stockSearch").value.trim());
   const owned = $("onlyOwned").checked && !q;
   const groups = new Map();
   allItems().forEach(it => {
-    if(q && !it.name.toLowerCase().includes(q)) return;
+    if(q && !ekNelkul(it.name).includes(q)) return;
     if(owned && !stock[it.id]) return;
     if(!groups.has(it.group)) groups.set(it.group, []);
     groups.get(it.group).push(it);
