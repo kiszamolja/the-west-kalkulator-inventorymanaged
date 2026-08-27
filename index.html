@@ -2536,7 +2536,10 @@ function renderSteps(){
   if(sel.mode === "tree"){ renderTree(); return; }
   ul.className = "steps";
   if(sel.mode === "raw"){
-    const all = plan.base.slice().sort((a,b) => a.name.localeCompare(b.name,"hu"));
+    /* UGYANAZ A SZŰRÉS, MINT A MIT GYŰJTS LISTÁBAN. Enélkül a tételszám
+       és a Mind a N tétel másolása is beleszámolná a nullás sorokat. */
+    const all = plan.base.filter(b => b.need > 0)
+      .sort((a,b) => a.name.localeCompare(b.name,"hu"));
     const totalChips = all.map(b =>
       `<span class="ing ${b.rest ? "" : "ok"}"><b>${b.need}</b> ${b.name}</span>`).join("");
     const left = all.filter(b => b.rest).sort((a,b) => b.rest - a.rest);
@@ -2555,7 +2558,9 @@ function renderSteps(){
             ? `<button class="step-count" data-copyall="left" title="Mind a ${left.length} hiányzó tétel másolása">${left.reduce((a,b) => a + b.rest, 0)} db</button>`
             : `<span class="step-count">kész</span>`}</div>
         <div class="ings">${leftChips ||
-          `<span class="ing ok">Minden nyersanyag megvan a raktárban.</span>`}</div>
+          `<span class="ing ok">${beszFedez()
+            ? "Minden hozzávaló megvan vagy megrendelve."
+            : "Minden nyersanyag megvan a raktárban."}</span>`}</div>
         ${left.length ? `<p class="hintline">Kattints egy tételre a másoláshoz (<span class="mono">${left[0].rest} [item=${left[0].id}]</span>), vagy a jobb felső darabszámra, és mind a ${left.length} tétel egyszerre kerül a vágólapra, soronként egy.</p>` : ""}
       </li>`;
     ul.querySelectorAll("[data-copyall]").forEach(btn => {
