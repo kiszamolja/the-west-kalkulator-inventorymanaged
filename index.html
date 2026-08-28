@@ -2501,13 +2501,11 @@ function renderPlan(){
   $("ringArc").setAttribute("stroke-dashoffset", arc * (1 - plan.pct / 100));
   $("ringPct").textContent = plan.pct + "%";
   renderSteps();
-  /* AMIBŐL NULLA KELL, AZ NEM TÉTEL.
-
-     A chain() az egész receptfát bejárja, akkor is, ha egy ág teljesen
-     fedve van - a Bőrszíj alatt így a Sarló és a Bőr is idekerülne, nulla
-     szükséglettel. A számolást nem érinti: nullát adnak a százalékhoz, a
-     hiányhoz és a gyártásszámhoz is. */
-  needOrder = plan.base.filter(b => b.need > 0)
+  /* CSAK A HIÁNYZÓK. A panel is így viselkedik: ha megvan, nincs mit
+     gyűjteni. A rest > 0 egyben a need = 0 tételeket is kizárja, hiszen
+     azoknál a rest is nulla - a Bőrszíj alatti Sarló és Bőr így sem
+     kerül be. */
+  needOrder = plan.base.filter(b => b.rest > 0)
     .sort((a,b) => b.rest - a.rest || a.name.localeCompare(b.name,"hu")).map(b => b.id);
   renderNeeds();
 }
