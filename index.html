@@ -2243,6 +2243,10 @@ function lancTargyai(id, ut){
 }
 
 function renderRecipes(){
+  /* A legördülő számai a mostani szűréstől függenek, tehát vele együtt
+     frissülnek. Nincs körkörös hívás: a renderHatasSzuro csak az onchange
+     kezelőjéből hívja vissza a renderRecipes-t, futás közben nem. */
+  renderHatasSzuro();
   const q = ekNelkul($("search").value.trim());
   const ready = $("onlyReady").checked;
   const mine = char && $("onlyMine").checked;
@@ -2336,17 +2340,52 @@ let hatasSzuro = "";   /* ures = nincs szures */
 /* A szűrő HÁROM CSOPORTBAN sorolja a típusokat, mert így a hosszúság nem
    zavaró: az Ellátmány elöl van, a Képesség alul. A darabszám megmondja,
    érdemes-e rákattintani, mielőtt megteszed. */
+/* HÁNY RECEPT TARTOZIK EGY-EGY HATÁSHOZ A MOSTANI SZŰRÉS MELLETT.
+
+   A hatasDb a teljes táblát számolja, és az is a dolga - de a legördülőben
+   álló szám arra a kérdésre válaszol, hogy hány találatot kapok, ha erre
+   kattintok. Ezért ugyanazokat a feltételeket futtatjuk le, mint a
+   receptlista: mesterség vagy keresés, plusz a két jelölőnégyzet.
+
+   A hatásszűrőt magát NEM alkalmazzuk itt - az éppen a kérdés tárgya.
+
+   A hozzávaló szerinti találatok (a renderRecipes hozzavalora ága) kimaradnak,
+   mert azokra a hatásszűrő ma sem vonatkozik. */
+function hatasSzamlalo(){
+  const q = ekNelkul($("search").value.trim());
+  const ready = $("onlyReady").checked;
+  const mine = char && $("onlyMine").checked;
+  const szurok = r => (!mine || !unlearned(r))
+    && (!ready || (canCraftNow(r) && !overLevel(r) && !unlearned(r)));
+  const db = new Map();
+  RECIPES
+    .filter(r => q ? ekNev(r.i, r.n).includes(q)
+                   : (sel.prof === MIND_PROF || profIds(r.p).includes(sel.prof)))
+    .filter(szurok)
+    .forEach(r => (hatasTipusai.get(String(r.i)) || new Set())
+      .forEach(t => db.set(t, (db.get(t) || 0) + 1)));
+  return db;
+}
+
 function renderHatasSzuro(){
   const el = $("hatasSzuro");
+  const db = hatasSzamlalo();
+
+  /* Ha a kiválasztott hatásra ebben a mesterségben nincs találat, a
+     választás visszaáll. A hatasSzuro változót is vissza kell állítani,
+     különben a lista üresen maradna leszűrve egy olyan hatásra, ami a
+     legördülőben már nem is szerepel. */
+  if(hatasSzuro && !db.has(hatasSzuro)) hatasSzuro = "";
+
   const csop = (cim, lista) => {
-    const t = lista.filter(x => hatasDb.has(x))
-      .sort((a, b) => hatasDb.get(b) - hatasDb.get(a) || hatasNev(a).localeCompare(hatasNev(b), "hu"));
+    const t = lista.filter(x => db.has(x))
+      .sort((a, b) => db.get(b) - db.get(a) || hatasNev(a).localeCompare(hatasNev(b), "hu"));
     if(!t.length) return "";
     return `<optgroup label="${cim}">` + t.map(x =>
-      `<option value="${x}"${x === hatasSzuro ? " selected" : ""}>${hatasNev(x)} (${hatasDb.get(x)})</option>`
+      `<option value="${x}"${x === hatasSzuro ? " selected" : ""}>${hatasNev(x)} (${db.get(x)})</option>`
     ).join("") + `</optgroup>`;
   };
-  const mind = [...hatasDb.keys()];
+  const mind = [...db.keys()];
   const kepesseg = mind.filter(x => x !== HATAS_KARTYA
     && HATAS_ELLATMANY.indexOf(x) < 0 && HATAS_HARC.indexOf(x) < 0);
 
@@ -2354,8 +2393,8 @@ function renderHatasSzuro(){
     `<option value="">Bármelyik hatás</option>`
     + csop("Ellátmány", HATAS_ELLATMANY)
     + csop("Harc", HATAS_HARC)
-    + (hatasDb.has(HATAS_KARTYA)
-        ? `<optgroup label="Zsákbamacska"><option value="${HATAS_KARTYA}"${HATAS_KARTYA === hatasSzuro ? " selected" : ""}>Gyűjtőkártya (${hatasDb.get(HATAS_KARTYA)})</option></optgroup>`
+    + (db.has(HATAS_KARTYA)
+        ? `<optgroup label="Zsákbamacska"><option value="${HATAS_KARTYA}"${HATAS_KARTYA === hatasSzuro ? " selected" : ""}>Gyűjtőkártya (${db.get(HATAS_KARTYA)})</option></optgroup>`
         : "")
     + csop("Képesség", kepesseg);
 
