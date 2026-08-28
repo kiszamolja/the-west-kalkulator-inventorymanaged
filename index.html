@@ -2182,9 +2182,20 @@ function uresFokuszra(inp, ertek, allit){
   });
   inp.addEventListener("blur", () => {
     if(regi === null) return;
-    if(inp.value.trim() === ""){
+    const nyers = inp.value.trim();
+    if(nyers === ""){
       inp.value = regi;
       allit(parseInt(regi, 10));
+    }else{
+      /* A LEGKISEBB ÉRTELMES DARABSZÁM AZ 1.
+
+         A 0, a negatív szám és a szemét nem jelent semmit, viszont a mező
+         beengedi őket gépelés közben. Kilépéskor tehát nem csak a terv áll
+         helyre, hanem a mező felirata is - különben a mezőben 0 állna,
+         a tervben pedig 1. */
+      const v = Math.max(1, parseInt(nyers, 10) || 1);
+      inp.value = String(v);
+      allit(v);
     }
     inp.placeholder = "";
     regi = null;
@@ -3427,7 +3438,10 @@ $("lvl").oninput = () => {
   renderRecipes(); save();
 };
 const setQty = v => {
-  sel.qty = Math.min(999, Math.max(0, isNaN(v) ? 1 : v));
+  /* A legkisebb darabszám 1. Korábban a vágás alsó határa 0 volt, ezért a
+     mínusz gombbal is le lehetett menni nullára - ott a gyűrű 100%-ot mutat,
+     és nincs mit gyártani. */
+  sel.qty = Math.min(999, Math.max(1, isNaN(v) ? 1 : v));
   if(sel.targets.length === 1) sel.targets[0].q = sel.qty;
   renderPlan(); save();
 };
