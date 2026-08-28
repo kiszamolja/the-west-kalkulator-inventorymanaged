@@ -2340,13 +2340,19 @@ function renderRecipes(){
     && (!ready || (canCraftNow(r) && !overLevel(r) && !unlearned(r)));
   const rend = (a,b) => minLvl(a) - minLvl(b) || a.n.localeCompare(b.n,"hu");
 
-  const nevre = RECIPES
-    .filter(r => q ? ekNev(r.i, r.n).includes(q)
-                   : (sel.prof === MIND_PROF || profIds(r.p).includes(sel.prof)))
-    /* A hatásszűrő a NÉV- és mesterségszűrés UTÁN dolgozik: szűkít, nem
-       helyettesít. Így a keresés és a szűrő együtt is használható. */
-    .filter(r => !hatasSzuro || (hatasTipusai.get(String(r.i)) || new Set()).has(hatasSzuro))
-    .filter(szurok).sort(rend);
+  /* AZ ALAPHALMAZ: MESTERSÉG, HATÁS, JELÖLŐNÉGYZETEK.
+
+     Ez mindig lefut, a keresés pedig ezt szűkíti tovább - nem helyettesíti.
+     Korábban vagy-vagy volt: ha volt keresőszöveg, a mesterségszűrés
+     kimaradt, és Szakács fülön a likor szóra a Sarlatán receptjei is
+     bejöttek. A panel mindig is így csinálta, most a két felület egyezik. */
+  const alap = RECIPES.filter(r =>
+    (sel.prof === MIND_PROF || profIds(r.p).includes(sel.prof))
+    && (!hatasSzuro || (hatasTipusai.get(String(r.i)) || new Set()).has(hatasSzuro))
+    && szurok(r));
+
+  const nevre = (q ? alap.filter(r => ekNev(r.i, r.n).includes(q)) : alap)
+    .slice().sort(rend);
 
   let hozzavalora = [];
   if(q){
@@ -2356,13 +2362,16 @@ function renderRecipes(){
     Object.keys(BASE_NAMES).forEach(id => {
       if(ekNev(id, BASE_NAMES[id]).includes(q)) keresett.add(String(id)); });
     if(keresett.size){
-      hozzavalora = RECIPES.filter(r => {
+      /* A hozzávaló-találatok is az ALAP halmazból jönnek, tehát ezek is a
+         kiválasztott mesterségen belül maradnak. A keresett tételek listája
+         viszont a teljes RECIPES-ből épül: egy Sarlatán-recept lehet egy
+         Szakács-recept hozzávalója. */
+      hozzavalora = alap.filter(r => {
         if(marVan.has(r.i)) return false;
-        if(!szurok(r)) return false;
         const l = lancTargyai(r.i);
         for(const k of keresett) if(l.has(k)) return true;
         return false;
-      }).sort(rend);
+      }).slice().sort(rend);
     }
   }
   const list = nevre.concat(hozzavalora);
@@ -2372,9 +2381,17 @@ function renderRecipes(){
   $("recipeCount").textContent = hozzavalora.length
     ? nevre.length + " + " + hozzavalora.length
     : list.length + " db";
-  if(!list.length && (ready || mine)){
+  /* ÜRES TALÁLAT: MONDJUK MEG, MI ZÁRTA KI.
+
+     A keresés mostantól a mesterségen belül szűkít, tehát üres lista sokkal
+     gyakoribb. Magyarázat nélkül ez hibának látszana - és a felhasználó nem
+     tudná, hogy a mesterségcsipek a ludasok. */
+  if(!list.length && (ready || mine || q)){
     $("recipeCount").textContent = "0 db";
-    $("rlist").innerHTML = `<p class="empty">Nincs a szűrésnek megfelelő recept.</p>`;
+    $("rlist").innerHTML = `<p class="empty">${
+      q && sel.prof !== MIND_PROF && !ready && !mine
+        ? "Ebben a mesterségben nincs ilyen recept. Válts a Mind fülre az összeshez."
+        : "Nincs a szűrésnek megfelelő recept."}</p>`;
     return;
   }
   const sorHTML = r => {
@@ -2445,8 +2462,8 @@ function hatasSzamlalo(){
     && (!ready || (canCraftNow(r) && !overLevel(r) && !unlearned(r)));
   const db = new Map();
   RECIPES
-    .filter(r => q ? ekNev(r.i, r.n).includes(q)
-                   : (sel.prof === MIND_PROF || profIds(r.p).includes(sel.prof)))
+    .filter(r => (sel.prof === MIND_PROF || profIds(r.p).includes(sel.prof))
+      && (!q || ekNev(r.i, r.n).includes(q)))
     .filter(szurok)
     .forEach(r => (hatasTipusai.get(String(r.i)) || new Set())
       .forEach(t => db.set(t, (db.get(t) || 0) + 1)));
