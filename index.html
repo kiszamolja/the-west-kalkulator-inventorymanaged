@@ -2536,10 +2536,13 @@ function renderSteps(){
   if(sel.mode === "tree"){ renderTree(); return; }
   ul.className = "steps";
   if(sel.mode === "raw"){
-    /* UGYANAZ A SZŰRÉS, MINT A MIT GYŰJTS LISTÁBAN. Enélkül a tételszám
-       és a Mind a N tétel másolása is beleszámolná a nullás sorokat. */
-    const all = plan.base.filter(b => b.need > 0)
-      .sort((a,b) => a.name.localeCompare(b.name,"hu"));
+    /* ITT NINCS SZŰRÉS, ÉS EZ SZÁNDÉKOS.
+
+       Ez a doboz a teljes anyagszükségletről szól, nem a gyűjtésről. Ha egy
+       köztes termék megvan a raktárban, a hozzávalóinak a need-je nullára
+       esik - a Mit gyűjts listából ezek joggal kimaradnak, innen viszont
+       nem: a lánc alapanyaga akkor is a lánc alapanyaga. */
+    const all = plan.base.slice().sort((a,b) => a.name.localeCompare(b.name,"hu"));
     const totalChips = all.map(b =>
       `<span class="ing ${b.rest ? "" : "ok"}"><b>${b.need}</b> ${b.name}</span>`).join("");
     const left = all.filter(b => b.rest).sort((a,b) => b.rest - a.rest);
