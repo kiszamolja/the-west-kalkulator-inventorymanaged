@@ -2160,6 +2160,50 @@ function compute(targets, uresRaktar){
            missing: base.reduce((a,b) => a + b.rest, 0), crafts: steps.reduce((a,s) => a + s.batches, 0) };
 }
 const lockLabel = t => !t ? "" : (t >= 86400 ? (t/86400) + " napos zárolás" : (t/3600) + " órás zárolás");
+/* KATTINTÁSRA JELÖLŐDJÖN KI A SZÁM.
+
+   Egérrel a focus ELŐBB jön, mint a kattintás vége: ha csak a focus
+   eseményre jelölnénk, a rákövetkező mouseup a kurzort elhelyezné, és a
+   kijelölés elveszne. Ezért kettős védelem van: nulla idejű halasztás, hogy
+   a kijelölés a kattintás UTÁN fusson le, plusz az első mouseup elnyelése.
+   Tabbal ugyanez a focus ág fut, ott mouseup nincs. */
+function kijelolFokuszra(inp){
+  let mostKapta = false;
+  inp.addEventListener("focus", () => {
+    mostKapta = true;
+    setTimeout(() => { if(document.activeElement === inp) inp.select(); }, 0);
+  });
+  inp.addEventListener("mouseup", e => {
+    if(mostKapta){ e.preventDefault(); mostKapta = false; }
+  });
+  inp.addEventListener("blur", () => { mostKapta = false; });
+}
+
+/* A TÁRGY KIVÁLASZTÁSA UTÁN UGRÁS A DARABSZÁMRA.
+
+   A datalistből választás ugyanolyan input eseményt ad, mint a gépelés, az
+   eseményből tehát nem lehet megkülönböztetni. Két jelre együtt épül:
+
+   1. a mező egy lépésben TÖBB karakterrel nőtt - gépelésnél egyesével nő
+   2. a beírt szöveg PONTOSAN egyezik egy tétel nevével
+
+   Az első jel önmagában kevés lenne (beillesztés), a második is: a "Bőr"
+   pontos név, de a "Bőrszíj" eleje is. Együtt viszont a gépelés nem billenti
+   át, mert az egyszerre csak egy karakterrel halad. */
+function targyUgras(targyMezo, dbMezo, tetelek){
+  let elozo = targyMezo.value.trim();
+  targyMezo.addEventListener("focus", () => { elozo = targyMezo.value.trim(); });
+  targyMezo.addEventListener("input", () => {
+    const most = targyMezo.value.trim();
+    const nott = most.length - elozo.length;
+    elozo = most;
+    if(nott <= 1) return;
+    const beirt = ekNelkul(most);
+    if(!beirt || !tetelek.some(t => ekNelkul(t.nev) === beirt)) return;
+    dbMezo.focus();
+  });
+}
+
 function targets(){
   if(!sel.targets.length && sel.recipe) return [{ i:sel.recipe, q:sel.qty }];
   return sel.targets;
@@ -2478,9 +2522,23 @@ function renderPlan(){
         <button class="wipe" data-tdel="${t.i}" title="Eltávolítás a tervből">×</button></div>`;
     }).join("");
     $("orderMulti").querySelectorAll("[data-tq]").forEach(inp => {
+      kijelolFokuszra(inp);
+      /* ÜRESRE TÖRÖLHETŐ, MINT AZ EGYCÉLOS MEZŐ.
+
+         Gépelés közben csak a refreshNumbers fut, ami nem rajzolja újra a
+         sorokat - így a fókusz és a kurzor a helyén marad. A visszaállítás
+         1-re csak a mezőből kilépve történik. */
       inp.oninput = () => {
         const t = sel.targets.find(x => x.i === inp.dataset.tq);
-        if(t){ t.q = Math.max(1, parseInt(inp.value) || 1); refreshNumbers(); save(); }
+        if(!t) return;
+        const nyers = inp.value.trim();
+        t.q = nyers === "" ? 0 : Math.min(999, Math.max(0, parseInt(nyers, 10) || 0));
+        refreshNumbers(); save();
+      };
+      inp.onblur = () => {
+        const t = sel.targets.find(x => x.i === inp.dataset.tq);
+        if(!t) return;
+        if(inp.value.trim() === "" || t.q < 1){ t.q = 1; renderPlan(); save(); }
       };
     });
     $("orderMulti").querySelectorAll("[data-tinc]").forEach(b2 => holdable(b2, n => {
@@ -3164,6 +3222,12 @@ function renderBesz(){
     </div>`
     + (lista || `<p class="empty" style="margin-top:10px">Nincs folyamatban lévő megbízás.</p>`);
 
+  targyUgras($("beszTargy"), $("beszDb"), tetelek);
+  kijelolFokuszra($("beszDb"));
+  $("beszDb").onkeydown = e => {
+    if(e.key === "Enter"){ e.preventDefault(); $("beszAdd").click(); }
+  };
+
   $("beszAdd").onclick = () => {
     const nev = $("beszNev").value.trim();
     const beirt = ekNelkul($("beszTargy").value.trim());
@@ -3236,6 +3300,8 @@ function renderBesz(){
     const targy = sor.querySelector(".bujTargy");
     const db = sor.querySelector(".bujDb");
     sor.querySelector(".bujOk").onclick = () => felvesz(nev, targy, db);
+    targyUgras(targy, db, tetelek);
+    kijelolFokuszra(db);
     [targy, db].forEach(m => {
       m.onkeydown = e => {
         if(e.key === "Escape"){ e.preventDefault(); zarMind(); }
@@ -3356,6 +3422,7 @@ holdable($("qtyPlus"),  n => setQty(sel.qty + n));
 
    Most az üres mező üres maradhat gépelés közben - a terv ilyenkor nullával
    számol -, és csak a mezőből kilépve áll vissza 1-re, ha tényleg üres. */
+kijelolFokuszra($("qty"));
 $("qty").oninput = () => {
   const nyers = $("qty").value.trim();
   if(nyers === ""){ setQty(0); return; }
