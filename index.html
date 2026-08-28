@@ -1962,7 +1962,7 @@ let stock = {}, names = Object.assign({}, BASE_NAMES), levels = {};
 let char = null, learned = null, avatar = null;   /* a játékból beolvasott karakter és megtanult receptjei */
 let recipeMap = new Map(), baseIds = [];
 let sel = { prof:1, recipe:null, qty:1, mode:"tree", targets:[] };
-let plan = null, needOrder = [];
+let plan = null, bruttoPlan = null, needOrder = [];
 
 DATA_INIT();
 function DATA_INIT(){
@@ -2128,8 +2128,14 @@ function planPool(ts){
   ts.forEach(t => { if(t.x !== false) delete pool[t.i]; });
   return pool;
 }
-function compute(targets){
-  const pool = planPool(targets);
+/* A MÁSODIK PARAMÉTER: ÜRES RAKTÁRRAL SZÁMOLJ.
+
+   A rendes lebontás a raktárral együtt bont: ha egy köztes termék megvan,
+   az ága alatt megáll, és a hozzávalói nulla szükségletet kapnak. Ez a
+   gyűjtéshez helyes, a teljes anyagigényhez viszont nem - ahhoz nulla
+   készletről kell végigszorozni a fát. */
+function compute(targets, uresRaktar){
+  const pool = uresRaktar ? {} : planPool(targets);
   const need = {};
   targets.forEach(t => { need[t.i] = (need[t.i] || 0) + t.q; });
   const base = [], steps = [], byId = {};
@@ -2399,6 +2405,7 @@ function renderPlan(){
   const ts = targets();
   if(!ts.length) return;
   plan = compute(ts);
+  bruttoPlan = compute(ts, true);
   const multi = ts.length > 1;
   $("orderSingle").hidden = multi;
   $("orderMulti").hidden = !multi;
@@ -2536,16 +2543,21 @@ function renderSteps(){
   if(sel.mode === "tree"){ renderTree(); return; }
   ul.className = "steps";
   if(sel.mode === "raw"){
-    /* ITT NINCS SZŰRÉS, ÉS EZ SZÁNDÉKOS.
+    /* A FELSŐ DOBOZ A BRUTTÓ LEBONTÁSBÓL DOLGOZIK.
 
-       Ez a doboz a teljes anyagszükségletről szól, nem a gyűjtésről. Ha egy
-       köztes termék megvan a raktárban, a hozzávalóinak a need-je nullára
-       esik - a Mit gyűjts listából ezek joggal kimaradnak, innen viszont
-       nem: a lánc alapanyaga akkor is a lánc alapanyaga. */
-    const all = plan.base.slice().sort((a,b) => a.name.localeCompare(b.name,"hu"));
-    const totalChips = all.map(b =>
-      `<span class="ing ${b.rest ? "" : "ok"}"><b>${b.need}</b> ${b.name}</span>`).join("");
-    const left = all.filter(b => b.rest).sort((a,b) => b.rest - a.rest);
+       Az Összesen kell a gyártáshoz azt mutatja, mennyi alapanyag kellene
+       nulla készletről, a köztes termékek anyagigényével együtt. A szín
+       viszont a VALÓDI tervből jön: zöld, ha abból a tételből ma nem
+       hiányzik semmi.
+
+       A Még ennyit gyűjts alatta változatlanul a készlettel számolt
+       tervből dolgozik. */
+    const all = bruttoPlan.base.slice().sort((a,b) => a.name.localeCompare(b.name,"hu"));
+    const totalChips = all.map(b => {
+      const v = plan.byId[b.id];
+      return `<span class="ing ${v && v.rest ? "" : "ok"}"><b>${b.need}</b> ${b.name}</span>`;
+    }).join("");
+    const left = plan.base.filter(b => b.rest).sort((a,b) => b.rest - a.rest);
     const leftChips = left.map(b =>
       `<button class="ing miss" data-copy="${b.id}" data-q="${b.rest}" data-nev="${b.name}"
         title="Kattints a másoláshoz: ${masolSor(b.id, b.rest, b.name)}"><b>${b.rest}</b> ${b.name}${munkaIkonok(b.id)}</button>`).join("");
@@ -2680,6 +2692,7 @@ function renderNeeds(){
 }
 function refreshNumbers(){
   plan = compute(targets());
+  bruttoPlan = compute(targets(), true);
   const arc = 2 * Math.PI * 38;
   $("ringArc").setAttribute("stroke-dashoffset", arc * (1 - plan.pct / 100));
   $("ringPct").textContent = plan.pct + "%";
