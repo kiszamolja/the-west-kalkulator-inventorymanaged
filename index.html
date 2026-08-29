@@ -3058,6 +3058,28 @@ function parseInventory(text){
   const add = (id, q) => { if(id && q > 0) found[id] = (found[id] || 0) + q; };
   const known = id => recipeMap.has(id) || baseIds.includes(id);
 
+  /* EGY TELJES HIVATKOZÁS BEILLESZTVE.
+
+     A Hivatkozás másik eszközre gombbal kapott cím könnyen ide kerül, mert
+     kézenfekvő ide beilleszteni. Ez az ablak viszont csak a RAKTÁRAT tudja
+     beolvasni: a karakter, az avatár és a megtanult receptek a cím # részén
+     utaznak, és azokat csak az importFromHash olvassa - vagyis a címet a
+     böngésző címsorába kell tenni.
+
+     A raktárat legalább kiszedjük, és megmondjuk, mi az, ami így kimarad. */
+  const cim = text.trim().match(/[#&?]imp=([^&\s]+)/);
+  if(cim){
+    let sh = {};
+    try{ sh = parseShort(decodeURIComponent(cim[1])); }catch(e){ sh = parseShort(cim[1]); }
+    if(Object.keys(sh).length){
+      Object.entries(sh).forEach(([id,q]) => add(id,q));
+      return { found, unknown, uzenet:
+        "Ez egy hivatkozás. A raktárat kiolvastam belőle, de a karakter, "
+        + "az avatár és a megtanult receptek csak akkor jönnek át, ha a "
+        + "címet a böngésző címsorába illeszted be." };
+    }
+  }
+
   /* --- tw-calc raktároldal forrása: item_id + count --- */
   if(/item_id="\d+"/.test(text) || /href="\/item\/\d+"/.test(text)){
     const re = /(?:item_id="(\d+)"|href="\/item\/(\d+)")([\s\S]{0,400}?)<\/a>/g;
@@ -3109,18 +3131,24 @@ function parseInventory(text){
   return { found, unknown };
 }
 function renderImportPreview(){
-  const { found, unknown } = parseInventory($("impText").value);
+  const { found, unknown, uzenet } = parseInventory($("impText").value);
   const ids = Object.keys(found);
   window.__imp = found;
   $("impApply").disabled = ids.length === 0;
   if(!ids.length){
-    $("impPreview").innerHTML = `<p class="hintline">Egyetlen tételt sem sikerült felismerni. Ellenőrizd, hogy a nevek vagy az azonosítók szerepelnek-e a szövegben.</p>`;
+    /* Ha egy webcímet illesztettek be, de raktár nincs benne, a fenti
+       általános mondat félrevezetne - itt a cím a baj, nem a nevek. */
+    const cimnek_tunik = /^https?:\/\//i.test($("impText").value.trim());
+    $("impPreview").innerHTML = `<p class="hintline">${cimnek_tunik
+      ? "Ez egy webcím. Ide szöveges raktárlista való - a hivatkozást a böngésző címsorába illeszd be, és nyisd meg."
+      : "Egyetlen tételt sem sikerült felismerni. Ellenőrizd, hogy a nevek vagy az azonosítók szerepelnek-e a szövegben."}</p>`;
     return;
   }
   const chips = ids.slice(0, 60).map(id =>
     `<span class="ing ok"><b>${found[id]}</b> ${nameOf(id)}</span>`).join("");
   $("impPreview").innerHTML =
-    `<p class="hintline">Felismerve: <b>${ids.length} tétel</b>${unknown.length
+    (uzenet ? `<p class="hintline"><b>${uzenet}</b></p>` : "")
+    + `<p class="hintline">Felismerve: <b>${ids.length} tétel</b>${unknown.length
       ? ` · ${unknown.length} sort kihagy` : ""}.</p>
      <div class="ings" style="max-height:180px;overflow:auto">${chips}${
        ids.length > 60 ? `<span class="ing">…és még ${ids.length - 60}</span>` : ""}</div>`;
@@ -3390,7 +3418,12 @@ function importFromHash(){
   const parts = {};
   h.split("&").forEach(seg => {
     const i = seg.indexOf("=");
-    if(i > 0) parts[seg.slice(0, i)] = decodeURIComponent(seg.slice(i + 1));
+    if(i <= 0) return;
+    /* A decodeURIComponent KIVÉTELT DOB csonka % jelre. Ha ez kezeletlenül
+       marad, egyetlen sérült szegmens az egész beolvasást megállítja - a
+       raktárral együtt. Szegmensenként kapjuk el, hogy a többi átjöjjön. */
+    try{ parts[seg.slice(0, i)] = decodeURIComponent(seg.slice(i + 1)); }
+    catch(e){ /* sérült szegmens: kihagyjuk */ }
   });
   if(!parts.imp && !parts.k) return;
   history.replaceState(null, "", location.pathname);
