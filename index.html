@@ -72,6 +72,34 @@ button,input{font-family:inherit;color:inherit;font-size:inherit}
   font-size:12.5px;color:var(--dim);cursor:pointer}
 .chip[aria-pressed=true]{border-color:var(--brass);color:var(--brass);background:color-mix(in srgb, var(--brass) 12%, transparent)}
 .lvl{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--dim);margin-bottom:12px}
+
+/* MENTETT TERVEK. A gombok a Munkalap felirat jobb szelen allnak - az
+   .eyebrow mar ma is justify-content:space-between, es a logo az oldal
+   KOZEPERE van igazitva (left:50%), tehat a jobb szel szabad. */
+.tervgombok{display:inline-flex;gap:6px;flex:0 0 auto}
+.tervgombok button{font-family:"Space Mono",monospace;font-size:10px;letter-spacing:.08em;
+  text-transform:uppercase;padding:4px 9px;min-height:26px;cursor:pointer;
+  background:none;border:1px solid var(--line);border-radius:5px;color:var(--dim)}
+.tervgombok button:hover:not(:disabled){border-color:var(--brass);color:var(--brass)}
+.tervgombok button:disabled{opacity:.4;cursor:default}
+.tervgombok #tervMent{color:var(--brass);border-color:var(--brass)}
+
+.tervlista{background:var(--panel);border:1px solid var(--line);border-radius:6px;
+  padding:8px;margin-top:10px;display:flex;flex-direction:column;gap:6px}
+.tervsor{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:center;
+  background:var(--raised);border-radius:5px}
+.tervsor .tervvalt{min-width:0;text-align:left;background:none;border:0;cursor:pointer;
+  padding:7px 10px;color:var(--ink)}
+.tervsor .tervvalt b{display:block;font-size:13.5px;font-weight:600;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tervsor .tervvalt small{display:block;font-family:"Space Mono",monospace;
+  font-size:10px;color:var(--faint);margin-top:1px}
+.tervsor .tervx{background:none;border:0;color:var(--faint);cursor:pointer;
+  font-size:15px;padding:0 12px;align-self:stretch}
+.tervsor .tervx:hover{color:var(--rust)}
+.tervsor .tervbiztos{background:var(--rust);border:0;border-radius:4px;color:#fff;
+  cursor:pointer;font-size:11px;padding:6px 10px;margin:5px}
+.tervlista .ures{color:var(--dim);font-size:13px;margin:4px 6px}
 .lvl input{width:70px;background:var(--bg);border:1px solid var(--line);border-radius:5px;
   padding:5px 7px;font-family:"Space Mono",monospace;text-align:center;font-size:13.5px}
 .rlist{list-style:none;margin:0;padding:0;max-height:calc(100vh - 300px);overflow:auto}
@@ -583,7 +611,11 @@ footer{ display:flex; align-items:center; gap:6px; flex-wrap:wrap }
   </aside>
 
   <main class="col">
-    <p class="eyebrow">Munkalap</p>
+    <p class="eyebrow">Munkalap
+      <span class="tervgombok" id="tervGombok" hidden>
+        <button id="tervMent" type="button">Terv mentése</button>
+        <button id="tervNyit" type="button">Tervek (0)</button>
+      </span></p>
     <div class="order">
       <div style="min-width:0">
         <div id="orderSingle">
@@ -611,6 +643,13 @@ footer{ display:flex; align-items:center; gap:6px; flex-wrap:wrap }
       </div>
     </div>
 
+    <!-- A LISTA AZ ORDER DOBOZ ALATT NYILIK, NEM FOLOTTE.
+
+         Az igazitJel() a logo magassagat a .order doboz tetejehez szamolja.
+         Ha a lista a doboz FOLE kerulne, a megnyitasa lejjebb tolna a dobozt,
+         es a logo merete elavulna a kovetkezo atmeretezesig. -->
+    <div class="tervlista" id="tervLista" hidden></div>
+
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <div class="seg" role="tablist" id="seg">
       <button role="tab" data-mode="tree" aria-selected="true">Robbantott ábra</button>
@@ -631,6 +670,13 @@ footer{ display:flex; align-items:center; gap:6px; flex-wrap:wrap }
 </div>
 
 <section id="stockView" hidden>
+  <p class="eyebrow">Mentett tervek</p>
+  <p style="color:var(--dim);font-size:13.5px;margin:0 0 10px">Az összeállított terv
+  elmenthető, és bármikor visszahozható. A terv a célokat és a darabszámokat őrzi, a
+  raktárt nem - visszatéréskor a mostani készlettel számol.</p>
+  <label class="lvl" style="margin-bottom:26px"><input type="checkbox" id="tervKapcs" style="width:auto">
+    mentett tervek használata</label>
+
   <p class="eyebrow">Termékbeszerzők <span id="beszCim"></span></p>
   <p style="color:var(--dim);font-size:13.5px;margin:0 0 10px">Ha valaki megrendelésre
   gyűjt neked, itt tarthatod nyilván. A megbízás úgy számít, mintha már megvolna -
@@ -2097,6 +2143,37 @@ function chain(rootIds){
    kerül bele: előbb a kézi bevitelnek kell bizonyítania. */
 /* A kapcsoló állapota is megmarad. A deklarációnak a beszVarhato ELŐTT kell
    állnia, mert az használja - let esetén a korábbi hivatkozás hibát adna. */
+/* MENTETT TERVEK.
+
+   A terv a célokat és a darabszámokat őrzi, a RAKTÁRT NEM: ha két hét múlva
+   visszatérsz hozzá, a mostani készlettel akarod látni.
+
+   A név magától adódik a tartalomból, tehát nincs elnevezési lépés. Azonos
+   nevű terv FELÜLÍRJA a korábbit, és ezt ki is mondjuk: egy csendben eltűnő
+   mentés rosszabb, mint egy duplikátum.
+
+   Tízet tartunk, a legrégebbi esik ki. Tárolás géphez kötve. */
+const TERV_KULCS = "mk-tervek";
+const TERV_MAX = 10;
+let tervBe = localStorage.getItem("mk-terv-be") === "1";
+let mentettTervek = [];
+try {
+  const t = JSON.parse(localStorage.getItem(TERV_KULCS) || "null");
+  if(Array.isArray(t)) mentettTervek = t.filter(x => x && Array.isArray(x.c) && x.c.length);
+}catch(e){ mentettTervek = []; }
+function tervMent(){
+  try { localStorage.setItem(TERV_KULCS, JSON.stringify(mentettTervek)); }catch(e){ /* nem baj */ }
+}
+/* A név: minden cél darabszámmal, vesszővel. Hosszú tervnél csak az első
+   tétel áll ott, utána a maradék száma - a teljeset a buborék mondja meg. */
+function tervNev(celok){
+  return celok.map(t => t.q + " " + dispName(t.i)).join(", ");
+}
+function tervRovid(celok){
+  if(celok.length <= 1) return tervNev(celok);
+  return celok[0].q + " " + dispName(celok[0].i) + " +" + (celok.length - 1);
+}
+
 let beszAll = localStorage.getItem("mk-besz-all") === "1";
 
 const BESZ_KULCS = "mk-beszerzok";
@@ -2546,6 +2623,8 @@ function syncLevel(){
 function renderPlan(){
   const ts = targets();
   if(!ts.length) return;
+  /* A Mentés gomb tiltása a mostani terven múlik, tehát vele együtt frissül. */
+  renderTervek();
   plan = compute(ts);
   bruttoPlan = compute(ts, true);
   const multi = ts.length > 1;
@@ -3719,6 +3798,86 @@ $("openData").onclick = () => {
   $("dataMsg").textContent = "";
   $("dataDlg").showModal();
 };
+/* A mentett tervek listája. A törlés KÉT LÉPÉSBEN megy: az X helyén megjelenik
+   a megerősítés, és csak a második koppintás töröl. A sorok kicsik és egymás
+   alatt vannak - telefonon könnyű mellényúlni, és a terv nem hozható vissza. */
+let tervTorlesre = null;
+function renderTervek(){
+  const gombok = $("tervGombok"), lista = $("tervLista"), nyit = $("tervNyit");
+  if(!gombok || !lista || !nyit) return;
+  $("tervKapcs").checked = tervBe;
+  gombok.hidden = !tervBe;
+  /* A kikapcsolás csak a felületet rejti el, ADATOT NEM TÖRÖL. */
+  if(!tervBe){ lista.hidden = true; return; }
+
+  nyit.textContent = "Tervek (" + mentettTervek.length + ")";
+  $("tervMent").disabled = !targets().length;
+
+  lista.innerHTML = mentettTervek.length
+    ? mentettTervek.map((t, i) => `
+        <div class="tervsor">
+          <button class="tervvalt" data-tervnyitas="${i}" title="${mesc(tervNev(t.c))}">
+            <b>${mesc(tervRovid(t.c))}</b><small>${mesc(t.d || "")}</small></button>
+          ${tervTorlesre === i
+            ? `<button class="tervbiztos" data-tervtorol="${i}">Biztosan törlöd?</button>`
+            : `<button class="tervx" data-tervkerdes="${i}" title="Törlés" aria-label="Törlés">&#10005;</button>`}
+        </div>`).join("")
+    : `<p class="ures">Még nincs mentett terved.</p>`;
+}
+
+$("tervKapcs").onchange = () => {
+  tervBe = $("tervKapcs").checked;
+  localStorage.setItem("mk-terv-be", tervBe ? "1" : "0");
+  tervTorlesre = null;
+  renderTervek();
+};
+
+$("tervMent").onclick = () => {
+  const cel = targets();
+  if(!cel.length) return;
+  const c = cel.map(t => ({ i:t.i, q:t.q, x:t.x !== false }));
+  const nev = tervNev(c);
+  const volt = mentettTervek.findIndex(t => tervNev(t.c) === nev);
+  if(volt >= 0) mentettTervek.splice(volt, 1);
+  mentettTervek.unshift({ c:c, d:new Date().toISOString().slice(0, 10) });
+  if(mentettTervek.length > TERV_MAX) mentettTervek.length = TERV_MAX;
+  tervMent();
+  tervTorlesre = null;
+  renderTervek();
+  /* A felülírásról KÜLÖN szólunk: egy csendben eltűnő mentés rosszabb, mint
+     egy duplikátum. A visszajelzés a gomb feliratában, ahogy a másolásnál. */
+  const b = $("tervMent"), eredeti = "Terv mentése";
+  b.textContent = volt >= 0 ? "Felülírva." : "Mentve.";
+  setTimeout(() => { b.textContent = eredeti; }, 2200);
+};
+
+$("tervNyit").onclick = () => {
+  tervTorlesre = null;
+  renderTervek();
+  $("tervLista").hidden = !$("tervLista").hidden;
+};
+
+$("tervLista").onclick = e => {
+  const ny = e.target.closest("[data-tervnyitas]");
+  if(ny){
+    /* A mostani terv RÁKÉRDEZÉS NÉLKÜL elvész: gyakran csak gyorsan
+       megnéznél valamit, és egy kérdés minden alkalommal útban lenne. */
+    const t = mentettTervek[Number(ny.dataset.tervnyitas)];
+    if(!t) return;
+    setTargets(t.c.map(x => ({ i:x.i, q:x.q, x:x.x !== false })));
+    $("tervLista").hidden = true;
+    renderRecipes(); renderPlan(); save();
+    return;
+  }
+  const kerd = e.target.closest("[data-tervkerdes]");
+  if(kerd){ tervTorlesre = Number(kerd.dataset.tervkerdes); renderTervek(); return; }
+  const tor = e.target.closest("[data-tervtorol]");
+  if(tor){
+    mentettTervek.splice(Number(tor.dataset.tervtorol), 1);
+    tervMent(); tervTorlesre = null; renderTervek();
+  }
+};
+
 $("beszKapcs").onchange = () => {
   beszAll = $("beszKapcs").checked;
   localStorage.setItem("mk-besz-all", beszAll ? "1" : "0");
@@ -3793,7 +3952,7 @@ initUpdateCheck();
 refreshUndo();
 $("seg").querySelectorAll("[data-mode]").forEach(x =>
   x.setAttribute("aria-selected", x.dataset.mode === sel.mode));
-renderChips(); renderHatasSzuro(); renderBesz(); syncLevel(); renderRecipes(); renderPlan();
+renderChips(); renderHatasSzuro(); renderBesz(); renderTervek(); syncLevel(); renderRecipes(); renderPlan();
 importFromHash();
 </script>
 </body>
