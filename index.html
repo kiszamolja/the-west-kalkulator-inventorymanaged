@@ -3205,6 +3205,16 @@ function hivatkozasKeszit(){
      már ma is szűri: csak akkor fogadja el, ha nincs benne futtatható
      tartalom - ez fontos, mert a kép leírása kívülről jön. */
   if(avatar) reszek.push("av=" + encodeURIComponent(avatar));
+  /* A MEGTANULT RECEPTEK LISTÁJA. Enélkül a másik eszközön a learned null
+     marad, az unlearned() első feltétele megbukik, és egyetlen recept sem
+     lesz szürke - a meg nem tanult receptjeid is úgy néznének ki, mintha
+     csak hozzávalót kellene gyűjteni hozzájuk.
+
+     Mind a 222 recept azonosítója 000-ra végződik, tehát a levágás
+     biztonságos. Az elválasztó pont, nem vessző: azt a böngésző %2C alakra
+     kódolná. A beolvasó mindkettőt érti. */
+  if(learned && learned.length)
+    reszek.push("t=" + learned.map(id => id.slice(0, -3)).join("."));
   if(!reszek.length) return null;
   return location.origin + location.pathname + "#" + reszek.join("&");
 }
@@ -3406,7 +3416,11 @@ function importFromHash(){
     avatar = /<script|on\w+\s*=|javascript:/i.test(parts.av) ? null : parts.av;
   }
   if(parts.t !== undefined){
-    learned = parts.t ? parts.t.split(",").map(x => x + "000").filter(x => recipeMap.has(x)) : null;
+    /* MINDKÉT ELVÁLASZTÓ. A the-west-import.user.js vesszőt küld, a mi saját
+       hivatkozásunk pontot - a vesszőt ugyanis a böngésző %2C alakra kódolja,
+       három karakter egy helyett. A korábban elküldött hivatkozásoknak
+       továbbra is működniük kell. */
+    learned = parts.t ? parts.t.split(/[.,]/).map(x => x + "000").filter(x => recipeMap.has(x)) : null;
     if(learned && learned.length) msg.push(`${learned.length} megtanult recept`);
   }
   save();
