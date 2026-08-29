@@ -780,6 +780,8 @@ footer{ display:flex; align-items:center; gap:6px; flex-wrap:wrap }
   <h3>Adatok mentése és visszatöltése</h3>
   <p>Ez a szöveg tartalmazza a raktárkészletedet és a saját névmódosításaidat. Mentsd le biztonsági másolatnak, vagy illeszd be egy másik gépen, és nyomd meg a Visszatöltést.</p>
   <textarea id="dataText" spellcheck="false"></textarea>
+  <label class="lvl" style="margin:2px 0 10px"><input type="checkbox" id="avLink" style="width:auto">
+    az avatár is menjen a hivatkozásba</label>
   <div class="drow">
     <button id="dataApply">Visszatöltés</button>
     <button id="dataDownload">Mentés fájlba</button>
@@ -2174,6 +2176,7 @@ function tervRovid(celok){
   return celok[0].q + " " + dispName(celok[0].i) + " +" + (celok.length - 1);
 }
 
+let avLink = localStorage.getItem("mk-av-link") === "1";
 let beszAll = localStorage.getItem("mk-besz-all") === "1";
 
 const BESZ_KULCS = "mk-beszerzok";
@@ -3311,7 +3314,15 @@ function hivatkozasKeszit(){
      helyén, és a felület máshogy néz ki, mint az eredetin. A beolvasó oldal
      már ma is szűri: csak akkor fogadja el, ha nincs benne futtatható
      tartalom - ez fontos, mert a kép leírása kívülről jön. */
-  if(avatar) reszek.push("av=" + encodeURIComponent(avatar));
+  /* AZ AVATÁR ALAPBÓL KIMARAD.
+
+     Mérve a fejlesztő adatain: a teljes hivatkozás 9 709 karakter volt,
+     ebből 8 439 az avatár - a hasznos adat nyolcszorosa. A raktár, a
+     karakter és a megtanult receptek együtt 1 268 karakter.
+
+     Az avatár nem adat, hanem dísz, ezért kapcsolóra jár. A beolvasó
+     oldalon nincs teendő: az av= hiánya ma is kezelt eset. */
+  if(avatar && avLink) reszek.push("av=" + encodeURIComponent(avatar));
   /* A MEGTANULT RECEPTEK LISTÁJA. Enélkül a másik eszközön a learned null
      marad, az unlearned() első feltétele megbukik, és egyetlen recept sem
      lesz szürke - a meg nem tanult receptjeid is úgy néznének ki, mintha
@@ -3796,6 +3807,7 @@ $("openData").onclick = () => {
   Object.keys(names).forEach(k => { if(names[k] !== BASE_NAMES[k]) custom[k] = names[k]; });
   $("dataText").value = JSON.stringify({ stock, names:custom, levels }, null, 1);
   $("dataMsg").textContent = "";
+  $("avLink").checked = avLink;
   $("dataDlg").showModal();
 };
 /* A mentett tervek listája. A törlés KÉT LÉPÉSBEN megy: az X helyén megjelenik
@@ -3883,15 +3895,33 @@ $("beszKapcs").onchange = () => {
   localStorage.setItem("mk-besz-all", beszAll ? "1" : "0");
   renderBesz(); renderRecipes(); renderPlan();
 };
+$("avLink").onchange = () => {
+  avLink = $("avLink").checked;
+  localStorage.setItem("mk-av-link", avLink ? "1" : "0");
+};
 $("dataLink").onclick = () => {
   const u = hivatkozasKeszit();
   if(!u){ $("dataMsg").textContent = "Nincs mit átvinni: a raktárad üres."; return; }
   $("dataText").value = u;
   $("dataText").focus();
   $("dataText").setSelectionRange(0, u.length);
-  try { navigator.clipboard && navigator.clipboard.writeText(u); } catch(e){ /* marad a kijeloles */ }
-  $("dataMsg").textContent = "Kész - küldd el magadnak, és a másik eszközön nyisd meg. "
-    + "A # utáni rész nem megy el a szervernek.";
+
+  /* A MÁSOLÁS SIKERÉT NEM FELTÉTELEZZÜK.
+
+     Korábban a writeText hibáját egy try/catch nyelte el, és az üzenet
+     mindkét esetben azt mondta, hogy kész - olyan állítás, aminek nincs
+     valóságtartalma. A writeText ígéretet ad vissza, tehát meg lehet várni. */
+  const kesz = "Küldd el magadnak, és a másik eszközön nyisd meg. "
+    + "A # utáni rész nem megy el a szervernek. Hossz: " + u.length + " karakter.";
+  const kezi = () => { $("dataMsg").textContent =
+    "A böngésző nem engedte a vágólapot - a cím ki van jelölve, másold ki. " + kesz; };
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText)
+      navigator.clipboard.writeText(u)
+        .then(() => { $("dataMsg").textContent = "Vágólapra másolva. " + kesz; })
+        .catch(kezi);
+    else kezi();
+  }catch(e){ kezi(); }
 };
 $("dataClose").onclick = () => $("dataDlg").close();
 $("dataApply").onclick = () => {
