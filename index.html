@@ -583,8 +583,21 @@ footer{ display:flex; align-items:center; gap:6px; flex-wrap:wrap }
   margin-top:5px; padding-top:5px; border-top:1px solid var(--line);
   color:var(--dim); font-size:12px;
 }
-/* Az ikon jelzi, hogy van mit megnézni rajta. */
-.ico.hatasos{ cursor:help }
+/* Az ikon jelzi, hogy van mit megnézni rajta: sárgaréz keret, ami ráhúzásra
+   felerősödik. Az xl méret a munkalapon 38 px, ott a nagyobb belső tér is
+   elfér a keret mellett. */
+.ico.hatasos{
+  cursor:help;
+  border:1px solid color-mix(in srgb, var(--brass) 55%, transparent);
+  border-radius:6px; padding:3px; box-sizing:content-box;
+  background:color-mix(in srgb, var(--brass) 8%, transparent);
+  transition:border-color .12s, background .12s, box-shadow .12s;
+}
+.ico.hatasos:hover{
+  border-color:var(--brass);
+  background:color-mix(in srgb, var(--brass) 16%, transparent);
+  box-shadow:0 0 0 2px color-mix(in srgb, var(--brass) 18%, transparent);
+}
 </style>
 </head>
 <body>
