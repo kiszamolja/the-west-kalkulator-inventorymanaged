@@ -556,6 +556,35 @@ footer{ display:flex; align-items:center; gap:6px; flex-wrap:wrap }
    megrendelés sincs. */
 .need.beszsav .fillb{ border-right:1px solid color-mix(in srgb, var(--lep3) 45%, transparent) }
 .node .csill{ font-size:10px; vertical-align:top; color:var(--lep3) }
+
+/* ---- HATÁSBUBORÉK (1.0.2) --------------------------------------------
+   A munkalap tárgyikonjára húzva megmutatja a tárgy használatkori hatásait.
+   Az adat a meglévő HATAS térképből jön, nincs új adatforrás.
+
+   Nincs saját azonosítója: a buborékot a JS hozza létre és osztállyal
+   azonosítja, hogy a 92 DOM-ID készlete változatlan maradjon. */
+.hbub{
+  position:fixed; z-index:60; max-width:280px; min-width:170px;
+  background:var(--raised); color:var(--ink);
+  border:1px solid var(--line); border-radius:8px;
+  padding:9px 11px; box-shadow:0 6px 22px rgba(0,0,0,.34);
+  font-size:13px; line-height:1.45; pointer-events:none;
+  opacity:0; transform:translateY(3px); transition:opacity .12s, transform .12s;
+}
+.hbub.mutat{ opacity:1; transform:none }
+.hbub .cim{
+  font-size:11px; letter-spacing:.9px; text-transform:uppercase;
+  color:var(--brass); margin-bottom:5px; font-weight:600;
+}
+.hbub .hsor{ white-space:normal }
+/* A gyűjtőkártyás tételek listája hosszú lehet, ezért görgethető. */
+.hbub .lista{ max-height:210px; overflow-y:auto }
+.hbub .lab{
+  margin-top:5px; padding-top:5px; border-top:1px solid var(--line);
+  color:var(--dim); font-size:12px;
+}
+/* Az ikon jelzi, hogy van mit megnézni rajta. */
+.ico.hatasos{ cursor:help }
 </style>
 </head>
 <body>
@@ -1240,6 +1269,114 @@ function munkaIkonok(id){
        onerror="this.style.display='none'">`;
   }).join("") + `</span>`;
 }
+
+
+/* ---- HATÁSBUBORÉK (1.0.2) --------------------------------------------
+   A munkalap tárgyikonjára húzva megmutatja a tárgy hatásait. Az adat a
+   meglévő HATAS térképből jön: nincs új adatforrás, nincs új lekérés.
+
+   A panelbeli tudBuborek() hatás-ága ez, de a munka-ág nélkül: a munkákat
+   a weboldal már a munkaIkonok() sorával mutatja, azt nem duplázzuk.
+
+   Nincs saját DOM-ID: a buborék osztállyal azonosított, hogy a 92 azonosító
+   készlete változatlan maradjon. */
+const HATAS_FEJLEC = "HATÁS HASZNÁLATKOR";
+
+let hbubElem = null;
+function hbubDoboz(){
+  if(!hbubElem){
+    hbubElem = document.createElement("div");
+    hbubElem.className = "hbub";
+    hbubElem.setAttribute("role", "tooltip");
+    document.body.appendChild(hbubElem);
+  }
+  return hbubElem;
+}
+
+/* A gyűjtőkártyás tételeknél az első sor a bevezető, utána jönnek a
+   százalékos kártyanevek - azokat külön, görgethető listába tesszük. */
+function hatasTartalom(id){
+  const sorok = HATAS[String(id)];
+  if(!sorok || !sorok.length) return "";
+  const kartyas = sorok[0].indexOf(KARTYA_JEL) === 0;
+  let torzs;
+  if(kartyas){
+    torzs = `<div class="hsor">${mesc(sorok[0])}</div>`
+          + `<div class="lista">`
+          + sorok.slice(1).map(x => `<div class="hsor">${mesc(x)}</div>`).join("")
+          + `</div>`;
+  }else{
+    torzs = sorok.map(x => `<div class="hsor">${mesc(x)}</div>`).join("");
+  }
+  return `<div class="cim">${mesc(HATAS_FEJLEC)}</div>` + torzs;
+}
+
+/* Az ikon mellé nyílik. Ha jobbra nem fér ki, balra fordul; ha alul nem fér
+   ki, fölé kerül. Nem a viewport szélén ragad, hanem 8 px-t hagy. */
+function hbubHelyre(hoz){
+  const b = hbubDoboz(), r = hoz.getBoundingClientRect();
+  const m = b.getBoundingClientRect(), rés = 10, perem = 8;
+  let x = r.right + rés;
+  if(x + m.width > innerWidth - perem) x = r.left - m.width - rés;
+  if(x < perem) x = perem;
+  let y = r.top;
+  if(y + m.height > innerHeight - perem) y = innerHeight - m.height - perem;
+  if(y < perem) y = perem;
+  b.style.left = Math.round(x) + "px";
+  b.style.top  = Math.round(y) + "px";
+}
+
+function hbubNyit(hoz, id){
+  const t = hatasTartalom(id);
+  if(!t) return;
+  const b = hbubDoboz();
+  b.innerHTML = t;
+  b.style.visibility = "hidden";
+  b.classList.add("mutat");
+  hbubHelyre(hoz);
+  b.style.visibility = "";
+}
+function hbubZar(){
+  if(hbubElem) hbubElem.classList.remove("mutat");
+}
+
+/* Az orderIco a munkalap egyetlen kiválasztott receptjének ikonja. A
+   frissítést az orderIcoHatas() végzi, amit a rajzolás hív meg. Egérrel
+   ráhúzásra nyílik, érintésre koppintásra: iOS-en a mouseenter csak az első
+   koppintásra jön meg, ezért a pointerdown külön kezelve van. */
+function orderIcoHatas(id){
+  const oi = document.getElementById("orderIco");
+  if(!oi) return;
+  const van = !!(HATAS[String(id)] && HATAS[String(id)].length);
+  oi.classList.toggle("hatasos", van);
+  oi.dataset.hatasId = van ? String(id) : "";
+  if(!van) hbubZar();
+}
+
+(function(){
+  const cel = () => document.getElementById("orderIco");
+  document.addEventListener("mouseenter", e => {
+    const oi = cel();
+    if(!oi || e.target !== oi || !oi.dataset.hatasId) return;
+    hbubNyit(oi, oi.dataset.hatasId);
+  }, true);
+  document.addEventListener("mouseleave", e => {
+    if(e.target === cel()) hbubZar();
+  }, true);
+  /* Érintésen koppintásra nyílik, a következő koppintásra bárhol bezárul. */
+  document.addEventListener("pointerdown", e => {
+    const oi = cel();
+    if(oi && e.target === oi && oi.dataset.hatasId){
+      if(hbubElem && hbubElem.classList.contains("mutat")) hbubZar();
+      else hbubNyit(oi, oi.dataset.hatasId);
+      return;
+    }
+    hbubZar();
+  });
+  addEventListener("scroll", hbubZar, true);
+  addEventListener("resize", hbubZar);
+  addEventListener("keydown", e => { if(e.key === "Escape") hbubZar(); });
+})();
 
 const BASE_NAMES = {
 "700000":"Sonka",
@@ -2639,6 +2776,8 @@ function renderPlan(){
     $("orderName").textContent = r.n;
     const oi = $("orderIco");
     if(ITEM_IMG[r.i]){ oi.src = IMG_BASE + ITEM_IMG[r.i]; oi.hidden = false; } else oi.hidden = true;
+    /* 1.0.2: a hatásbuborék adata a kiválasztott recepthez igazodik. */
+    orderIcoHatas(r.i);
     $("orderMeta").innerHTML = `${profLabel(r.p)} · ${lepcso(r.l)}` +
       (r.t ? ` · <span style="color:var(--brass)">${lockLabel(r.t)}</span>` : "");
     /* Gépelés közben NEM írjuk felül a mezőt, különben a törlés pillanatában
@@ -2650,6 +2789,9 @@ function renderPlan(){
       ? `A raktáradban lévő ${have} db nem számít bele`
       : "A meglévő készlet nem számít bele";
   }else{
+    /* 1.0.2: több recept esetén nincs egyetlen kiemelt ikon, ezért a
+       hatásbuborék elfogy. */
+    orderIcoHatas(null);
     $("orderMulti").innerHTML = ts.map(t => {
       const r = recipeMap.get(t.i);
       const have = stock[t.i] || 0;
