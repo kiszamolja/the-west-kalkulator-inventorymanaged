@@ -1,8 +1,10 @@
 // ==UserScript==
 // @name         The West Crafting Calculator
 // @namespace    the-west-kalkulator-ingame
-// @version      1.0.2
+// @version      1.2.0
 // @description  Crafting calculator inside the game, in a movable window. Reads only data already loaded in the browser.
+// @updateURL    https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/the-west-panel.user.js
+// @downloadURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/the-west-panel.user.js
 // @author       smcZ
 // @match        https://*.the-west.hu/game.php*
 // @match        https://*.the-west.net/game.php*
@@ -24,12 +26,10 @@
 // @grant        GM_xmlhttpRequest
 // @connect      kiszamolja.github.io
 // @run-at       document-idle
-// @updateURL    https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/the-west-panel.user.js
-// @downloadURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/the-west-panel.user.js
 // ==/UserScript==
 
 /* =======================================================================
-   Mesterség-kalkulátor - játékbeli panel, 1.0.0
+   Mesterség-kalkulátor - játékbeli panel, 1.2.0
 
    Mit tud:
      · mozgatható ablak a játék saját ablakkeretében
@@ -38,17 +38,42 @@
      · három nézet: robbantott ábra, lépéskártyák, csak alapanyag
      · receptlista kereséssel, mesterség-szűréssel, állapotpöttyökkel
      · készültségi gyűrű és hiánylista, a játék [item=ID] formátumában
+     · zölden jelzi, melyik receptet tudnád most megtanulni
+     · zárolt receptnél visszaszámlálja, mikor gyárthatod újra
      · négy nyelv: magyar, angol, német, lengyel
      · beállítások fül: nyelv, verzió, frissítéskeresés, adatállapot
 
-   Amit szándékosan nem csinál, és nem is fog:
-     · nem küld kérést a játék szervereinek
-     · nem automatizál semmilyen játékbeli cselekvést
-     · csak azt olvassa, ami a böngészőben már betöltve van
+   Mit csinál MAGÁTÓL:
+     · olvassa, ami a böngészőben már betöltve van
+     · panelnyitáskor egyszer megnyitja és bezárja a játék Mesterség
+       ablakát. Enélkül a játék nem tölti be a megtanult receptjeidet,
+       tehát sem a zöld jelzés, sem a visszaszámláló nem működne. A panel
+       maga nem küld kérést, de ez a megnyitás a játék oldaláról kivált
+       egyet - ugyanazt, mint amikor te kattintasz a Mesterség gombra.
+
+   Mit csinál CSAK GOMBNYOMÁSRA:
+     · Gyártás: elindít egy valódi gyártást, elhasználja a nyersanyagot.
+       Csak megtanult, nem zárolt recepten, és csak ha van elég alapanyag.
+     · Megtanulom: megtanulja a receptet, és el is használja azt.
+       Alapból KIKAPCSOLVA, a Beállítások fülön kapcsolható be.
+
+   Amit nem csinál, és nem is fog:
+     · nem gyűjt és nem küld ki adatot rólad
+     · nem csinál semmit magától, amit te nem kértél
+     · nem tárolja a raktáradat, minden olvasás friss
    ======================================================================= */
 
 const ADAT_URL = "https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/";
 const IMG_BASE = ADAT_URL + "kepek/";
+/* A SZERZŐ ALÁÍRÁSA. Szándékosan NEM szövegkulcs: ez nem fordítandó mondat,
+   hanem névjegy - mind a négy nyelven ugyanígy helyes. A szív Unicode-jel, nem
+   emoji, ezért monokróm marad, és a paletta rozsda színét viseli.
+
+   Egy helyen van definiálva, mert két helyen jelenik meg: a Beállítások fül
+   alján és a frissítésértesítő dobozában. Ha egyszer megváltozik, ne lehessen
+   az egyiket elfelejteni. */
+const ALAIRAS = "Crafted with \u2665 by smcZ";
+
 const BETU_URL = "https://fonts.googleapis.com/css2?family=Rye&family=Alegreya+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap";
 
 /* ===== adat, az éles index.html-ből átemelve, változtatás nélkül ===== */
@@ -882,6 +907,8 @@ const SZOVEG = {
   fa_megvan: ["{n} raktárból · megvan","{n} from stock · in stock","{n} aus dem Bestand · vorhanden","{n} z zapasów · dostępne"],
   fa_mind_bezar: ["Mind bezár","Collapse all","Alle einklappen","Zwiń wszystkie"],
   fa_mind_kinyit: ["Mind kinyit","Expand all","Alle ausklappen","Rozwiń wszystkie"],
+  fa_megvan_rovid: ["megvan","done","vorhanden","gotowe"],
+  fa_megrendelve: ["{n} megrendelve","{n} on order","{n} bestellt","{n} zamówione"],
   fa_raktarbol: ["{n} raktárból","{n} from stock","{n} aus dem Bestand","{n} z zapasów"],
   fa_raktarbol_fedezve: ["raktárból fedezve","covered from stock","aus dem Bestand gedeckt","pokryto z zapasów"],
   frissites_ablak_cim: ["Mesterség-kalkulátor - frissítés","Crafting Calculator - update","Handwerksrechner - Update","Kalkulator rzemiosła - aktualizacja"],
@@ -909,7 +936,12 @@ const SZOVEG = {
   jelmagy_szurke: ["Magasabb szint vagy hiányzó recept","Needs higher level or recipe","Höhere Stufe oder Rezept fehlt","Wyższy poziom lub brak receptury"],
   jelmagy_zold: ["Most legyártható a készletedből","Can be crafted from your stock","Aus dem Bestand herstellbar","Można wytworzyć z zapasów"],
   kereso_aria: ["Recept keresése","Search recipes","Rezepte suchen","Wyszukiwanie receptur"],
-  kereso_helyorzo: ["Keresés név szerint…","Search by name…","Nach Namen suchen…","Szukaj po nazwie…"],
+  /* A helyőrző arra való, hogy tudd, hova kell írni - nem arra, hogy
+     elmagyarázza a logikát. A hozzávaló szerinti keresés óta a mező többet
+     tud a névnél, és a rövid alak akkor is igaz marad, ha egyszer tovább
+     bővül. Amit keres, azt a találatok mondják el, pontosabban: az
+     elválasztó kimondja, hogy "ehhez kell:". */
+  kereso_helyorzo: ["Keresés…","Search…","Suchen…","Szukaj…"],
   kizaras_nincs: ["Nincs belőle a raktáradban: {nev}","None in your inventory: {nev}","Kein fertiges Exemplar im Inventar: {nev}","Brak gotowego egzemplarza w ekwipunku: {nev}"],
   kizaras_van: ["A raktáradban lévő {n} db {nev} nem számít bele","Not counted from inventory: {n} × {nev}","Nicht aus dem Inventar mitgezählt: {n} × {nev}","Nie uwzględniono z ekwipunku: {n} × {nev}"],
   lepes_db_gyartas: ["{n} db gyártás","craft {n}","{n} herstellen","wytwórz {n}"],
@@ -920,12 +952,93 @@ const SZOVEG = {
   max_cim_zarolt: ["Alapanyagod {n} darabra van, de a zárolás miatt egyszerre egyet gyárthatsz.","You have materials for {n}, but the lockout allows only one at a time.","Du hast Material für {n} Stück, wegen der Sperre kannst du aber nur eines auf einmal herstellen.","Masz surowce na {n} szt., ale blokada pozwala wytworzyć tylko jedną naraz."],
   max_nincs: ["{nev} kell hozzá, azt nem te gyártod","{nev} is needed, and you cannot craft it","{nev} wird benötigt, das stellst du nicht selbst her","Potrzebny jest {nev}, a tego nie wytwarzasz"],
   max_szam_cimke: ["Max:","Max:","Max:","Max:"],
+  gyart_gomb: ["Gyártás","Craft","Herstellen","Wytwórz"],
+  gyart_cim: ["A játék saját gyártását indítja el, ennyi darabbal: {n}","Starts the game's own crafting, this many: {n}","Startet die spieleigene Herstellung, mit dieser Menge: {n}","Uruchamia własne wytwarzanie gry, w tej ilości: {n}"],
+  gyart_tul_sok: ["Ennyit nem tudsz legyártani, legfeljebb ennyit: {n}","You cannot craft this many, at most: {n}","So viele kannst du nicht herstellen, höchstens: {n}","Nie możesz wytworzyć tylu, najwyżej: {n}"],
+  gyart_nincs_alap: ["Most nincs miből gyártanod.","You have nothing to craft from right now.","Du hast derzeit nichts, woraus du herstellen könntest.","Nie masz teraz z czego wytwarzać."],
+  gyart_nincs_ablak: ["Nyisd meg egyszer a játék Mesterség ablakát, utána működik.","Open the game's Crafting window once, then this will work.","Öffne einmal das Handwerksfenster des Spiels, danach funktioniert es.","Otwórz raz okno Rzemiosła w grze, potem zadziała."],
+  gyart_nincs_lista: ["A megtanult receptjeid nem olvashatók ki, ezért a gyártás nem érhető el. Ezt jellemzően a TW-Calc szkript okozza.","Your learned recipes cannot be read, so crafting is unavailable. This is usually caused by the TW-Calc script.","Deine gelernten Rezepte sind nicht auslesbar, daher ist die Herstellung nicht verfügbar. Meist verursacht das TW-Calc-Skript dies.","Nie można odczytać twoich receptur, więc wytwarzanie jest niedostępne. Zwykle powoduje to skrypt TW-Calc."],
+  gyart_nem_tanult: ["Ezt a receptet még nem tanultad meg.","You have not learned this recipe yet.","Dieses Rezept hast du noch nicht gelernt.","Nie nauczyłeś się jeszcze tej receptury."],
+  gyart_nincs_recept: ["A játék nem adta meg ehhez a recept azonosítóját.","The game did not provide a recipe id for this.","Das Spiel hat dafür keine Rezept-Kennung geliefert.","Gra nie podała identyfikatora receptury dla tego."],
   masol_fejlec: ["{cel} - {mit}:","{cel} - {mit}:","{cel} - {mit}:","{cel} - {mit}:"],
   masol_formatum_aria: ["A másolás formátuma","Copy format","Format des Kopierens","Format kopiowania"],
   masol_kod: ["Kód","Code","Code","Kod"],
   masol_kod_cim: ["A játékba illeszthető alak","The form you can paste into the game","Die im Spiel einfügbare Form","Postać do wklejenia w grze"],
   masol_szoveg: ["Szöveg","Text","Text","Tekst"],
   masol_szoveg_cim: ["Olvasható név, a játékon kívülre","Readable names, for use outside the game","Lesbare Namen, für außerhalb des Spiels","Czytelne nazwy, poza grą"],
+  beall_megjelenes: ["Megjelenés","Appearance","Darstellung","Wygląd"],
+  beall_meret: ["Panel mérete","Panel size","Panelgröße","Rozmiar panelu"],
+  beall_meret_auto: ["Automatikus ({n}%)","Automatic ({n}%)","Automatisch ({n}%)","Automatyczny ({n}%)"],
+  beall_meret_ajanlott: ["ajánlott","recommended","empfohlen","zalecane"],
+  beall_meret_megj: ["Automatikusan a képernyőhöz igazodik, miközben a három hasáb megmarad. Kézi százalék is választható.","Automatically fits the screen while keeping all three columns. A manual percentage can also be selected.","Passt sich automatisch an den Bildschirm an, während alle drei Spalten erhalten bleiben. Ein manueller Prozentwert ist ebenfalls wählbar.","Automatycznie dopasowuje się do ekranu, zachowując trzy kolumny. Można też wybrać procent ręcznie."],
+  beall_mikon: ["Tárgyikonok","Item icons","Gegenstandssymbole","Ikony przedmiotów"],
+  beall_mikon_ikon: ["láthatók","shown","sichtbar","widoczne"],
+  beall_mikon_nev: ["rejtve, a név kattintható","hidden, the name is clickable","ausgeblendet, der Name ist klickbar","ukryte, nazwa jest klikalna"],
+  beall_mikon_megj: ["Kis kijelzőn helyet szabadít fel. A munkakeresés nem vész el: a névre kerül.","Frees up space on small screens. Job search is not lost: it moves to the name.","Schafft Platz auf kleinen Bildschirmen. Die Arbeitssuche bleibt: sie wandert zum Namen.","Zwalnia miejsce na małych ekranach. Wyszukiwanie pracy nie znika: przechodzi na nazwę."],
+  tanul_cim: ["Megtanulom gomb","Learn button","Lernen-Schaltfläche","Przycisk nauki"],
+  tanul_gomb: ["Megtanulom","Learn","Lernen","Naucz się"],
+  tanul_jel: ["Megtanulható","Learnable","Erlernbar","Do nauczenia"],
+  tanul_megj: ["A megtanulható receptet a panel mindig zölden jelzi - ez semmit nem küld el. A gomb viszont meg is tanítja, és ahhoz kérést küld a játéknak.","The panel always marks learnable recipes in green - that sends nothing. The button also learns it, and that sends a request to the game.","Erlernbare Rezepte markiert das Panel immer grün - das sendet nichts. Die Schaltfläche lernt es auch, und das sendet eine Anfrage an das Spiel.","Panel zawsze zaznacza na zielono receptury do nauczenia - to nic nie wysyła. Przycisk uczy się jej, a to wysyła żądanie do gry."],
+  terv_biztos: ["Biztosan törlöd?","Delete for sure?","Wirklich löschen?","Na pewno usunąć?"],
+  terv_cim: ["Terv mentése","Save plan","Plan speichern","Zapis planu"],
+  terv_felulirt: ["Mentve - a korábbi azonos tervet felülírtuk.","Saved - the earlier identical plan was overwritten.","Gespeichert - der frühere identische Plan wurde überschrieben.","Zapisano - wcześniejszy identyczny plan został nadpisany."],
+  terv_megj: ["A munkalap fölé kerül két gomb: a tervet elmentheted, és bármikor visszatérhetsz hozzá. A raktárad nem része a tervnek - visszatéréskor a mostani készlettel számol.","Two buttons appear above the worksheet: you can save the plan and return to it any time. Your stock is not part of the plan - on return it counts with your current stock.","Über dem Arbeitsblatt erscheinen zwei Schaltflächen: du kannst den Plan speichern und jederzeit zurückkehren. Dein Lager gehört nicht zum Plan - bei der Rückkehr wird mit dem aktuellen Bestand gerechnet.","Nad arkuszem pojawią się dwa przyciski: możesz zapisać plan i wrócić do niego w każdej chwili. Twój magazyn nie jest częścią planu - po powrocie liczy się bieżący stan."],
+  terv_mentes: ["Mentés","Save","Speichern","Zapisz"],
+  terv_mentve: ["Mentve.","Saved.","Gespeichert.","Zapisano."],
+  terv_nyit: ["Tervek ({n})","Plans ({n})","Pläne ({n})","Plany ({n})"],
+  terv_torles: ["Terv törlése","Delete plan","Plan löschen","Usuń plan"],
+  terv_ures: ["Még nincs mentett terved.","No saved plans yet.","Noch keine gespeicherten Pläne.","Brak zapisanych planów."],
+  hatasz_aria: ["Szűrés hatás szerint","Filter by effect","Nach Wirkung filtern","Filtruj wg efektu"],
+  hatasz_barmelyik: ["Bármelyik hatás","Any effect","Beliebige Wirkung","Dowolny efekt"],
+  hatasz_cim: ["Hatásszűrő","Effect filter","Wirkungsfilter","Filtr efektów"],
+  hatasz_ellatmany: ["Ellátmány","Supplies","Vorräte","Zaopatrzenie"],
+  hatasz_harc: ["Harc","Combat","Kampf","Walka"],
+  hatasz_kartya: ["Gyűjtőkártya","Collector card","Sammelkarte","Karta kolekcjonerska"],
+  hatasz_kepesseg: ["Képesség","Skill","Fertigkeit","Umiejętność"],
+  hatasz_megj: ["A receptlista fölé kerül egy választó: hatás szerint szűkíthetsz. A lista a játék adatából épül, tehát új termék magától megjelenik benne.","A selector appears above the recipe list so you can narrow by effect. The list is built from the game data, so new items show up by themselves.","Über der Rezeptliste erscheint eine Auswahl: du kannst nach Wirkung filtern. Die Liste wird aus den Spieldaten gebaut, neue Gegenstände erscheinen von selbst.","Nad listą receptur pojawi się selektor: możesz filtrować wg efektu. Lista powstaje z danych gry, nowe przedmioty pojawią się same."],
+  hatasz_zsak: ["Zsákbamacska","Random pack","Wundertüte","Kot w worku"],
+  hatas_fejlec: ["HATÁS HASZNÁLATKOR","EFFECT WHEN USED","WIRKUNG BEI BENUTZUNG","EFEKT PRZY UŻYCIU"],
+  besz_alcim: ["megbízások nyilvántartása","tracking commissions","Aufträge verwalten","ewidencja zleceń"],
+  besz_cim: ["Termékbeszerzők","Suppliers","Beschaffer","Dostawcy"],
+  besz_db: ["Darab","Qty","Menge","Ilość"],
+  besz_gephez: ["Ez a nyilvántartás ehhez a böngészőhöz kötött, másik gépről nem látszik.","This list is tied to this browser, it is not visible from another machine.","Diese Liste ist an diesen Browser gebunden und auf anderen Geräten nicht sichtbar.","Ta lista jest powiązana z tą przeglądarką, nie widać jej na innym komputerze."],
+  besz_hozzaad: ["hozzáadás","add","hinzufügen","dodaj"],
+  besz_labjegyzet: ["* megbízásból várható, még nincs nálad","* expected from a commission, not yet yours","* aus einem Auftrag erwartet, noch nicht bei dir","* oczekiwane ze zlecenia, jeszcze nie masz"],
+  besz_nev: ["Beszerző neve","Supplier name","Name des Beschaffers","Nazwa dostawcy"],
+  besz_targy: ["Tárgy","Item","Gegenstand","Przedmiot"],
+  besz_ujtetel: ["Új tétel ehhez a beszerzőhöz","New item for this supplier","Neuer Posten für diesen Lieferanten","Nowa pozycja dla tego dostawcy"],
+  besz_torles: ["Levétel a listáról","Remove from the list","Von der Liste nehmen","Usuń z listy"],
+  besz_ures: ["Nincs folyamatban lévő megbízás.","No commissions in progress.","Keine laufenden Aufträge.","Brak zleceń w toku."],
+  /* A buborék azt mondja meg, MIT TESZ A KATTINTÁS, nem azt, mi az állapot.
+
+     A GOMB KIEMELÉSE ugyanazt jelenti, mint a másik kettőnél: a beállítás
+     be van kapcsolva. Egy körben kipróbáltuk a fordítottját - "aktív" az
+     alapeset, amikor a panel tisztán a mérésre támaszkodik -, de
+     visszaálltunk: két kapcsoló a sávban ne álljon egymással szemben.
+
+     A buborék viszont továbbra is a KATTINTÁS KÖVETKEZMÉNYÉT mondja:
+     kikapcsolva a beszámítást ígéri, bekapcsolva a visszatérést az
+     alapesethez. Az alapeset készült el először, és arra épül minden.
+     */
+  gyk_orak: ["Munkaóra-jelzés ki- és bekapcsolása","Show or hide work hours","Arbeitsstunden ein- und ausblenden","Pokaż lub ukryj godziny pracy"],
+  gyk_besz_be: ["Termékbeszerzők: megbízások beszámítása","Suppliers: count commissions in","Beschaffer: Aufträge mitrechnen","Dostawcy: wliczaj zlecenia"],
+  gyk_besz_ki: ["Alapeset: termékbeszerzők megbízásai nélkül","Default view: without supplier commissions","Grundzustand: ohne Aufträge der Beschaffer","Stan podstawowy: bez zleceń dostawców"],
+  gyk_ikonok: ["Tárgyikonok ki- és bekapcsolása","Show or hide item icons","Gegenstandssymbole ein- und ausblenden","Pokaż lub ukryj ikony przedmiotów"],
+  kereso_ehhez_kell: ["ehhez kell:","needed for:","wird gebraucht für:","potrzebne do:"],
+  kereso_torles: ["Keresés törlése","Clear search","Suche löschen","Wyczyść wyszukiwanie"],
+  munka_fejlec: ["MUNKÁBÓL TALÁLHATÓ","FOUND IN JOBS","AUS ARBEITEN ERHÄLTLICH","ZNAJDOWANE W PRACACH"],
+  munka_labjegyzet: ["a legjobb eséllyel kínálót nyitja meg","opens the one with the best chance","öffnet die Arbeit mit der besten Chance","otwiera pracę z najlepszą szansą"],
+  munka_esely_rovid: ["A tárgyat csak eséllyel adja.","This job only drops the item by chance.","Der Gegenstand fällt hier nur mit Glück.","Ta praca daje przedmiot tylko losowo."],
+  munka_nincs_ablak: ["A játék nem tudta megnyitni a munkaablakot.","The game could not open the job window.","Das Spiel konnte das Arbeitsfenster nicht öffnen.","Gra nie mogła otworzyć okna pracy."],
+  munka_nincs_pont: ["Ehhez a munkához nem találtam helyet a térképen.","No place on the map was found for this job.","Für diese Arbeit wurde kein Ort auf der Karte gefunden.","Nie znaleziono miejsca na mapie dla tej pracy."],
+  munka_terkep_hiba: ["A térkép nem érkezett meg, próbáld újra.","The map did not arrive, try again.","Die Karte kam nicht an, versuche es erneut.","Mapa nie dotarła, spróbuj ponownie."],
+  ora_alcim: ["megjelenik a Mit gyűjts oszlopban","shown in the collect list","erscheint in der Sammelliste","widoczne na liście zbiórki"],
+  ora_cim: ["Munkaóra-jelzés","Work hours","Arbeitsstunden","Godziny pracy"],
+  ora_kell: ["még {n} óra munka","{n} more hours of work","noch {n} Stunden Arbeit","jeszcze {n} godz. pracy"],
+  ora_kicsi_esely: ["kicsi az esély","low chance","geringe Chance","mała szansa"],
+  ora_megj: ["A legjobb eséllyel kínáló munkából, lefelé kerekítve. Ahol nincs egyórás érték, ott nem jelenik meg.","From the job with the best chance, rounded down. Where there is no one-hour value, nothing is shown.","Aus der Arbeit mit der besten Chance, abgerundet. Wo es keinen Stundenwert gibt, erscheint nichts.","Z pracy o najlepszej szansie, w dół. Gdzie nie ma wartości godzinowej, nic się nie pojawia."],
+  ora_up_bolt: ["Union Pacific bolt","Union Pacific store","Union-Pacific-Laden","sklep Union Pacific"],
+  ora_zsakbamacska: ["zsákbamacska","random job","Wundertüte","kot w worku"],
   nezet_fa: ["Robbantott ábra","Exploded view","Explosionsansicht","Widok rozstrzelony"],
   nezet_kartyak: ["Lépéskártyák","Step cards","Schrittkarten","Karty kroków"],
   nezet_nyers: ["Csak alapanyag","Raw materials only","Nur Rohstoffe","Tylko surowce"],
@@ -946,14 +1059,26 @@ const SZOVEG = {
   ures_valassz: ["Válassz egy receptet a listából.","Pick a recipe from the list.","Wähle ein Rezept aus der Liste.","Wybierz recepturę z listy."],
   zarolas_nap_egy: ["1 napos zárolás","1-day lockout","1-tägige Sperre","blokada na 1 dzień"],
   zarolas_nap_tobb: ["{n} napos zárolás","{n}-day lockout","{n}-tägige Sperre","blokada na {n} dni"],
-  zarolas_ora: ["{n} órás zárolás","{n}-hour lockout","{n}-stündige Sperre","blokada na {n} godz."]
+  zarolas_ora: ["{n} órás zárolás","{n}-hour lockout","{n}-stündige Sperre","blokada na {n} godz."],
+  /* t32: a zarolas KET dolgot jelenthet. A recept tulajdonsaga (mindig igaz),
+     es a te allapotod (most eppen zarolva vagy-e). Kulon szoveg mindkettonek. */
+  zarolas_lesz: ["Egy gyártás után ennyi ideig nem gyártható újra.","After one craft it cannot be made again for this long.","Nach einer Herstellung so lange nicht erneut herstellbar.","Po jednym wytworzeniu przez ten czas nie można wytworzyć ponownie."],
+  zarolas_meddig: ["Következő gyártás: {mikor}","Next craft: {mikor}","Nächste Herstellung: {mikor}","Następne wytworzenie: {mikor}"],
+  zarolas_ismeretlen: ["Zárolva, de a hátralévő idő nem olvasható ki. Frissítsd az oldalt, és nyisd meg a panelt.","Locked, but the remaining time cannot be read. Reload the page and open the panel.","Gesperrt, aber die Restzeit ist nicht auslesbar. Lade die Seite neu und öffne das Panel.","Zablokowane, ale pozostałego czasu nie da się odczytać. Odśwież stronę i otwórz panel."],
+  zarolas_nap_ora: ["{n} nap {o} óra","{n}d {o}h","{n} T {o} Std","{n} dni {o} godz."],
+  zarolas_ora_perc: ["{o} óra {p} perc","{o}h {p}m","{o} Std {p} Min","{o} godz. {p} min"]
 };
 
 
 (function () {
     "use strict";
 
-    const VERZIO = "1.0.2";
+    const VERZIO = "1.2.0";
+    /* Építésbélyeg. NEM kerül a @version sorba, tehát a frissítésellenőrzést
+       nem érinti: az csak a @version sort olvassa. Csak arra való, hogy a
+       tesztképernyőképekről egyértelmű legyen, melyik építés látszik.
+       Kiadáskor üresre kell állítani. */
+    const EPITES = "";
 
     /* ===================================================================
        1. Segédek és a játék adatai
@@ -999,6 +1124,9 @@ const SZOVEG = {
     }
 
     const SZOVEG_OSZLOP = { hu: 0, en: 1, de: 2, pl: 3 };
+    /* Az Intl a panel sajat nyelvet kapja, NEM a bongeszoet - kulonben magyar
+       panelen nemet datum jonne, ha a bongeszo nemet. */
+    const INTL_NYELV = { hu: "hu-HU", en: "en-GB", de: "de-DE", pl: "pl-PL" };
 
     /* Felületszöveg kulcs szerint, a helyőrzők behelyettesítésével.
        Ismeretlen kulcsnál a kulcs neve jön vissza, hogy szemmel látható legyen. */
@@ -1024,6 +1152,42 @@ const SZOVEG = {
 
     const nameOf = id => nevSzerint(id)
         || recipeMap.get(id)?.n || BASE_NAMES[id] || "#" + id;
+
+    /* ÉKEZET NÉLKÜLI KERESÉS.
+
+       Nem mindenkinek van ékezetes billentyűzete, és sokan egyszerűen nem
+       bajlódnak vele. A "rago" mostantól megtalálja a Rágódohányt - és a
+       "rágó" is, mert mindkettő ugyanarra az alakra egyszerűsödik.
+
+       A Unicode NFD alakja szétszedi az ékezetes betűt alapbetűre és külön
+       ékezetre, azt pedig kidobjuk. A magyar ő és ű is így bomlik, tehát
+       velük nincs külön teendő.
+
+       KIVÉTELEK: van két betű, ami NEM ékezetes, hanem önálló betű, ezért az
+       NFD nem bontja szét - a lengyel ł és a német ß. Ezeket előre cseréljük
+       le, különben a "l" nem találná meg a Kłódkát, a "ss" pedig a ß-eset.
+       A lengyel ą ę ć ń ó ś ź ż viszont szabályos ékezet, azokkal nincs baj. */
+    const EK_KIVETEL = [[/ł/g, "l"], [/ß/g, "ss"], [/đ/g, "d"], [/ø/g, "o"]];
+    function ekNelkul(t) {
+        let x = String(t == null ? "" : t).toLowerCase();
+        for (let i = 0; i < EK_KIVETEL.length; i++) x = x.replace(EK_KIVETEL[i][0], EK_KIVETEL[i][1]);
+        return x.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    }
+
+    /* A normalizálás minden billentyűleütésnél 375 néven futna le, ezért
+       egyszer előre kiszámoljuk. NYELVVÁLTÁSKOR ÚJRA KELL ÉPÍTENI, mert a
+       nevek is megváltoznak - ezért tároljuk el, melyik nyelvhez készült. */
+    let ekGyorsito = null, ekGyorsitoNyelv = null;
+    function ekNev(id) {
+        if (ekGyorsito === null || ekGyorsitoNyelv !== nyelv) {
+            ekGyorsito = new Map();
+            ekGyorsitoNyelv = nyelv;
+        }
+        const k = String(id);
+        let v = ekGyorsito.get(k);
+        if (v === undefined) { v = ekNelkul(nameOf(k)); ekGyorsito.set(k, v); }
+        return v;
+    }
 
     /* A négy mesterség neve a játék felületéről megerősítve. */
     const PROF_NEVEK = {
@@ -1057,6 +1221,68 @@ const SZOVEG = {
     const ico = (id, cls) => ITEM_IMG[id]
         ? `<img class="ico${cls ? " " + cls : ""}" src="${IMG_BASE}${ITEM_IMG[id]}" alt="" loading="lazy">`
         : "";
+
+    /* A ZSÁKBAMACSKA-TÁBLA.
+
+       A játék kliense NEM tudja, mit adnak a zsákbamacska munkák: a
+       JobList.getJobsByItemId ezekre a tárgyakra üres tömböt ad, a
+       randomyields mező pedig puszta esélyszám ([0.25]), nem tartalomlista.
+       Mérve: a 153 alapanyagból ötre nem ad munkát a JobList. Négyükhöz a
+       wikiről tudjuk a munkát, az ötödik (Egy üres pohár) nem munkából jön,
+       hanem az UP boltból, ezért nincs a táblában és nem is kap keretet.
+
+       A tábla MÁSODLAGOS: csak akkor lép be, ha a JobList üresen tér vissza.
+       A garantált termék előnyt élvez a véletlennel szemben. Így a tábla nem
+       tud rontani, csak hézagot betölteni - és ha a játék egyszer felveszi
+       ezeket az adatokat, magától félreáll.
+
+       A forrás wiki, tehát tévedhet és elavulhat. A wiki egyébként MOST is
+       hiányos: a Csapdaállítás (161) zsákbamacska a játék adata szerint, a
+       wiki listáján viszont nem szerepel. Ezért mondja meg a buborék, hogy
+       a tárgy csak eséllyel jön. */
+    /* TERMÉKBESZERZŐK - MEGBÍZÁSOK NYILVÁNTARTÁSA.
+
+       A játékban vannak termékbeszerzők: játékosok, akik megrendelésre
+       gyűjtenek adott alapanyagot, adott mennyiségben. A panel eddig csak azt
+       tudta, mi hiányzik - azt nem, mi van már úton.
+
+       EZ AZ EGYETLEN ADAT A PANELBEN, AMI NEM A JÁTÉKBÓL JÖN. Kézzel beírt
+       nyilvántartás, amit senki nem ellenőriz - ezért kap külön színt és
+       csillagot a Mit gyűjts oszlopban. A felhasználónak látnia kell, hogy
+       az a szám a saját feljegyzése, nem mérés.
+
+       GÉPHEZ KÖTÖTT: a GM_setValue a böngésződben tárol, tehát másik gépről
+       nem látszik. Ezt a Beállítások fül külön ki is írja.
+
+       A TÁROLÓKULCSOT A teszt-epit.mjs BÉLYEGZI. Enélkül a tesztpanel és a
+       kiadott panel ugyanazt a nyilvántartást használná, és a teszteléskor
+       beírt kitalált megbízások megjelennének az élesben - egy hét múlva
+       pedig már nem lehetne megkülönböztetni őket a valódiaktól. */
+    const BESZ_KULCS = "mk-panel-beszerzok";
+    let beszerzok = [];
+    try {
+        const b = JSON.parse(GM_getValue(BESZ_KULCS, "null"));
+        if (Array.isArray(b)) beszerzok = b.filter(x => x && x.id && x.nev && x.db > 0);
+    } catch (e) { beszerzok = []; }
+    function beszMent() {
+        try { GM_setValue(BESZ_KULCS, JSON.stringify(beszerzok)); } catch (e) { /* nem baj */ }
+    }
+
+    /* Tárgyanként összegzett várható mennyiség. NEM beszerzőnként: ha a Fából
+       Károlynál tíz, Inéznél negyven van kiadva, a sorban +50 áll. */
+    function beszVarhato() {
+        const ki = {};
+        if (!beall.beszerzok) return ki;
+        beszerzok.forEach(x => { ki[String(x.id)] = (ki[String(x.id)] || 0) + Number(x.db || 0); });
+        return ki;
+    }
+
+    const MUNKA_TABLA = {
+        "2000000": 106,   /* Habanero chili        -> Vadvízi szállítás */
+        "2009000": 106,   /* Aranyozott fogaskerék -> Vadvízi szállítás */
+        "2003000": 108,   /* Kobra fog             -> Csörgőkígyó-vadászat */
+        "2006000": 111    /* Kozák nyeregtakaró    -> Rodeó rendezése */
+    };
 
     /* a játék globális objektumai - a Tampermonkey homokozója miatt
        előbb az unsafeWindow-ban nézzük */
@@ -1111,6 +1337,161 @@ const SZOVEG = {
        és akkor nem halványítunk semmit. */
     const megtanult = new Set();
 
+    /* A gyártáshoz a RECEPT-TÁRGY azonosítója kell, nem a terméké.
+
+       A játék Crafting.recipes objektuma recept-tárgyakkal van kulcsolva
+       (pl. 20020000 = "Útmutató a tűzgyújtó szett elkészítéséhez"), és
+       mindegyiken ott a craftitem mező, ami a TERMÉK azonosítója
+       (pl. 1861000 = Tűzgyújtó szett). A startCraft első paramétere a
+       recept-tárgy azonosítója - a callbackben ItemManager.get(recipe_id)
+       hívás van rá.
+
+       A mi beégetett adatunkban NINCS egyetlen recept-tárgy azonosító sem,
+       ellenőrizve mind a 375 azonosítón. Ezt a leképezést tehát kizárólag
+       futásidőben, a játék objektumából lehet előállítani - és csak akkor,
+       ha az fel van töltve, ami a Mesterség ablak megnyitása után áll be. */
+    const receptAzon = new Map();      /* termék azonosító -> recept-tárgy azonosító */
+
+    function gyujtReceptAzon() {
+        const C = jatek().Crafting;
+        if (!C || !C.recipes) return;
+        try {
+            Object.keys(C.recipes).forEach(k => {
+                const r = C.recipes[k];
+                if (!r || !r.craftitem) return;
+                const rid = Number(r.item_id || k);
+                if (rid) receptAzon.set(String(r.craftitem), rid);
+            });
+        } catch (e) { /* nem baj */ }
+    }
+
+    /* ---- MEGTANULHATO RECEPTEK A TASKABOL ----
+       termék azonosító -> recept-tárgy azonosító, CSAK a megtanulhatókra.
+
+       A t28 fordítva kereste: a termékből próbálta visszakeresni a
+       recept-tárgyat a Crafting.recipes-en át. Az viszont csak a MÁR
+       MEGTANULT recepteket tartalmazza, tehát a "még nem tanultad meg"
+       feltétel és a "ismerjük a recept-tárgy azonosítóját" feltétel
+       kizárta egymást. Soha semmi nem zöldült.
+
+       Mérve, a játékon:
+         - a Bag.getItemsIdsByType("recipe") halmazazonos a teljes táska
+           végigjárásával (54 tekercs 1136 tárgyból)
+         - a tekercsen ott a craftitem (a TERMÉK azonosítója), a
+           profession_id és a min_level
+         - a megtanultság jele a last_craft mező LÉTEZÉSE MAGÁN A TÁRGYON,
+           amit a natív Mesterség ablak betöltése tesz rá
+         - a megtanult recept tekercse BENT MARAD a táskában, tehát a
+           birtoklás önmagában nem jelent tanulatlanságot
+
+       Az ItemManager mind a 228 receptet ismeri, nem csak a nálunk lévőket,
+       de erre itt nincs szükség: tanulni úgyis csak a táskából lehet. */
+    const tanulhatoAzon = new Map();
+
+    function gyujtTanulhato() {
+        tanulhatoAzon.clear();
+        /* AZ OR. Ha a natív betöltés nem futott le, egyetlen tárgyon sincs
+           last_craft, és akkor MINDEN tekercs tanulatlannak látszana. Ilyenkor
+           inkább nem jelzünk semmit. A megtanult halmaz üressége pontosan ezt
+           az állapotot jelenti, mert az is a mező meglétéből épül.
+
+           Egy határeset marad: akinek nulla megtanult receptje van, annál a
+           "nem tudjuk" és a "semmit nem tanult még" megkülönböztethetetlen.
+           Ilyenkor hallgatunk. Kevesebbet mutatni jobb, mint hamisat. */
+        if (!megtanult.size) return;
+        try {
+            const W = jatek();
+            const B = W.Bag, IM = W.ItemManager, CH = W.Character;
+            if (!B || !IM || typeof IM.get !== "function" || !CH) return;
+
+            let idk = null;
+            if (typeof B.getItemsIdsByType === "function") {
+                const t = B.getItemsIdsByType("recipe");
+                if (Array.isArray(t)) idk = t;
+            }
+            if (!idk) {
+                /* tartalék út: a teljes táska végigjárása */
+                const ibi = B.items_by_id;
+                if (!ibi) return;
+                idk = Object.keys(ibi);
+            }
+
+            const prof = Number(CH.professionId);
+            const szint = Number(CH.professionSkill || 0);
+            idk.forEach(rid => {
+                const it = IM.get(Number(rid));
+                if (!it || it.type !== "recipe" || !it.craftitem) return;
+                if (Number(it.profession_id) !== prof) return;
+                /* a mező LÉTEZÉSE a megtanultság jele, az ÉRTÉKE a zárolás
+                   hátralévő ideje - a kettő nem ugyanaz */
+                if (Object.prototype.hasOwnProperty.call(it, "last_craft")) return;
+                if (Number(it.min_level || 0) > szint) return;
+                tanulhatoAzon.set(String(it.craftitem), Number(it.item_id || rid));
+            });
+        } catch (e) { /* nem baj */ }
+    }
+
+    /* ---- ZAROLAS ----
+       MERVE (t32, harom fuggetlen meres a jatekon):
+
+       A last_craft ERTEKE a hatralevo zarolasi ido masodpercben, es NEM
+       ketyeg: 61 masodpercen at az utolso tizedesjegyig valtozatlan maradt.
+       PILLANATFELVETEL, ami a nativ Mesterseg ablak betoltesekor keszul.
+
+       Ket olyan meresunk van, ahol a betoltes ideje ismert, mert a melegites
+       URESROL toltotte fel a Crafting.recipes-t. A ket ertek kulonbsege
+       293,7426 mp, a ket betoltes kozt eltelt ido 293,8680 mp - az elteres
+       125 EZREDMASODPERC. Ebbol:
+
+           zarolas vege = HORGONY + last_craft * 1000
+
+       ahol a HORGONY az a pillanat, amikor a betoltes megtortent.
+
+       A HORGONY CSAK AKKOR ISMERT, ha a mi melegitesunk toltotte fel ureses
+       allapotbol. Ha a Crafting.recipes mar tele volt, amikor a panel indult,
+       az ertek akarmilyen regi lehet - MERVE: egy futasban 21,4 masodperces
+       volt a csuszas, de ez tetszolegesen nagy is lehet. Ilyenkor tudjuk,
+       hogy zarolva van, de azt nem, hogy meddig, es NEM szamolunk vissza.
+
+       MERVE az is, hogy a melegites NEM frissit, ha az ablak mar be volt
+       toltve: az egyik futasban a toggleOpen lefutott, az ertek megis a
+       negy perccel korabbi maradt. */
+    let zarHorgony = 0;          /* Date.now() a betoltes pillanataban, 0 = ismeretlen */
+    const zarolasok = new Map(); /* termek azonosito -> zarolas vege (ezredmasodperc) */
+
+    function gyujtZarolas() {
+        const C = jatek().Crafting;
+        if (!C || !C.recipes) return;
+        zarolasok.clear();
+        if (!zarHorgony) return;   /* ismeretlen horgony: inkabb semmit */
+        try {
+            Object.keys(C.recipes).forEach(k => {
+                const r = C.recipes[k];
+                if (!r || !r.craftitem) return;
+                const v = r.last_craft;
+                if (typeof v !== "number" || !(v > 0)) return;
+                zarolasok.set(String(r.craftitem), zarHorgony + v * 1000);
+            });
+        } catch (e) { /* nem baj */ }
+    }
+
+    /* A zarolas vege ezredmasodpercben, vagy 0. A "biztos" azt jelenti, hogy
+       ismerjuk a horgonyt; enelkul a recept zarolt lehet, csak nem tudjuk,
+       meddig - azt a zaroltDeIsmeretlen mondja meg. */
+    function zarVeg(id) { return zarolasok.get(String(id)) || 0; }
+    function zaroltDeIsmeretlen(id) {
+        if (zarHorgony) return false;
+        const C = jatek().Crafting;
+        if (!C || !C.recipes) return false;
+        try {
+            return Object.keys(C.recipes).some(k => {
+                const r = C.recipes[k];
+                return r && String(r.craftitem) === String(id)
+                    && typeof r.last_craft === "number" && r.last_craft > 0;
+            });
+        } catch (e) { return false; }
+    }
+
     function gyujtMegtanult() {
         const C = jatek().Crafting;
         if (!C || !C.recipes) return;
@@ -1122,8 +1503,31 @@ const SZOVEG = {
             });
         } catch (e) { /* nem baj */ }
     }
-    setInterval(gyujtMegtanult, 1000);
+    setInterval(() => { gyujtMegtanult(); gyujtReceptAzon(); gyujtTanulhato(); gyujtZarolas(); }, 1000);
+
+    /* A VISSZASZAMLALO ORAJA. Nem rajzolja ujra a listat - az pazarlas es
+       villogna -, csak a mar kirajzolt .zar.fut elemek szoveget irja at.
+       Egy ora folott percenkent eleg, alatta masodpercenkent. */
+    setInterval(() => {
+        /* A gyoker a panel elso megnyitasakor jon letre. Amig nincs, nincs mit
+           frissiteni - es nem is szabad rajzolni, mert az felepitene a panelt. */
+        if (!gyoker) return;
+        let hasznos = false;
+        gyoker.querySelectorAll(".zar.fut[data-zarveg]").forEach(e => {
+            const veg = Number(e.dataset.zarveg);
+            if (!veg) return;
+            const hatra = veg - Date.now();
+            if (hatra <= 0) { hasznos = true; return; }   /* lejart: ujrarajzolas kell */
+            if (hatra > 3600000 && (Date.now() % 60000) > 1000) return;
+            e.textContent = zarHatra(veg);
+        });
+        /* Csak a LEJARAS miatt rajzolunk ujra, mert olyankor a gyartas gomb
+           allapota is valtozik. Percenkent legfeljebb egyszer fordul elo. */
+        if (hasznos) { try { rajzolMunkalap(); } catch (e) { /* nem baj */ } }
+    }, 1000);
     gyujtMegtanult();
+    gyujtReceptAzon();
+    gyujtTanulhato();
 
     /* ===================================================================
        2. Állapot
@@ -1136,12 +1540,33 @@ const SZOVEG = {
 
     const ALAP = {
         nezet: "tree", prof: undefined, enyem: false, nyelv: undefined, left: null, top: 90, width: 880, height: 620,
-        tab: "calc", sajat: false, masolmod: "kod" };
+        tab: "calc", sajat: false, masolmod: "kod",
+        /* 1.1.0: a munkakereső kerete a tárgyIKONON vagy a NÉVEN álljon-e,
+           és a panel szélessége a nézetablak hány százaléka legyen. */
+        mikon: true, meretszaz: 100, meretmod: "auto",
+        beszerzok: false, orak: false, hatasszuro: false, tervmentes: false,
+        tanulgomb: false };
+    /* Ez NEM beállítás, hanem munkamenet-állapot: a kiválasztott hatástípus.
+       Panelnyitáskor mindig üres, mert egy szűrő, amiről nem tudod, hogy be
+       van kapcsolva, csendben rossz listát adna. */
+    let hatasValasztott = "";
+    let hatasRajzFut = false;
+
     let beall = Object.assign({}, ALAP);
     try {
         const m = JSON.parse(GM_getValue("mk-panel", "null"));
-        if (m && typeof m === "object") beall = Object.assign(beall, m);
+        if (m && typeof m === "object") {
+            beall = Object.assign(beall, m);
+            /* Régi beállítás átvétele: az érintetlen 100% automatikus lesz,
+               a felhasználó által választott más százalék kézi marad. */
+            if (!("meretmod" in m))
+                beall.meretmod = Number(m.meretszaz) === 100 || m.meretszaz == null ? "auto" : "kezi";
+        }
     } catch (e) { /* marad az alapérték */ }
+
+    /* A korábbi kísérleti felületválasztók mentett nyomait se vigyük tovább. */
+    delete beall.felulet;
+    delete beall.szinmod;
 
     function ment() {
         try { GM_setValue("mk-panel", JSON.stringify(beall)); } catch (e) { /* nem baj */ }
@@ -1157,7 +1582,41 @@ const SZOVEG = {
     let valasztott = null;
     /* 1.6.0 TERV: több cél egyszerre - [{i, q, x}], a webes motor alakja */
     let tervek = [];
+
+    /* MENTETT TERVEK.
+
+       A terv a célokat és a darabszámokat őrzi, a RAKTÁRT NEM: ha két hét
+       múlva visszatérsz hozzá, a mostani készlettel akarod látni.
+
+       A név magától adódik a tartalomból - "100 Gyógyító baba, 50 Rágódohány" -,
+       tehát nincs elnevezési lépés. Azonos nevű terv FELÜLÍRJA a korábbit, és
+       ezt ki is mondjuk: egy csendben eltűnő mentés rosszabb, mint egy
+       duplikátum.
+
+       Tízet tartunk, a legrégebbi esik ki. Tárolás géphez kötve. */
+    const TERV_KULCS = "mk-panel-tervek";
+    const TERV_MAX = 10;
+    let mentettTervek = [];
+    try {
+        const t = JSON.parse(GM_getValue(TERV_KULCS, "null"));
+        if (Array.isArray(t)) mentettTervek = t.filter(x => x && Array.isArray(x.c) && x.c.length);
+    } catch (e) { mentettTervek = []; }
+    function tervMent() {
+        try { GM_setValue(TERV_KULCS, JSON.stringify(mentettTervek)); } catch (e) { /* nem baj */ }
+    }
+
+    /* A név: minden cél darabszámmal, vesszővel. Hosszú tervnél csak az első
+       tétel áll ott, utána a maradék száma - a teljes tartalmat a buborék
+       mondja meg. */
+    function tervNev(celok) {
+        return celok.map(t => t.q + " " + nameOf(t.i)).join(", ");
+    }
+    function tervRovid(celok) {
+        if (celok.length <= 1) return tervNev(celok);
+        return celok[0].q + " " + nameOf(celok[0].i) + " +" + (celok.length - 1);
+    }
     let terv = null;          /* a legutóbbi compute() eredménye */
+    let bruttoTerv = null;    /* ugyanaz, de ÜRES készlettel - az Összesen dobozhoz */
     let nezet = beall.nezet || "tree";   /* tree | all | raw */
     let elsoKijelolve = false;   /* az első recept egyszeri, belső kijelölése */
     /* null = minden mesterség. Induláskor a karakter saját mestersége lesz,
@@ -1192,6 +1651,26 @@ const SZOVEG = {
     const CSS = `
 :host{ all:initial; }
 :host{ position:fixed; display:block; z-index:100; }
+
+/* A PALETTA A GAZDAELEMEN ÁLL, nem a kereten.
+
+   Azért itt, mert nem csak a keret használja: a munkakereső buborék a
+   keret MELLETT él (a keret flex-oszlop, overflow:hidden-nel vág, és a
+   natív mód elveszi a gyermekei lebegését). Ha a paletta a kereten
+   maradna, a buborék semmilyen színt nem kapna, mert a :host{all:initial}
+   elvágja az öröklést kívülről - a saját változókra viszont az all
+   kulcsszó nem hat, ezért innen lefelé mindenki megkapja őket.
+
+   FONTOS: a natív mód színfelülírásai is ide szólnak, ugyanezért. */
+:host{
+  --bg:#f3ebdd; --panel:#fbf6ec; --raised:#ede2cf; --line:#dccdb4;
+  --ink:#2b2119; --dim:#7a6852; --faint:#9c8a73;
+  --brass:#9a6a11; --green:#3d7a52; --rust:#a83a20;
+  --fa:#5a3d1f; --fa2:#3a2713;
+  --fill:rgba(61,122,82,.13); --shadow:0 1px 2px rgba(80,60,30,.07);
+  /* megbízásból várható: pergamenre hangolt kék, jól elválik a zöldtől */
+  --vart:#8fb6d6; --vart2:#2f6690;
+}
 :host([hidden]){ display:none; }
 
 /* natív mód: a keretet, a fejlécet és a méretezőfület a játék ablaka adja */
@@ -1227,11 +1706,6 @@ const SZOVEG = {
 [hidden]{ display:none !important }
 
 .frame{
-  --bg:#f3ebdd; --panel:#fbf6ec; --raised:#ede2cf; --line:#dccdb4;
-  --ink:#2b2119; --dim:#7a6852; --faint:#9c8a73;
-  --brass:#9a6a11; --green:#3d7a52; --rust:#a83a20;
-  --fa:#5a3d1f; --fa2:#3a2713;
-  --fill:rgba(61,122,82,.13); --shadow:0 1px 2px rgba(80,60,30,.07);
   width:100%; height:100%; display:flex; flex-direction:column;
   background:var(--bg); color:var(--ink);
   font-family:"Alegreya Sans","Segoe UI",system-ui,sans-serif; font-size:15px; line-height:1.45;
@@ -1305,7 +1779,11 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit; }
 .chip{ background:none; border:1px solid var(--line); border-radius:20px; padding:2px 8px;
   font-size:11.5px; color:var(--dim); cursor:pointer; white-space:nowrap }
 .chip[aria-pressed=true]{ border-color:var(--brass); color:var(--brass) }
-.rlist{ list-style:none; flex:1 1 auto; min-height:140px; overflow:auto }
+/* A nevoszlop ellipszissel rovidul, tehat vizszintes gorgetesre soha nincs
+   szukseg. Ha megis tulcsordulna valami, jobb levagni, mint a bornek nem
+   szant vizszintes gorgetosavot kirakni. */
+.rlist{ list-style:none; flex:1 1 auto; min-height:140px;
+        overflow-y:auto; overflow-x:hidden }
 .rlist button{ width:100%; display:grid; grid-template-columns:8px minmax(0,1fr) auto 24px; gap:8px;
   align-items:center; background:none; border:0; border-radius:5px; padding:5px 7px;
   cursor:pointer; text-align:left; font-size:14px; color:var(--ink) }
@@ -1353,10 +1831,265 @@ h1{ font-family:"Rye",Georgia,serif; font-size:19px; font-weight:400; line-heigh
 
 /* ---------- gyűjtenivaló ---------- */
 .needlist{ list-style:none; display:grid; gap:9px }
+/* Az ikon a NÉV MELLETT áll, nem fölötte - ugyanúgy, ahogy a robbantott
+   ábrán és a lépéskártyákon. Az ikon két sort fog át, a készültségi sáv a
+   név alá, a második oszlopba kerül. */
+.need{ display:grid; grid-template-columns:auto minmax(0,1fr);
+  column-gap:9px; row-gap:5px; align-items:center }
+.need > .mgomb, .need > img.ico{ grid-row:1 / span 2; align-self:center }
+.need > b{ grid-column:2 }
+.need .sav{ grid-column:2 }
 .need b{ font-weight:500; font-size:13.5px; display:flex; justify-content:space-between; gap:8px }
 .need .szam{ font-family:"Space Mono",monospace; font-size:12px; color:var(--dim) }
-.sav{ height:5px; background:var(--line); border-radius:3px; margin-top:4px; overflow:hidden }
-.sav i{ display:block; height:100%; background:var(--green) }
+/* ---------- munkakeresés: a tárgyikon mint gomb ---------- */
+/* A keret azt jelzi, hogy kattintható, és hogy van hova menni érte. Ahol a
+   panel nem talál munkát, ott nincs keret - az önmagában is információ.
+   Egér alatt a keret arany és vastagabb lesz; a belső térköz ezzel EGYÜTT
+   csökken, hogy az ikon mérete ne változzon. Így a sor nem ugrik meg, és a
+   viselkedés nyelvfüggetlen. */
+/* KÉT HALMAZ, KÉT SZÍN.
+
+   A SZÍN mondja meg, melyik halmazról van szó, a VASTAGSÁG azt, hogy rajta
+   van-e az egér. Erre azért volt szükség, mert az arany eddig a ráhúzás jele
+   volt - a hatásos termékeknél viszont most az alapállapot lesz.
+
+   A belső térköz a vastagsággal EGYÜTT csökken, hogy az ikon mérete és a sor
+   magassága ne mozduljon. A lépéskártyákon ez különösen fontos: ott a
+   hozzávalók egy sorban állnak. */
+.mgomb{ display:inline-flex; align-items:center; justify-content:center;
+  border:1px solid var(--line); border-radius:5px; padding:2px; cursor:pointer;
+  vertical-align:middle }
+.mgomb:hover{ border:2px solid var(--brass); padding:1px }
+/* Hatásos termék: arany nyugalomban is, ráhúzásra csak vastagabb.
+   A help kurzor megkülönbözteti a kattinthatót a csak-tájékoztatótól,
+   mielőtt a felhasználó rájönne a színkódra. */
+.mgomb.hat{ border-color:var(--brass); cursor:help }
+.mgomb.hat:hover{ border:2px solid var(--brass); padding:1px }
+/* A kérés idejére elhalványul, hogy ne kattints rá másodszor. */
+.mgomb.var{ opacity:.4; cursor:default }
+/* Ha a keret a NÉVRE kerül, szövegre szabott ráhagyás kell: az ikonos
+   négyzet itt csúnyán magas lenne. */
+.mgomb.nev{ padding:0 5px; border-radius:4px; display:inline }
+.mgomb.nev:hover{ border-width:1px; padding:0 5px; border-color:var(--brass); color:var(--brass) }
+/* A fában sűrűbbek a sorok, ott vékonyabb a ráhagyás. */
+.node .mgomb{ padding:1px; border-radius:4px }
+.node .mgomb:hover{ border-width:2px; padding:0 }
+
+/* ---------- munkakeresés: saját buborék ---------- */
+/* A title attribútum csak sima szöveget tud, arányos betűvel rajzol, és
+   gépenként máshogy igazít. Ez a buborék a panel árnyék-DOM-jában él, tehát
+   a panel CSS-e vonatkozik rá, és nem keveredik a játék stílusaival.
+   A jobb oszlop a panel jobb szélén van, ezért BALRA nyílik.
+
+   FONTOS: a buborék NEM a .frame gyermeke, hanem az árnyékgyökéré. A keret
+   flex-oszlop, overflow:hidden-nel, és a natív mód minden közvetlen
+   gyermekének position:relative-t ad - ott a buborék elvesztette a
+   lebegését, összenyomta a tartalmat, és le is vágódott. */
+.mbub{ position:absolute; z-index:40; max-width:330px; pointer-events:none;
+  background:var(--panel); color:var(--ink);
+  border:1px solid var(--fa); border-radius:6px; padding:8px 10px;
+  box-shadow:0 6px 18px rgba(0,0,0,.35); font-size:13px; line-height:1.5;
+  /* A betűtípust ki KELL mondani: a :host{all:initial} visszaállítja, és a
+     buborék nem a kereten belül él, ahonnan örökölhetné. */
+  font-family:"Alegreya Sans","Segoe UI",system-ui,sans-serif }
+.mbub[hidden]{ display:none }
+.mbub .cim{ font-family:"Space Mono",monospace; font-size:10px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--dim); margin-bottom:6px }
+.mbub .msor{ display:grid; grid-template-columns:18px minmax(0,1fr) auto;
+  align-items:center; gap:8px; color:var(--dim) }
+.mbub .msor + .msor{ margin-top:2px }
+.mbub .msor img{ width:18px; height:18px; object-fit:contain }
+/* A legjobb sor kiemelve: világosabb név, zöld szám, félkövér. */
+.mbub .msor.jo{ color:var(--ink); font-weight:600 }
+.mbub .msor.jo .db{ color:var(--green) }
+/* Space Mono a számoknak, hogy a százalékok egymás alá essenek. */
+.mbub .db{ font-family:"Space Mono",monospace; font-size:12px; text-align:right;
+  white-space:nowrap }
+.mbub .vonal{ border-top:1px solid var(--line); margin:7px 0 5px }
+.mbub .lab{ font-size:12px; color:var(--dim) }
+/* A hatás sorai kész mondatok a játéktól - nem tördeljük, nem rövidítjük. */
+.mbub .hsor{ color:var(--ink); margin-top:2px }
+.mbub .hsor:first-of-type{ margin-top:0 }
+
+/* ---------- keresőmező törlő jele ---------- */
+/* Saját elem, nem az input type="search" natív X-e: az böngészőnként
+   máshogy néz ki, és nem illik a pergamenhez. */
+/* A keresés második csoportjának fejléce: nem gomb, nem kattintható. */
+.valaszto{ font-family:"Space Mono",monospace; font-size:10px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--dim); padding:10px 4px 4px;
+  border-top:1px solid var(--line); margin-top:6px }
+
+/* A két gyorskapcsoló ugyanolyan gomb, mint a Kód/Szöveg, csak jellel. A
+   jel egy képponttal nagyobb, mert a szimbólumok optikailag kisebbek a
+   betűknél. */
+/* A javaslatlista a mező alatt lebeg, a panel saját stílusában. */
+.jwrap{ position:relative; display:inline-flex; flex:1 1 140px; min-width:0 }
+.jwrap input{ width:100% }
+/* A régi szám a helyőrzőben: enélkül a böngésző alapértelmezett színét
+   kapná, ami sötét háttéren olvashatatlan lehet. */
+.stepper input::placeholder{ color:var(--faint) }
+
+.jlista{ position:absolute; z-index:30; top:100%; left:0; right:0; margin-top:2px;
+  list-style:none; background:var(--panel); border:1px solid var(--fa);
+  border-radius:5px; box-shadow:0 6px 16px rgba(0,0,0,.3); overflow:hidden }
+.jlista[hidden]{ display:none }
+.jlista li{ padding:4px 8px; font-size:12.5px; cursor:pointer; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis }
+.jlista li.akt, .jlista li:hover{ background:var(--raised); color:var(--brass) }
+
+/* A két gyorskapcsoló ugyanolyan gomb, mint a Kód/Szöveg, csak jellel. A
+   fogaskerék .icon keretét is kipróbáltuk, de ott a jel túl kevés festéket
+   tett a gombra, és a bekapcsolt állapot alig látszott. */
+.gyorsk{ margin-left:6px; overflow:visible }
+.gyorsk button{ position:relative; width:31px; min-width:31px; height:25px; padding:2px 4px; overflow:visible }
+.gyk-rajz{ position:relative; display:block; width:20px; height:18px; margin:auto; color:currentColor }
+.gyk-rajz::before,.gyk-rajz::after,.gyk-rajz i::before,.gyk-rajz i::after{ content:""; position:absolute; box-sizing:border-box }
+.gyk-targy::before{ left:1px; top:2px; width:18px; height:15px; border:1px solid currentColor; border-radius:2px; box-shadow:inset 0 0 0 2px rgba(255,255,255,.08) }
+.gyk-targy::after{ left:7px; top:4px; width:6px; height:10px; border:2px solid currentColor; border-top-width:3px; border-radius:1px 1px 3px 3px; transform:skew(-8deg) }
+.gyk-besz::before{ left:2px; top:6px; width:16px; height:10px; border:1px solid currentColor; border-radius:1px }
+.gyk-besz::after{ left:2px; top:4px; width:16px; height:4px; border:1px solid currentColor; background:rgba(255,255,255,.08) }
+.gyk-besz i::before{ left:8px; top:1px; width:9px; height:7px; border-left:2px solid currentColor; border-bottom:2px solid currentColor; transform:rotate(-45deg) }
+.gyk-besz i::after{ left:13px; top:0; border:3px solid transparent; border-right-color:currentColor; transform:rotate(-45deg) }
+.gyk-ora::before{ left:3px; top:3px; width:15px; height:15px; border:2px solid currentColor; border-radius:50% }
+.gyk-ora::after{ left:8px; top:0; width:5px; height:4px; border:1px solid currentColor; border-radius:1px }
+.gyk-ora i::before{ left:10px; top:7px; width:1px; height:5px; background:currentColor; transform-origin:bottom; transform:rotate(38deg) }
+.gyorsk button[aria-pressed="true"]::after{ content:"✓"; position:absolute; right:-3px; bottom:-4px; width:12px; height:12px; display:grid; place-items:center; border-radius:50%; color:#fff7dc; background:#397657; border:1px solid #e4c274; font:bold 8px/1 sans-serif; z-index:2 }
+
+.drows .dfej{ display:block !important; padding:14px 0 5px; border-bottom:1px solid var(--line); color:var(--rust); font-family:Georgia,serif; font-size:16px }
+.drows .dfej:first-child{ padding-top:2px }
+.meretajanlott{ margin-left:7px; color:var(--green); font-size:11px; font-weight:600 }
+
+/* A névjegy a Beállítások fül alján, halványan - nem hivalkodik, de ott van.
+   A szív a paletta rozsda színét kapja, hogy ne rikítson. */
+.alairas{ margin:16px 0 4px; text-align:center; font-size:11.5px;
+  color:var(--faint); letter-spacing:.04em }
+/* A szív glifája optikailag kisebb a betűknél, ezért kap külön méretet -
+   így nagyjából akkora, mint egy nagy C vagy Z. A nulla sormagasság
+   megakadályozza, hogy a nagyobb jel megnövelje a sor magasságát. */
+.alairas .sziv{ color:var(--rust); font-size:1.35em; line-height:0;
+  vertical-align:-1px }
+
+/* A hatásszűrő a kereső alatt, saját sorban - nem a keresőmezőben, mert az
+   szöveges keresés, ez pedig választás. */
+/* A terv gombjai a MUNKALAP feliratának sávjában, jobbra - ott van hely,
+   és nem szorítják a célokat. */
+/* A megtanulható recept ZÖLDEN. A szint helyén áll a receptlistában, a
+   meta sorban a fában - mindkét helyen ugyanaz a szín, ugyanaz a szó. */
+.szint.tanul, .mt.tanul{ color:var(--green); font-weight:600 }
+.rlist button.tanulhato{ box-shadow:inset 0 0 0 1px var(--green) }
+/* A jelzes egyetlen racsgyerek: a szint helyen all, es benne vagy a felirat,
+   vagy a gomb. A min-width:0 engedi, hogy szuk panelen is zsugorodjon. */
+.rlist .jelzo{ display:inline-flex; align-items:center; gap:6px; min-width:0 }
+.tanulgomb{ display:inline-block; padding:1px 7px;
+  font-size:11px; cursor:pointer; border:1px solid var(--green);
+  color:var(--green); border-radius:4px; white-space:nowrap }
+.tanulgomb:hover{ background:color-mix(in srgb, var(--green) 16%, transparent) }
+
+.tervgombok{ float:right; display:inline-flex; gap:6px }
+.tervgombok[hidden]{ display:none }
+.tervgombok button{ font:inherit; font-size:11px; letter-spacing:.06em;
+  padding:2px 10px; min-height:24px; cursor:pointer; border-radius:4px;
+  border:1px solid var(--line); background:transparent; color:var(--dim) }
+.tervgombok button:hover:not(:disabled){ border-color:var(--brass); color:var(--brass) }
+.tervgombok button:disabled{ opacity:.4; cursor:default }
+
+.tervlista{ margin:0 0 10px; border:1px solid var(--line); border-radius:4px;
+  background:var(--raised); padding:6px }
+.tervlista[hidden]{ display:none }
+.tervsor{ display:flex; align-items:center; gap:6px }
+.tervsor + .tervsor{ margin-top:4px }
+.tervvalt{ flex:1 1 auto; min-width:0; text-align:left; cursor:pointer;
+  border:0; background:none; color:var(--ink); font:inherit; padding:6px 8px;
+  border-radius:4px }
+.tervvalt:hover{ background:var(--panel) }
+.tervvalt b{ display:block; font-size:13px; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap }
+.tervvalt small{ display:block; font-family:"Space Mono",monospace;
+  font-size:10.5px; color:var(--faint) }
+.tervx{ border:0; background:none; color:var(--faint); cursor:pointer;
+  font-size:12px; padding:4px 7px; border-radius:4px; min-height:30px }
+.tervx:hover{ color:var(--rust) }
+.tervbiztos{ border:1px solid var(--rust); background:transparent;
+  color:var(--rust); cursor:pointer; font:inherit; font-size:11.5px;
+  padding:4px 9px; border-radius:4px; min-height:30px }
+
+.hatassor{ margin:6px 0 8px }
+.hatassor[hidden]{ display:none }
+.hatassor select{ width:100%; box-sizing:border-box; font:inherit; font-size:12.5px;
+  padding:5px 8px; min-height:32px; border:1px solid var(--line); border-radius:4px;
+  background:var(--panel); color:var(--ink) }
+.hatassor select optgroup{ font-style:normal; font-weight:600; color:var(--brass) }
+
+.dkapcs{ display:inline-flex; align-items:center; gap:7px; cursor:pointer }
+
+/* ---------- termékbeszerzők ---------- */
+/* A doboz csak a lap közepéig fut: így a tárgynévnek bőven marad hely, és a
+   számok nem szakadnak el tőle a fél képernyő szélességében. */
+.beszdoboz{ margin:8px 0 4px; padding:9px 11px; border:1px solid var(--line);
+  border-radius:6px; max-width:520px }
+.besuj{ display:flex; flex-wrap:wrap; gap:6px; align-items:center }
+.besuj input{ font:inherit; font-size:12.5px; padding:3px 6px;
+  border:1px solid var(--line); border-radius:4px; background:var(--panel); color:var(--ink) }
+.besuj .jwrap:first-child{ flex:0 0 128px }
+.besuj input[data-mez="beszDb"]{ width:56px; text-align:right }
+.besuj button{ font:inherit; font-size:12.5px; padding:3px 10px; cursor:pointer;
+  border:1px solid var(--brass); color:var(--brass); background:transparent; border-radius:4px }
+.bcsop{ margin-top:9px }
+.bfej2{ display:flex; justify-content:space-between; align-items:baseline;
+  border-bottom:1px solid var(--line); padding-bottom:2px }
+/* A névoszlop nem tölti ki az egész ablakot: 210 képpontnál megáll, tehát a
+   darabszám a név mellett marad. Fix szélesség, ezért a számok egymás alatt
+   maradnak - az olvashatóság megvan, a nagy üres hely nélkül. */
+/* A név kapja a maradék helyet, a darabszám JOBBRA igazodik a kerethez, az X
+   előtt - így a számok mindig egy oszlopban állnak, akármilyen hosszú a név. */
+.bsor{ display:grid; grid-template-columns:auto minmax(0,1fr) auto auto;
+  align-items:center; gap:8px; padding:3px 0 }
+.bsor span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.bsor b{ text-align:right; font-variant-numeric:tabular-nums }
+.bplusz{ border:1px solid var(--line); background:none; color:var(--brass);
+  cursor:pointer; font-size:13px; line-height:1; width:22px; height:22px;
+  border-radius:4px; margin-left:7px; margin-right:auto }
+.bplusz:hover{ border-color:var(--brass); background:rgba(0,0,0,.07) }
+.bujsor{ display:flex; gap:6px; flex-wrap:wrap; padding:6px 0 2px }
+.bujsor[hidden]{ display:none }
+.bujsor input{ font:inherit; font-size:12.5px; padding:3px 6px;
+  border:1px solid var(--brass); border-radius:4px;
+  background:var(--panel); color:var(--ink) }
+.bujTargy{ flex:1 1 130px; min-width:0 }
+.bujDb{ width:56px; text-align:right }
+.bujOk{ font:inherit; font-size:12.5px; padding:3px 10px; cursor:pointer;
+  border:1px solid var(--brass); color:var(--brass); background:transparent;
+  border-radius:4px }
+
+.btorol{ border:0; background:none; color:var(--faint); cursor:pointer;
+  font-size:12px; padding:0 2px; border-radius:4px }
+.btorol:hover{ color:var(--rust); background:rgba(0,0,0,.07) }
+.besures{ margin-top:8px }
+
+.kwrap{ position:relative; display:block }
+.kwrap .search{ padding-right:28px }
+.ktorol{ position:absolute; top:calc(50% - 4px); right:7px; transform:translateY(-50%);
+  width:18px; height:18px; border:0; border-radius:50%; background:none;
+  color:var(--faint); font-size:13px; line-height:1; cursor:pointer; padding:0 }
+.ktorol:hover{ background:rgba(0,0,0,.09); color:var(--dim) }
+.ktorol[hidden]{ display:none }
+/* A sáv három szakasza EGY SORBAN: zöld a valódi készlet, halványkék a
+   megbízásból várható, a maradék a szürke háttér. A flex miatt a kék rész
+   nem tud kilógni akkor sem, ha többet rendeltél, mint amennyi hiányzik. */
+.sav{ height:5px; background:var(--line); border-radius:3px; margin-top:4px;
+  overflow:hidden; display:flex }
+.sav i{ display:block; height:100%; background:var(--green); flex:0 0 auto }
+.sav u{ display:block; height:100%; background:var(--vart); flex:0 0 auto }
+
+/* A megbízás száma KÉKEN, csillaggal - hogy első pillantásra elváljon a
+   zöld készlettől, ami mérés, nem feljegyzés. */
+.need .besz{ color:var(--vart2); margin-left:3px }
+.need .csill{ font-size:11px; vertical-align:top }
+.beszlab{ list-style:none; font-size:11.5px; color:var(--dim); margin-top:2px }
+/* A munkaóra a név alatt, halványan - tájékoztat, nem versenyzik a
+   darabszámmal. Saját sorban áll, hogy hosszú szöveg se törje szét a sort. */
+.need .orajel{ grid-column:2; font-size:11.5px; color:var(--faint);
+  font-family:"Space Mono",monospace }
 .act{ width:100%; margin-top:12px; background:var(--raised); border:1px solid var(--brass);
   color:var(--brass); border-radius:6px; padding:8px; cursor:pointer; font-size:13.5px }
 .act:hover{ background:var(--bg) }
@@ -1373,6 +2106,33 @@ h1{ font-family:"Rye",Georgia,serif; font-size:19px; font-weight:400; line-heigh
 /* ---------- Max jelző ---------- */
 /* Kijelzés, nem gomb: nem kattintható, ezért keretet és egérmutatót sem kap.
    A szám viszont kiemelést kap, hogy a léptető mellett is leolvasható legyen. */
+/* ---------- Gyártás gomb ---------- */
+/* Melegebb és sötétebb, mint a nézetfülek: ez az egyetlen elem a panelen,
+   ami tényleg csinál valamit a játékban. Inaktívan visszaolvad a lapba. */
+/* A .stepper button szabály MINDEN gombnak 26×26 pixel fix méretet ad a
+   léptető sávjában. A gyártás gomb szöveges, tehát a szélességet és a
+   belső margót vissza kell venni, különben a felirat kilóg a keretéből -
+   ugyanaz a hiba, ami a Max jelzőnél is előjött. */
+.stepper .gyartb{ width:auto; height:auto; box-sizing:content-box }
+.gyartb{ margin-left:14px; padding:4px 12px; border:1px solid var(--brass);
+  background:var(--raised); color:var(--fa); font:inherit; font-size:12.5px;
+  line-height:16px; cursor:pointer; white-space:nowrap; border-radius:2px }
+.gyartb:hover:not(:disabled){ background:var(--fill) }
+/* A tiltott állapot HÁROM jelzést kap egyszerre, mert egy sem elég önmagában.
+   Korábban csak a keret és a betűszín halványodott, a háttér viszont maradt
+   a gomb saját --raised színén: a gomb kiült a lapról, tehát aktívnak
+   látszott. Natívban ez különösen félrevezető volt, mert ott a --faint
+   értéke #6b5940, ami a pergamenen alig üt el az aktív felirattól.
+
+   1. A háttér a panel háttérszínére vált: nem ül ki, hanem beleolvad.
+   2. A keret szaggatott lesz - ez a panelben bevált nyelv a nem
+      kattintható állapotra, a Max jelző is így jelzi.
+   3. Enyhe áttetszőség, ami a színváltozók értékétől FÜGGETLENÜL működik,
+      tehát sötét és világos háttéren egyaránt. */
+.gyartb:disabled{ background:var(--panel); border:1px dashed var(--line);
+  color:var(--faint); opacity:.75; cursor:default }
+.gyartb:disabled:hover{ background:var(--panel) }
+
 .maxj{ font-size:11.5px; color:var(--faint); margin-left:12px;
   white-space:nowrap; line-height:16px; cursor:default }
 .maxj b{ color:var(--green); font-weight:600; font-size:12.5px }
@@ -1447,6 +2207,9 @@ h1{ font-family:"Rye",Georgia,serif; font-size:19px; font-weight:400; line-heigh
   color:var(--dim); cursor:pointer; line-height:1 }
 
 .zar{ color:var(--brass) }
+/* t32: a FUTO zarolas mas, mint a recept tulajdonsaga. Az elso a te
+   allapotod es fogy, a masodik allando - ezert kap kulon szint. */
+.zar.fut{ color:var(--rust); font-weight:600 }
 .lepes .lfej{ flex:1 1 auto; min-width:0 }
 .hozok{ display:flex; flex-wrap:wrap; gap:4px 10px; margin-top:3px }
 .hoz{ display:inline-flex; align-items:center; gap:4px; font-size:11.5px; color:var(--dim) }
@@ -1512,6 +2275,423 @@ li.collapsed > .node > .toggle::before{ content:"+" }
 /* a jobb oszlop fejléce egy sorban: a felirat és a szám egymás mellett */
 .col.jobb .eyebrow{ display:flex; align-items:baseline; gap:8px; white-space:nowrap }
 .col.jobb .eyebrow > span{ margin-left:auto; letter-spacing:0; font-size:10px }
+
+/* ===================================================================
+   FRONTIER WORKBENCH - V17 IRANYU PANEL REBRAND CANDIDATE
+
+   A webes v17-bol a vizualis nyelv jon at, nem annak szerkezete vagy
+   temavalasztoja. Kivul sotet markakeret, belul harom kulon munkafelület:
+   receptes sin, pergamen munkalap es fuvarlevel jellegu hianylista.
+   =================================================================== */
+:host{
+  --bg:#20130c; --panel:#f6e7bd; --raised:#e8cf94; --line:#9a7441;
+  --ink:#2a180d; --dim:#705538; --faint:#8c7354;
+  --brass:#d59a2f; --green:#39775b; --rust:#a64228;
+  --fa:#4a2513; --fa2:#170a06;
+  --fill:rgba(57,119,91,.14); --shadow:0 5px 14px rgba(45,22,8,.16);
+  --paper:#f6e7bd; --paper2:#e6c985;
+}
+
+.frame{
+  position:relative;
+  border:4px solid #4a2513;
+  border-radius:9px;
+  background:#20130c;
+  box-shadow:0 0 0 1px #120703, 0 0 0 5px rgba(112,66,27,.72),
+    0 18px 48px rgba(0,0,0,.68);
+}
+.frame::after{
+  content:""; position:absolute; inset:3px; z-index:20; pointer-events:none;
+  border:1px solid rgba(231,175,75,.38); border-radius:4px;
+  box-shadow:inset 0 0 22px rgba(42,17,6,.36);
+}
+
+/* A sajat keret fejlece egy rovid szalonfelirat, nem egy masodik oldalfejlec. */
+.bar{
+  position:relative; min-height:40px; padding:6px 8px 6px 15px; gap:9px;
+  overflow:hidden;
+  background:
+    linear-gradient(102deg,transparent 0 25%,rgba(246,195,92,.13) 42%,transparent 61%),
+    repeating-linear-gradient(90deg,rgba(255,255,255,.025) 0 1px,transparent 1px 34px),
+    linear-gradient(180deg,#553016,#281207);
+  border-bottom:2px solid #c28327;
+}
+.bar::after{
+  content:""; position:absolute; inset:-70% -18%; pointer-events:none;
+  background:linear-gradient(104deg,transparent 44%,rgba(255,222,151,.16) 50%,transparent 56%);
+  animation:frontier-sheen 8s ease-in-out infinite;
+}
+.bar > *{ position:relative; z-index:1 }
+.mark{
+  display:inline-flex; align-items:center; gap:8px;
+  font-size:15px; letter-spacing:.035em; color:#f2cc79;
+}
+.mark::before{
+  content:"✦"; display:grid; place-items:center; width:22px; height:22px;
+  color:#f7d990; border:1px solid #bb7923; transform:rotate(45deg);
+  background:#321508; box-shadow:inset 0 0 0 2px #603519,0 0 10px rgba(230,164,51,.18);
+}
+.ver{ color:#d2a75d; letter-spacing:.08em }
+.bar .icon{
+  border-color:#8e5821; color:#e3bd72;
+  background:linear-gradient(#4e2b15,#2a1309);
+  box-shadow:inset 0 1px rgba(255,230,170,.12);
+}
+.bar .icon:hover{ color:#fff0b5; border-color:#dfa43c; background:linear-gradient(#67401e,#35180b) }
+
+/* Felso szerszamsin. A teljes chip kattinthato, az aktiv allapot egyertelmu. */
+.topbar{
+  position:relative; display:flex; align-items:center; gap:8px;
+  flex:0 0 auto; min-height:42px; padding:6px 10px;
+  overflow-x:auto; overflow-y:hidden; white-space:nowrap;
+  background:
+    linear-gradient(rgba(255,255,255,.035),transparent),
+    repeating-linear-gradient(90deg,#2d190d 0 46px,#321c0f 46px 92px);
+  border-bottom:1px solid #8d5e29;
+  box-shadow:inset 0 -5px 11px rgba(0,0,0,.24);
+}
+.topbar::before{
+  content:""; position:absolute; left:8px; right:8px; bottom:3px; height:1px;
+  background:linear-gradient(90deg,transparent,#c88c33 12%,#c88c33 88%,transparent);
+  opacity:.48;
+}
+.topbar .proftabs{ display:flex; align-items:center; gap:5px; min-width:max-content }
+.topbar .utility{ display:flex; align-items:center; gap:6px; margin-left:auto; padding-left:12px }
+.topbar .chip{
+  min-height:28px; padding:5px 10px; border:1px solid #765025; border-radius:3px;
+  color:#d8bd87; background:linear-gradient(180deg,#412511,#28140a);
+  box-shadow:inset 0 1px rgba(255,226,166,.08),0 2px 0 rgba(0,0,0,.22);
+  transition:transform .14s ease,border-color .14s ease,color .14s ease,background .14s ease;
+}
+.topbar .chip:hover{ color:#fff0c3; border-color:#cf9334; transform:translateY(-1px) }
+.topbar .chip[aria-pressed=true]{
+  color:#2b1609; border-color:#f0c469;
+  background:linear-gradient(180deg,#f0c56b,#b9771f);
+  box-shadow:inset 0 1px rgba(255,249,216,.72),0 0 0 1px rgba(78,35,7,.65),0 4px 12px rgba(225,151,41,.18);
+}
+.topbar .fmtvalto{ border-color:#a86d27; background:#1f1008 }
+.topbar .fmtvalto button{ color:#d7b97f; background:#351c0d }
+.topbar .fmtvalto button:hover{ color:#fff0c4; background:#4b2a13 }
+.topbar .fmtvalto button[aria-pressed="true"],
+.topbar .fmtvalto button[aria-pressed="true"]:hover{ color:#2b1609; background:#d19a3c }
+.topbar .icon{
+  width:auto; min-width:31px; height:28px; padding:0 9px;
+  color:#dfbd7a; border-color:#765025; background:linear-gradient(#432611,#251208);
+}
+.topbar .icon:hover{ color:#fff0bd; border-color:#d49a3b }
+
+/* Harom kulon anyagu munkaterulet. */
+.stage{
+  position:relative; padding:8px; overflow:auto;
+  background:
+    radial-gradient(circle at 50% -20%,rgba(218,158,55,.16),transparent 46%),
+    repeating-linear-gradient(90deg,#2a170c 0 52px,#311b0e 52px 104px);
+}
+.wrap{
+  grid-template-columns:272px minmax(0,1fr) 296px;
+  gap:8px; align-items:stretch; height:100%; min-height:0;
+}
+.col{
+  position:relative; padding:12px; overflow:auto;
+  border:1px solid #7f572d; border-radius:4px;
+  box-shadow:0 7px 18px rgba(0,0,0,.27),inset 0 0 0 1px rgba(255,248,222,.18);
+}
+.col + .col{ border-left:1px solid #7f572d }
+.recipe-depot{
+  color:#2b2119;
+  background:
+    radial-gradient(circle at 78% 2%,rgba(255,255,255,.48),transparent 31%),
+    repeating-linear-gradient(0deg,rgba(104,69,30,.05) 0 1px,transparent 1px 27px),
+    linear-gradient(112deg,#f6e8c3,#e8cc8e 72%,#dcb872);
+  border-color:#8b6337;
+  box-shadow:0 8px 20px rgba(0,0,0,.28),inset 0 0 0 2px rgba(255,248,220,.18);
+}
+.recipe-depot::before,.manifest::before,.workshop::before{
+  content:""; position:absolute; inset:5px; pointer-events:none; border-radius:2px;
+  border:1px solid rgba(255,245,210,.18);
+}
+.workshop{
+  color:var(--ink);
+  background:
+    radial-gradient(circle at 72% 4%,rgba(255,255,255,.55),transparent 28%),
+    repeating-linear-gradient(0deg,rgba(112,77,34,.045) 0 1px,transparent 1px 27px),
+    linear-gradient(105deg,#f8edcd,#efd79b 72%,#e3c27b);
+  border-color:#b37d37;
+}
+.manifest{
+  color:var(--ink);
+  background:
+    linear-gradient(90deg,rgba(139,49,30,.09) 0 5px,transparent 5px),
+    repeating-linear-gradient(0deg,rgba(111,72,30,.055) 0 1px,transparent 1px 26px),
+    linear-gradient(135deg,#f3dfad,#e5c57d);
+  border-color:#a64b2e;
+  box-shadow:0 8px 20px rgba(0,0,0,.3),inset 5px 0 0 rgba(145,51,31,.62),inset 0 0 0 1px rgba(255,248,220,.28);
+}
+
+.eyebrow{
+  position:relative; z-index:1; padding-bottom:6px; margin-bottom:9px;
+  color:#664622; font-weight:700; letter-spacing:.15em;
+  border-bottom:1px solid rgba(122,79,34,.34);
+}
+.recipe-depot .eyebrow{ color:#49301b; border-bottom-color:rgba(112,72,30,.38) }
+.recipe-depot .eyebrow span{ color:#59442c }
+.recipe-depot .legend{ color:#59442c; border-top:1px solid rgba(112,72,30,.28); padding-top:8px }
+
+/* Receptes sin: kartyak, nem kusza szovegsorok. */
+.recipe-depot .charbar{
+  position:relative; z-index:1; padding:8px 9px; margin-bottom:10px;
+  color:#2b2119; border:1px solid rgba(133,91,40,.52); border-radius:3px;
+  background:linear-gradient(135deg,rgba(255,246,210,.62),rgba(196,145,68,.24));
+  box-shadow:inset 0 0 12px rgba(99,57,20,.10);
+}
+.recipe-depot .charbar .szakma{ color:#3e2a18 }
+.recipe-depot .charbar .szintsav{ border-color:#6c4a24; background:#6b5233 }
+.recipe-depot .charbar .szintsav > i{ background:linear-gradient(90deg,#34795a,#73b46f) }
+.recipe-depot .search{
+  color:#24170d; background:#f6e9c7; border-color:#c89746;
+  box-shadow:inset 0 1px 4px rgba(70,39,13,.2),0 0 0 1px rgba(255,244,213,.2);
+}
+.recipe-depot .search::placeholder{ color:#765f45 }
+.recipe-depot .ktorol{ color:#755534 }
+.recipe-depot .enyem{ color:#59442c }
+.recipe-depot .rlist{ padding-right:3px }
+.recipe-depot .rlist li + li{ margin-top:4px }
+.recipe-depot .rlist button{
+  min-height:43px; padding:6px 7px; gap:7px;
+  color:#2c2116; border:1px solid rgba(116,77,34,.24); border-radius:3px;
+  background:linear-gradient(100deg,rgba(255,250,226,.38),rgba(170,112,44,.055));
+  box-shadow:inset 3px 0 0 rgba(143,94,37,.28);
+  transition:transform .14s ease,background .14s ease,border-color .14s ease,box-shadow .14s ease;
+}
+.recipe-depot .rlist button:hover{
+  color:#21170f; border-color:#a87832;
+  background:linear-gradient(100deg,rgba(231,190,105,.58),rgba(255,247,215,.32));
+  box-shadow:inset 4px 0 0 #a87027,0 5px 11px rgba(77,43,17,.16);
+  transform:translateX(2px);
+}
+.recipe-depot .rlist button[aria-current=true]{
+  color:#221309; border-color:#f1c76f;
+  background:linear-gradient(100deg,#efc665,#b97a24);
+  box-shadow:inset 4px 0 0 #fff0ad,0 5px 14px rgba(0,0,0,.28);
+}
+.recipe-depot .rlist .szint{ color:#4b3824 }
+.recipe-depot .rlist button[aria-current=true] .szint{ color:#503017 }
+.recipe-depot .rlist .plusz{
+  color:#6c4b25; border:1px solid rgba(126,83,35,.34); background:rgba(255,246,210,.32);
+}
+.recipe-depot .rlist .plusz:hover{ color:#27160b; border-color:#f0c568; background:#efc05e }
+.recipe-depot .rlist .plusz.benne{ color:#5a3514; border-color:#b77a25; background:rgba(213,154,47,.28) }
+.recipe-depot .rlist button[aria-current=true] .plusz{ color:#3d210d; border-color:rgba(61,33,13,.35); background:rgba(255,246,204,.35) }
+.recipe-depot .rlist button.halvany{ opacity:1 }
+.recipe-depot .rlist button.halvany .nev,
+.recipe-depot .rlist button.halvany .szint{ color:#6b5940 }
+.recipe-depot .valaszto{ color:#664622; border-color:rgba(112,72,30,.32) }
+
+/* A ZOLD JELZES A PERGAMEN BORBEN IS. A .rlist button.tanulhato (inset 1px)
+   azonos fajsulyu a .recipe-depot .rlist button szabalyaval, de az all
+   kesobb, tehat az nyert: a zold gyuru soha nem latszott. Ugyanez all a
+   .szint.tanul szinere is, azt a .recipe-depot .rlist .szint irta felul. */
+.recipe-depot .rlist button.tanulhato{
+  border-color:var(--green); box-shadow:inset 3px 0 0 var(--green) }
+.recipe-depot .rlist .szint.tanul{ color:var(--green) }
+
+/* Kozponti munkalap: nyitott fokönyv, eros interakcios allapotokkal. */
+.workshop .order{
+  position:relative; padding:12px; margin-bottom:10px;
+  border:1px solid #b27b35; border-radius:3px;
+  background:rgba(255,248,221,.54);
+  box-shadow:inset 0 0 18px rgba(122,75,24,.08),0 4px 10px rgba(79,42,12,.08);
+}
+.workshop .order::before,.workshop .order::after{
+  content:""; position:absolute; width:8px; height:8px; border-radius:50%;
+  background:#b27625; box-shadow:inset 0 1px rgba(255,231,163,.45),0 1px 2px rgba(67,32,10,.45);
+}
+.workshop .order::before{ left:5px; top:5px }
+.workshop .order::after{ right:5px; bottom:5px }
+.workshop h1{ color:#351b0c; font-size:20px }
+.workshop .ico.xl{ width:52px; height:52px; filter:drop-shadow(0 3px 2px rgba(69,35,11,.25)) }
+.workshop .ring{ filter:drop-shadow(0 3px 3px rgba(69,36,12,.16)) }
+.workshop .ring b{ color:#2f714f; font-size:18px }
+/* A LEPTETO SAVJA. A doboz kap keretet, hatteret es overflow:hidden-t, ezert
+   a - 1 + Max Gyartas EGY osszefuggo vezerlonek latszik: a sav hattere kitolti
+   a margokat, a Gyartas gomb pedig a sav jobb szelen vegzodik.
+
+   t33: ezt elrontottam. A tiltott gomb szaggatott kerete a sav kozepen uszott,
+   es a savot dobtam el helyette, ahelyett hogy a tiltott allapotot javitottam
+   volna. A sav jo volt, a hiba csak a tiltott gomb kitoltese.
+
+   t34: a sav visszajon. A tiltott gomb a savon BELUL lapos, tompa kitoltest
+   kap, ami ugyanugy a sav vegeig er - nem atlatszot es nem szaggatott keretet.
+   Igy a sav mindket allapotban osszefuggo, csak a jobb vege lesz tompa. */
+.workshop .stepper{
+  border:1px solid #9d6b31; border-radius:3px; overflow:hidden;
+  background:#f4dfaa; box-shadow:inset 0 1px rgba(255,249,219,.65);
+}
+.workshop .stepper button{ border:0; border-radius:0; color:#43220f; background:linear-gradient(#efcf82,#c98e37) }
+.workshop .stepper button:hover{ color:#1f0e05; background:linear-gradient(#f7dda0,#d8a44e) }
+.workshop .stepper input{ border-color:#9d6b31; color:#2b180d; background:#fff1c9 }
+.workshop .stepper .gyartb:disabled,
+.workshop .stepper .gyartb:disabled:hover{
+  border:0; opacity:1; color:#7d6444; background:#e2cb9d; text-shadow:none }
+.workshop .seg{ display:flex; width:100%; margin:3px 0 10px; border:0; border-radius:3px; gap:4px; overflow:visible }
+.workshop .seg button{
+  flex:1 1 0; min-height:34px; border:1px solid #9d713d; border-radius:3px;
+  color:#6b4f32; background:rgba(255,249,225,.45);
+  transition:transform .14s ease,background .14s ease,border-color .14s ease;
+}
+.workshop .seg button:hover{ color:#3a1d0c; border-color:#b97727; background:#f4d996; transform:translateY(-1px) }
+.workshop .seg button[aria-selected=true]{ color:#fff2cf; border-color:#6f2d1c; background:linear-gradient(#a84a2e,#74301e); box-shadow:inset 0 -3px 0 #e0a544 }
+.workshop .card{
+  position:relative; border:1px solid #bd945d; border-radius:3px;
+  background:rgba(255,249,224,.62);
+  box-shadow:inset 4px 0 0 #c79643,0 3px 8px rgba(79,41,12,.08);
+  transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease;
+}
+.workshop .card:hover{ border-color:#a9632d; transform:translateY(-1px); box-shadow:inset 4px 0 0 #a64228,0 6px 13px rgba(80,39,11,.14) }
+.workshop .card.hiany{ border-color:#a8442d; background:rgba(166,66,40,.09); box-shadow:inset 4px 0 0 #a64228 }
+.workshop .card.megvan{ border-color:#6e9b76; background:rgba(57,119,91,.11); box-shadow:inset 4px 0 0 #39775b }
+.workshop .treebar button,.workshop .mind,.workshop .chip-item{
+  border-color:#9e7545; color:#5f452c; background:rgba(255,248,220,.48);
+}
+.workshop .treebar button:hover,.workshop .mind:hover,.workshop .chip-item:hover{ color:#2e170b; border-color:#b57228; background:#efd28e }
+.workshop .node{ border:1px solid transparent; transition:background .12s ease,border-color .12s ease }
+.workshop .node:hover{ border-color:rgba(166,101,42,.36); background:rgba(222,176,92,.23) }
+.workshop .blokk{ border-color:#aa7a3f; background:rgba(255,248,222,.42); box-shadow:inset 0 0 12px rgba(113,66,24,.06) }
+
+/* Fuvarlevel: minden tetel sajat, teljes feluleten olvashato kartya. */
+.manifest .needlist{ gap:7px }
+.manifest .need{
+  position:relative; min-height:56px; padding:7px 8px;
+  border:1px solid rgba(138,78,36,.34); border-radius:3px;
+  background:rgba(255,247,217,.48);
+  box-shadow:inset 3px 0 0 rgba(159,57,34,.62);
+  transition:transform .14s ease,background .14s ease,border-color .14s ease;
+}
+.manifest .need:hover{ border-color:#a64a2e; background:rgba(255,242,201,.78); transform:translateX(-2px) }
+.manifest .need b{ color:#3c2112 }
+.manifest .need .szam{ color:#63472d }
+.manifest .sav{ height:7px; border-radius:0; background:rgba(94,54,25,.25); box-shadow:inset 0 1px 2px rgba(70,35,12,.22) }
+.manifest .sav i{ background:linear-gradient(90deg,#2d654c,#5ca36b) }
+.manifest .sav u{ background:linear-gradient(90deg,#5789ad,#8fb6d6) }
+.manifest .act{
+  min-height:38px; border:1px solid #6f2619; border-radius:3px;
+  color:#fff0cb; background:linear-gradient(#ae4b30,#7f2c1e);
+  box-shadow:inset 0 1px rgba(255,226,183,.2),0 3px 0 #5d2117,0 7px 13px rgba(91,33,20,.15);
+  font-weight:700; transition:transform .14s ease,filter .14s ease;
+}
+.manifest .act:hover{ color:#fff7df; background:linear-gradient(#c05a38,#8d3423); transform:translateY(-1px); filter:saturate(1.08) }
+
+/* Raktar es beallitasok ugyanabban a fökonyv-anyagban. */
+.diag{
+  min-height:100%; color:var(--ink);
+  background:
+    repeating-linear-gradient(0deg,rgba(112,77,34,.05) 0 1px,transparent 1px 28px),
+    linear-gradient(120deg,#f8ecc9,#e5c783);
+  border:1px solid #9a6c36; box-shadow:inset 0 0 0 5px rgba(255,248,220,.2);
+}
+.diag h2{ padding-bottom:5px; color:#7b421d; border-bottom:1px solid rgba(129,82,35,.36) }
+.drows li,.whrows li{ border-bottom-color:rgba(123,79,35,.28) }
+.diag a{ color:#7f3b21 }
+
+/* ================= T17 - celzott kontraszt es beallitaslap =================
+   A receptszint mindig olvashato a pergamenen. Az allapotot tovabbra is a
+   bal oldali pont jelzi, nem a szam elhalvanyitasa. */
+.recipe-depot .rlist .szint{
+  color:#4b3824; font-size:12px; font-weight:700; text-shadow:none }
+.recipe-depot .rlist button.halvany .szint{ color:#725f43 }
+.recipe-depot .rlist button[aria-current=true] .szint{
+  color:#3e2512; text-shadow:none }
+
+/* A letiltott sor marad visszafogott, de a pergamenen nem mosodik el. */
+.workshop .excl.tehetetlen,
+.workshop .texcl.tehetetlen{ color:#715c41; opacity:.78 }
+
+/* A Beallitasok ugyanazt a fokonyv/pergamen nyelvet kapja, mint a munkalap.
+   Csak a megjelenes valtozik: a meglevo mezok es data-mez pontok maradnak. */
+.settings-ledger{ overflow:auto; padding:14px }
+/* t32: RACS HELYETT KET FUGGETLEN OSZLOP.
+   A regi kiosztasban az "appearance" ket sort fogott at, es messze az volt a
+   legmagasabb kartya. A racs a magassagat szetosztotta az 1. es 2. sor kozott,
+   az align-items:start miatt pedig a "language" es a "version" a sora tetejere
+   ult - alattuk fel kartyanyi ureseg maradt. A "status" is csak a teljes
+   "appearance" utan kezdodott. Racsban ez nem javithato: a sorok vizszintesen
+   osszekotik az oszlopokat. A ket oszlopnak fuggetlennek kell lennie. */
+.settings-grid{
+  display:grid;
+  grid-template-columns:minmax(300px,.8fr) minmax(440px,1.2fr);
+  gap:12px; align-items:start }
+.settings-col{ display:flex; flex-direction:column; gap:12px; min-width:0 }
+.settings-card{
+  min-width:0; overflow:hidden; align-self:start;
+  border:1px solid rgba(133,87,38,.48); border-radius:4px;
+  background:rgba(255,248,222,.42);
+  box-shadow:inset 0 0 0 1px rgba(255,255,244,.34),0 4px 10px rgba(78,43,16,.08) }
+.settings-card h2{
+  margin:0; padding:9px 12px 7px;
+  color:#63371d; border:0; border-bottom:1px solid rgba(133,87,38,.42);
+  background:linear-gradient(90deg,rgba(157,74,39,.13),rgba(211,161,69,.07));
+  box-shadow:inset 4px 0 0 #9c4b2e }
+.settings-card .drows{ padding:4px 11px 10px }
+.settings-card .drows li{
+  grid-template-columns:minmax(150px,190px) minmax(0,1fr);
+  gap:12px; padding:7px 2px; line-height:1.35 }
+.settings-card .drows li:last-child{ border-bottom:0 }
+.settings-card .mono{
+  color:#634b33; line-height:1.55; word-break:normal; overflow-wrap:anywhere }
+.settings-card select,
+.settings-card input:not([type="checkbox"]){
+  border:1px solid #a67a42; border-radius:3px;
+  color:#302215; background:#fff2cc; box-shadow:inset 0 1px 3px rgba(79,45,18,.13) }
+.settings-card input[type="checkbox"]{ accent-color:#8f472a }
+.settings-card .beszdoboz{
+  max-width:none; margin:10px 11px 12px; border-color:#a67a42;
+  background:rgba(255,245,211,.34) }
+.settings-signature{ grid-column:1/-1; margin:2px 0 0 }
+
+@container panel (max-width:919px){
+  .settings-grid{ grid-template-columns:minmax(0,1fr) }
+}
+@container panel (max-width:619px){
+  .settings-ledger{ padding:10px }
+  .settings-card .drows li{ grid-template-columns:minmax(0,1fr); gap:4px }
+}
+
+/* A buborek a sotet kereten kivul is sajat, eros kontrasztot kap. */
+.mbub{
+  color:#f7e8c4; border-color:#c48a32;
+  background:linear-gradient(145deg,#173a37,#0d2423);
+  box-shadow:0 10px 26px rgba(0,0,0,.5),inset 0 0 0 1px rgba(255,240,195,.08);
+}
+.mbub .cim{ color:#e2bb6e }
+.mbub .msor,.mbub .lab{ color:#bdcbbd }
+.mbub .msor.jo,.mbub .hsor{ color:#fff0cd }
+.mbub .vonal{ border-top-color:rgba(225,187,109,.28) }
+
+@keyframes frontier-sheen{
+  0%,62%{ transform:translateX(-34%); opacity:0 }
+  70%{ opacity:1 }
+  84%,100%{ transform:translateX(34%); opacity:0 }
+}
+@media (prefers-reduced-motion:reduce){
+  .bar::after{ animation:none }
+  .topbar .chip,.recipe-depot .rlist button,.workshop .seg button,
+  .workshop .card,.manifest .need,.manifest .act{ transition:none }
+}
+
+@container panel (max-width:859px){
+  .wrap{ grid-template-columns:236px minmax(0,1fr) 270px; gap:6px }
+  .col{ padding:10px }
+}
+@container panel (max-width:779px){
+  .wrap{ grid-template-columns:230px minmax(0,1fr) }
+  .col.jobb{ grid-column:2; border-left:1px solid #7f572d; border-top:1px solid #7f572d }
+}
+@container panel (max-width:599px){
+  .wrap{ grid-template-columns:minmax(0,1fr) }
+  .col.bal{ width:258px; background:var(--paper) }
+  .col.jobb{ grid-column:1 }
+  .topbar .utility{ padding-left:5px }
+}
 `;
 
     /* ===================================================================
@@ -1519,7 +2699,7 @@ li.collapsed > .node > .toggle::before{ content:"+" }
        =================================================================== */
 
     const VAZ = () => `
-<div class="frame">
+<div class="frame frontier-workbench">
   <header class="bar">
     <span class="mark">${T("ablak_cim")}</span>
     <span class="ver">v${VERZIO}</span>
@@ -1541,12 +2721,19 @@ li.collapsed > .node > .toggle::before{ content:"+" }
 
   <div class="stage">
     <section data-lap="calc" class="wrap">
-      <aside class="col bal side">
+      <aside class="col bal side recipe-depot">
         <div data-mez="charbar"></div>
         <p class="eyebrow">${T("eyebrow_recept")} <span data-mez="rcount"></span></p>
         <span class="tfwrap"><span class="tfcap"><span class="tfbody">
-          <input class="search" data-mez="kereso" placeholder="${T("kereso_helyorzo")}" aria-label="${T("kereso_aria")}">
+          <span class="kwrap">
+            <input class="search" data-mez="kereso" placeholder="${T("kereso_helyorzo")}" aria-label="${T("kereso_aria")}">
+            <button class="ktorol" data-mez="ktorol" data-mit="keresotorol"
+              title="${T("kereso_torles")}" aria-label="${T("kereso_torles")}" hidden>✕</button>
+          </span>
         </span></span></span>
+        <div class="hatassor" data-mez="hatassor" hidden>
+          <select data-mez="hatasszuro" aria-label="${T("hatasz_aria")}"></select>
+        </div>
         <label class="enyem" data-mez="enyemsor">
           <input type="checkbox" data-mez="enyem"> <span data-mez="enyemcimke"></span>
         </label>
@@ -1558,13 +2745,18 @@ li.collapsed > .node > .toggle::before{ content:"+" }
         </p>
       </aside>
 
-      <main class="col">
+      <main class="col workshop">
         <button class="fiokgomb" data-mit="fiok">☰ Receptek</button>
-        <p class="eyebrow">${T("eyebrow_munkalap")}</p>
+        <p class="eyebrow">${T("eyebrow_munkalap")}
+          <span class="tervgombok" data-mez="tervgombok" hidden>
+            <button data-mit="tervment" type="button">${esc(T("terv_mentes"))}</button>
+            <button data-mit="tervnyit" type="button" data-mez="tervnyit"></button>
+          </span></p>
+        <div class="tervlista" data-mez="tervlista" hidden></div>
         <div data-mez="munkalap"></div>
       </main>
 
-      <aside class="col jobb side">
+      <aside class="col jobb side manifest">
         <p class="eyebrow">${T("eyebrow_gyujts")} <span data-mez="ncount"></span></p>
         <div data-mez="gyujts"></div>
       </aside>
@@ -1577,15 +2769,34 @@ li.collapsed > .node > .toggle::before{ content:"+" }
       <ul class="whrows" data-mez="stocklist"></ul>
     </section>
 
-    <section data-lap="diag" class="diag" hidden>
-      <h2>${T("beall_nyelv")}</h2>
-      <ul class="drows" data-mez="dnyelv"></ul>
-      <h2>${T("beall_verzio")}</h2>
-      <ul class="drows" data-mez="dverzio"></ul>
-      <h2>${T("beall_allapot")}</h2>
-      <ul class="drows" data-mez="dallapot"></ul>
-      <h2>${T("beall_honlap")}</h2>
-      <ul class="drows" data-mez="dhonlap"></ul>
+    <section data-lap="diag" class="diag settings-ledger" hidden>
+      <div class="settings-grid">
+        <div class="settings-col">
+          <section class="settings-card settings-language">
+            <h2>${T("beall_nyelv")}</h2>
+            <ul class="drows" data-mez="dnyelv"></ul>
+          </section>
+          <section class="settings-card settings-version">
+            <h2>${T("beall_verzio")}</h2>
+            <ul class="drows" data-mez="dverzio"></ul>
+          </section>
+          <section class="settings-card settings-status">
+            <h2>${T("beall_allapot")}</h2>
+            <ul class="drows" data-mez="dallapot"></ul>
+          </section>
+          <section class="settings-card settings-website">
+            <h2>${T("beall_honlap")}</h2>
+            <ul class="drows" data-mez="dhonlap"></ul>
+          </section>
+        </div>
+        <div class="settings-col">
+          <section class="settings-card settings-appearance">
+            <h2>${T("beall_megjelenes")}</h2>
+            <ul class="drows" data-mez="dmegjelenes"></ul>
+          </section>
+        </div>
+      </div>
+      <p class="alairas settings-signature">${ALAIRAS.replace("\u2665", '<span class="sziv">\u2665</span>')}</p>
     </section>
   </div>
 
@@ -1688,8 +2899,12 @@ li.collapsed > .node > .toggle::before{ content:"+" }
             const l0 = beall.left, t0 = beall.top;
             return {
                 mozog(ev) {
-                    const l = Math.min(Math.max(0, l0 + ev.clientX - x0), window.innerWidth - beall.width);
-                    const t = Math.min(Math.max(0, t0 + ev.clientY - y0), window.innerHeight - beall.height);
+                    /* A kurzor VALÓDI képpontokban mozog, a panel viszont
+                       kicsinyítve van - osztás nélkül gyorsabban szaladna,
+                       mint a kéz. */
+                    const n = nagyitas();
+                    const l = Math.min(Math.max(0, l0 + (ev.clientX - x0) / n), window.innerWidth - beall.width);
+                    const t = Math.min(Math.max(0, t0 + (ev.clientY - y0) / n), window.innerHeight - beall.height);
                     beall.left = l; beall.top = t;
                     host.style.left = l + "px"; host.style.top = t + "px";
                 }
@@ -1727,9 +2942,95 @@ li.collapsed > .node > .toggle::before{ content:"+" }
     function nincsRecept(r) {
         if (!megtanult.size || !karakter) return false;
         const ps = profIds(r.p);
-        if (ps.length > 1) return false;                  /* eseményreceptek kimaradnak */
+        /* Itt korábban egy kihagyás állt: a több mesterséghez tartozó
+           (eseményes) recepteket óvatosságból ismertnek vettük. MÉRVE
+           fölösleges: a "csak a megtanult receptjeim" szűrő bepipálva a két
+           érintett receptet - 15. születésnapi torta, Pohárdesszert - nem
+           hozza, tehát a megtanult halmaz ezeket is helyesen kezeli.
+
+           A kihagyás ráadásul kárt is okozott: a Max jelző megengedőbb volt,
+           mint a gyártás gomb, így a tortánál megjelent a gomb, de inaktívan,
+           "még nem tanultad meg" buborékkal. Kívülről ez ellentmondásnak
+           látszott a szűrő és a munkalap között.
+
+           NE tedd vissza óvatosságból: ha visszakerül, a jelző és a gomb
+           megint mást fog mondani ugyanarról a receptről. */
         if (!ps.includes(karakter.prof)) return false;
         return !megtanult.has(r.i);
+    }
+
+    /* MEGTANULHATÓ-E A RECEPT.
+
+       A feltételek a TW-Calc nyílt forrásából (Recipe.isLearnable), és mind
+       a négy a kliensben olvasható - a JELZÉS tehát nem küld kérést:
+
+         - a saját mesterséged-e
+         - még nem tanultad meg
+         - a recept-tárgy ott van a táskádban (Bag.items_by_id)
+         - ItemManager.get(receptId).min_level <= Character.professionSkill
+
+       A feltételek kiértékelése a gyujtTanulhato() térképében történik, a
+       TÁSKÁBÓL. A receptAzon térkép ide NEM jó: az csak a már megtanult
+       recepteket ismeri, tehát pont azokat nem, amiket meg lehetne tanulni.
+       A receptAzon a GYÁRTÁSNÁL marad, ott ugyanis épp a megtanultak kellenek. */
+    function megtanulhato(r) {
+        try {
+            if (!r || megtanult.has(r.i)) return false;
+            if (!profIds(r.p).includes(karakter.prof)) return false;
+            return tanulhatoAzon.has(String(r.i));
+        } catch (e) { return false; }
+    }
+
+    /* A TANULÁS GOMBJÁNAK KÖTÉSE. Elemenként kötünk, és megállítjuk a
+       terjedést - ugyanaz a bevált minta, mint a + gombnál.
+
+       Gyökérre delegálva NEM működik: a gomb a receptsor BELSEJÉBEN ül,
+       a sornak pedig saját kattintáskezelője van, ami előbb fut le. Mérve:
+       a kiválasztás 1880000-ről átugrott a tanult recept 1939000-re, tehát
+       a tanulás mellé a munkalap is receptet váltott. A gyökéren hívott
+       stopPropagation ehhez már késő.
+
+       A billentyűzet is kell: a span role="button" tabindex="0", tehát
+       Enterre és szóközre is működnie kell. */
+    function kotTanul(gyokerElem) {
+        gyokerElem.querySelectorAll("[data-tanul]").forEach(g => {
+            const tan = e => {
+                e.preventDefault();
+                e.stopPropagation();
+                megtanul(g.dataset.tanul);
+            };
+            g.addEventListener("click", tan);
+            g.addEventListener("keydown", e => {
+                if (e.key === "Enter" || e.key === " ") tan(e);
+            });
+        });
+    }
+
+    /* A MEGTANULÁS. A játék saját ItemUse.use függvénye, ugyanaz, amit a
+       natív felület is hív - a harmadik paraméter a típus.
+
+       EZ KÉRÉST KÜLD, ezért külön kapcsolóhoz kötött, alapból kikapcsolva.
+       A jelzés viszont mindig látszik: az ingyen van. */
+    let tanulFut = false;
+    function megtanul(termekId) {
+        if (tanulFut) return;
+        const rid = tanulhatoAzon.get(String(termekId));
+        if (!rid) return;
+        tanulFut = true;
+        try {
+            const W = jatek();
+            if (W.ItemUse && typeof W.ItemUse.use === "function") {
+                W.ItemUse.use(Number(rid), () => {
+                    megtanult.add(String(termekId));
+                    tanulhatoAzon.delete(String(termekId));
+                    tanulFut = false;
+                    rajzolReceptek();
+                    rajzolMunkalap();
+                }, "recipe");
+                /* Ha a visszahívás elmarad, az őr ne ragadjon bent. */
+                setTimeout(() => { tanulFut = false; }, 8000);
+            } else tanulFut = false;
+        } catch (e) { tanulFut = false; }
     }
 
     const gyarthatoMost = r => r.g.every(([id, q]) => (raktar[id] || 0) >= q);
@@ -1745,7 +3046,38 @@ li.collapsed > .node > .toggle::before{ content:"+" }
               aria-pressed="${masolMod === "kod"}">${esc(T("masol_kod"))}</button>
             <button data-fmt="szoveg" title="${esc(T("masol_szoveg_cim"))}"
               aria-pressed="${masolMod === "szoveg"}">${esc(T("masol_szoveg"))}</button>
+          </span>`
+          /* KÉT GYORSKAPCSOLÓ a másolási formátum mellé. Ugyanaz a két
+             beállítás, ami a Beállítások fülön is ott van szöveggel - itt
+             viszont a főképernyőről elérhető, mert a megjelenítést gyakran
+             kell váltogatni, és nem jó minden alkalommal befülre menni.
+
+             A jel önmagában nem magától értetődő, ezért buborék tartozik
+             mindkettőhöz, négy nyelven. A bekapcsolt állapotot ugyanaz a
+             kiemelés mutatja, mint a Szöveg gombon - így nem kell két
+             jelrendszert megtanulni. */
+          + `<span class="fmtvalto gyorsk" role="group">
+            <button data-gyk="mikon" title="${esc(T("gyk_ikonok"))}"
+              aria-label="${esc(T("gyk_ikonok"))}"
+              aria-pressed="${!!beall.mikon}"><span class="gyk-rajz gyk-targy"><i></i></span></button>
+            <button data-gyk="beszerzok" title="${esc(T(beall.beszerzok ? "gyk_besz_ki" : "gyk_besz_be"))}"
+              aria-label="${esc(T(beall.beszerzok ? "gyk_besz_ki" : "gyk_besz_be"))}"
+              aria-pressed="${!!beall.beszerzok}"><span class="gyk-rajz gyk-besz"><i></i></span></button>
+            <button data-gyk="orak" title="${esc(T("gyk_orak"))}"
+              aria-label="${esc(T("gyk_orak"))}"
+              aria-pressed="${!!beall.orak}"><span class="gyk-rajz gyk-ora"><i></i></span></button>
           </span>`;
+
+        el.querySelectorAll("[data-gyk]").forEach(b => b.addEventListener("click", () => {
+            const mit = b.dataset.gyk;
+            beall[mit] = !beall[mit];
+            ment();
+            rajzolFmt();
+            rajzolMunkalap();
+            rajzolBeallitasok();
+            if (mit === "orak") oraKeresHaKell();
+        }));
+
         el.querySelectorAll("[data-fmt]").forEach(b => b.addEventListener("click", () => {
             const uj = b.dataset.fmt === "szoveg" ? "szoveg" : "kod";
             if (uj === masolMod) return;
@@ -1772,15 +3104,188 @@ li.collapsed > .node > .toggle::before{ content:"+" }
         }));
     }
 
-    function rajzolReceptek() {
-        const q = ($("kereso").value || "").trim().toLowerCase();
-        const lista = RECIPES.filter(r => {
+    /* KÍSÉRLET (1.1.0): KERESÉS HOZZÁVALÓ SZERINT IS.
+
+       A kereső két csoportot ad: elöl a NÉVRE illeszkedő receptek, ahogy
+       eddig, alattuk egy elválasztó, majd azok a receptek, AMIKBE a keresett
+       tárgy kell.
+
+       A második csoport a TELJES LÁNCOT nézi, nem csak a közvetlen
+       összetevőket: ha a Hollótoll egy köztes termékben van, ami egy másik
+       recept alapanyaga, az is találat. Gyűjtögetés közben ez a hasznosabb
+       kérdés, cserébe hosszabb a lista.
+
+       A lánc bejárása mentve van, mert receptenként újraszámolni drága
+       lenne minden billentyűleütésnél. A gyorsítótár a nyelvváltásra nem
+       érzékeny: azonosítókkal dolgozik, nem nevekkel. */
+    const lancGyorsito = new Map();
+    function lancTargyai(id, ut) {
+        if (lancGyorsito.has(id)) return lancGyorsito.get(id);
+        const r = recipeMap.get(id);
+        const ki = new Set();
+        if (r) {
+            const jart = ut || [];
+            if (!jart.includes(id)) {
+                r.g.forEach(([gid]) => {
+                    ki.add(String(gid));
+                    lancTargyai(gid, [...jart, id]).forEach(x => ki.add(x));
+                });
+            }
+        }
+        if (!ut) lancGyorsito.set(id, ki);
+        return ki;
+    }
+
+    /* A szűrő NÉGY CSOPORTBAN sorolja a típusokat, mert így a hosszúság nem
+       zavaró: az Ellátmány elöl van, a Képesség alul. A darabszám megmondja,
+       érdemes-e rákattintani, mielőtt megteszed. */
+    /* A DARABSZÁM A MOSTANI SZŰRÉS SZERINT.
+
+       A hatasIndex() térképe az ÖSSZES tételre épül, és ez így helyes: az
+       drága, és nem függ a szűréstől. A darabszám viszont csak akkor hasznos,
+       ha megmondja, hány találatot kapsz, ha rákattintasz - tehát a
+       kiválasztott mesterséget, a keresést és a "csak a megtanult" szűrőt is
+       figyelembe kell vennie.
+
+       Enélkül Sarlatán fülön is a teljes készlet száma állt volna ott. */
+    function hatasSzamlalo() {
+        hatasIndex();
+        const q = ekNelkul(($("kereso").value || "").trim());
+        const db = new Map();
+        RECIPES.filter(r => {
             if (szuroProf !== null && !profIds(r.p).includes(szuroProf)) return false;
             if (csakEnyem && megtanult.size && !megtanult.has(r.i)) return false;
-            if (q && !nameOf(r.i).toLowerCase().includes(q)) return false;
+            if (q && !ekNev(r.i).includes(q)) return false;
             return true;
-        }).sort((a, b) =>
-            (parseInt(a.l) || 0) - (parseInt(b.l) || 0) || a.n.localeCompare(b.n, "hu"));
+        }).forEach(r => (hatasTerkep.get(String(r.i)) || new Set())
+            .forEach(t => db.set(t, (db.get(t) || 0) + 1)));
+        return db;
+    }
+
+    /* A mentett tervek listája. A törlés KÉT LÉPÉSBEN megy: az X helyén
+       megjelenik a megerősítés, és csak a második koppintás töröl. A sorok
+       kicsik és egymás alatt vannak - telefonon könnyű mellényúlni, és a terv
+       nem hozható vissza. */
+    let tervTorlesre = null;
+    function rajzolTervek() {
+        const gombok = $("tervgombok"), lista = $("tervlista"), nyit = $("tervnyit");
+        if (!gombok || !lista || !nyit) return;
+        gombok.hidden = !beall.tervmentes;
+        if (!beall.tervmentes) { lista.hidden = true; return; }
+
+        nyit.textContent = T("terv_nyit", { n: mentettTervek.length });
+        const cel = celok();
+        const ment = gombok.querySelector('[data-mit="tervment"]');
+        if (ment) ment.disabled = !cel.length;
+
+        lista.innerHTML = mentettTervek.length
+            ? mentettTervek.map((t, i) => `
+                <div class="tervsor" data-tervi="${i}">
+                  <button class="tervvalt" data-tervnyitas="${i}"
+                    title="${esc(tervNev(t.c))}">
+                    <b>${esc(tervRovid(t.c))}</b><small>${esc(t.d || "")}</small></button>
+                  ${tervTorlesre === i
+                    ? `<button class="tervbiztos" data-tervtorol="${i}">${esc(T("terv_biztos"))}</button>`
+                    : `<button class="tervx" data-tervkerdes="${i}"
+                         title="${esc(T("terv_torles"))}" aria-label="${esc(T("terv_torles"))}">&#10005;</button>`}
+                </div>`).join("")
+            : `<p class="ures">${esc(T("terv_ures"))}</p>`;
+    }
+
+    function rajzolHatasSzuro() {
+        const sor = $("hatassor"), el = $("hatasszuro");
+        if (!sor || !el) return;
+        sor.hidden = !beall.hatasszuro;
+        if (!beall.hatasszuro) { hatasValasztott = ""; return; }
+
+        const hatasDbMap = hatasSzamlalo();
+
+        /* Ha a kiválasztott hatásra ebben a mesterségben nincs találat, a
+           választás visszaáll. A változót is vissza kell állítani, különben a
+           lista üresen maradna leszűrve egy olyan hatásra, ami a legördülőben
+           már nem is szerepel. */
+        if (hatasValasztott && !hatasDbMap.has(hatasValasztott)) hatasValasztott = "";
+
+        const csop = (cim, lista) => {
+            const t = lista.filter(x => hatasDbMap.has(x))
+                .sort((a, b) => hatasDbMap.get(b) - hatasDbMap.get(a)
+                    || hatasNev(a).localeCompare(hatasNev(b), "hu"));
+            if (!t.length) return "";
+            return `<optgroup label="${esc(cim)}">` + t.map(x =>
+                `<option value="${esc(x)}"${x === hatasValasztott ? " selected" : ""}>`
+                + `${esc(hatasNev(x))} (${hatasDbMap.get(x)})</option>`).join("") + `</optgroup>`;
+        };
+        const mind = [...hatasDbMap.keys()];
+        const kepesseg = mind.filter(x => x !== HATAS_KARTYA
+            && HATAS_ELLATMANY.indexOf(x) < 0 && HATAS_HARC.indexOf(x) < 0);
+
+        el.innerHTML = `<option value="">${esc(T("hatasz_barmelyik"))}</option>`
+            + csop(T("hatasz_ellatmany"), HATAS_ELLATMANY)
+            + csop(T("hatasz_harc"), HATAS_HARC)
+            + (hatasDbMap.has(HATAS_KARTYA)
+                ? `<optgroup label="${esc(T("hatasz_zsak"))}"><option value="${HATAS_KARTYA}"`
+                  + `${HATAS_KARTYA === hatasValasztott ? " selected" : ""}>`
+                  + `${esc(T("hatasz_kartya"))} (${hatasDbMap.get(HATAS_KARTYA)})</option></optgroup>`
+                : "")
+            + csop(T("hatasz_kepesseg"), kepesseg);
+
+        if (!el.dataset.kotve) {
+            el.dataset.kotve = "1";
+            el.addEventListener("change", () => {
+                hatasValasztott = el.value;
+                rajzolReceptek();
+            });
+        }
+    }
+
+    function rajzolReceptek() {
+        /* A szűrő számai a mesterségtől és a kereséstől is függenek, ezért a
+           legördülőt itt rajzoljuk újra - így minden hívási hely magától
+           frissíti, nem kell tíz helyen bekötni.
+
+           Nincs végtelen kör: a rajzolHatasSzuro NEM hívja a rajzolReceptek-et,
+           csak a legördülő saját change kezelője. */
+        if (beall.hatasszuro && !hatasRajzFut) {
+            hatasRajzFut = true;
+            try { rajzolHatasSzuro(); } finally { hatasRajzFut = false; }
+        }
+
+        const q = ekNelkul(($("kereso").value || "").trim());
+        const alap = RECIPES.filter(r => {
+            if (szuroProf !== null && !profIds(r.p).includes(szuroProf)) return false;
+            if (csakEnyem && megtanult.size && !megtanult.has(r.i)) return false;
+            /* A hatásszűrő a mesterség- és névszűrés MELLETT dolgozik:
+               szűkít, nem helyettesít. */
+            if (beall.hatasszuro && hatasValasztott) {
+                const h = hatasIndex().get(String(r.i));
+                if (!h || !h.has(hatasValasztott)) return false;
+            }
+            return true;
+        });
+        const rend = (a, b) =>
+            (parseInt(a.l) || 0) - (parseInt(b.l) || 0) || a.n.localeCompare(b.n, "hu");
+
+        const nevre = (q ? alap.filter(r => ekNev(r.i).includes(q)) : alap)
+            .slice().sort(rend);
+
+        /* A hozzávaló-találatok közül kiesnek azok, amik névre is illeszkedtek:
+           egy recept ne szerepeljen kétszer a listában. */
+        let hozzavalora = [];
+        if (q) {
+            const marVan = new Set(nevre.map(r => r.i));
+            const keresett = new Set();
+            RECIPES.forEach(r => { if (ekNev(r.i).includes(q)) keresett.add(String(r.i)); });
+            Object.keys(BASE_NAMES).forEach(id => { if (ekNev(id).includes(q)) keresett.add(String(id)); });
+            if (keresett.size) {
+                hozzavalora = alap.filter(r => {
+                    if (marVan.has(r.i)) return false;
+                    const l = lancTargyai(r.i);
+                    for (const k of keresett) if (l.has(k)) return true;
+                    return false;
+                }).slice().sort(rend);
+            }
+        }
+        const lista = nevre.concat(hozzavalora);
 
         /* Első megnyitáskor ne maradjon üres a munkalap. Ez csak belső
            kijelölés, játékbeli műveletet nem indít, és a felhasználó
@@ -1806,20 +3311,50 @@ li.collapsed > .node > .toggle::before{ content:"+" }
             $("enyemsor").title = van ? "" : T("szuro_megtanult_ok");
         }
 
-        $("rcount").textContent = lista.length;
-        $("rlist").innerHTML = lista.map(r => {
+        /* A fejléc két részre bomlik, ha van hozzávaló-találat is:
+           hány névtalálat és hány hozzávaló-találat. */
+        $("rcount").textContent = hozzavalora.length
+            ? nevre.length + " + " + hozzavalora.length
+            : lista.length;
+
+        const sorHTML = r => {
             const zar = tulSzint(r) || nincsRecept(r);
             const all = zar ? "" : gyarthatoMost(r) ? "ready" : "close";
             const tervben = tervek.find(t => t.i === r.i);
-            return `<li><button data-id="${r.i}" class="${zar ? "halvany" : ""}"
+            /* A ZÖLD JELZÉS a szint helyére kerül: ott van hely, és görgetés
+               közben is kiszúrod. A tanulás gombja csak akkor jelenik meg, ha
+               a felhasználó bekapcsolta - az kérést küldene. */
+            const tanulhato = megtanulhato(r);
+            /* A JELZO EGYETLEN RACSGYEREK. A sor gombja negyoszlopos racs;
+               ha a jelzes ket kulon elemet adott vissza, ot gyerek ment negy
+               oszlopba: a tanulgomb beult a 24 px-es plusz-oszlopba es levagodott,
+               a plusz pedig uj sorba csuszott. A vizszintes tulcsordulas ezen
+               felul megjelenitette a lista vizszintes gorgetosavjat is. */
+            const szintCella = tanulhato
+                ? `<span class="jelzo">`
+                  + (beall.tanulgomb
+                      ? `<span class="tanulgomb" data-tanul="${r.i}" role="button" tabindex="0"
+                           title="${esc(T("tanul_gomb"))}">${esc(T("tanul_gomb"))}</span>`
+                      : `<span class="szint tanul">${esc(T("tanul_jel"))}</span>`)
+                  + `</span>`
+                : `<span class="szint">${parseInt(r.l) || 0}</span>`;
+            return `<li><button data-id="${r.i}" class="${zar ? "halvany" : ""}${tanulhato ? " tanulhato" : ""}"
               aria-current="${valasztott === r.i}">
               <i class="dot ${all}"></i><span class="nev">${esc(nameOf(r.i))}</span>
-              <span class="szint">${parseInt(r.l) || 0}</span>
+              ${szintCella}
               <span class="plusz${tervben ? " benne" : ""}" data-plusz="${r.i}" role="button"
                 tabindex="0" title="${T("plusz_cim")}"
                 aria-label="${esc(T("plusz_aria", { nev: nameOf(r.i) }))}">+</span>
               </button></li>`;
-        }).join("");
+        };
+
+        /* Elválasztó CSAK akkor, ha mindkét csoportban van találat. Ha az
+           egyik üres, sima lista megy, ahogy eddig. */
+        $("rlist").innerHTML = hozzavalora.length
+            ? nevre.map(sorHTML).join("")
+              + `<li class="valaszto">${esc(T("kereso_ehhez_kell"))}</li>`
+              + hozzavalora.map(sorHTML).join("")
+            : lista.map(sorHTML).join("");
 
         /* A soron kattintás MEGNYITJA a receptet; a tervbe csak a + gomb rakja. */
         $("rlist").querySelectorAll("button[data-id]").forEach(b => b.addEventListener("click", () => {
@@ -1849,6 +3384,8 @@ li.collapsed > .node > .toggle::before{ content:"+" }
             b.addEventListener("click", rak);
             b.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") rak(e); });
         });
+
+        kotTanul($("rlist"));
     }
 
     /* A játék oldalán a név és az arckép amúgy is ott van, itt fölösleges.
@@ -1892,9 +3429,26 @@ li.collapsed > .node > .toggle::before{ content:"+" }
     }
 
     /* A felhasználható készlet: ha egy célnál be van jelölve a kizárás,
-       a belőle meglévő darabok nem számítanak bele. */
+       a belőle meglévő darabok nem számítanak bele.
+
+       A MEGBÍZÁS VIRTUÁLIS KÉSZLET. Bekapcsolt nyilvántartásnál itt adódik
+       hozzá, EGY helyen - így magától beszámít mindenhová, ami ebből dolgozik:
+       a fába, a gyűrűbe, a hiánylistába, a chipekbe és a másolásba. Nem kell
+       minden felületet külön kezelni, és a kapcsoló maga dönti el, hogy a
+       valóságot vagy a tervet látod.
+
+       KÖVETKEZMÉNY: ami teljesen fedve van megbízással, eltűnik a
+       hiánylistáról. Ez nem hiba, hanem ugyanennek a döntésnek a másik oldala.
+
+       A GYÁRTÁS GOMB ÉS A MAX JELZŐ NEM EZT HASZNÁLJA, hanem közvetlenül a
+       raktar tömböt. Ez szándékos: a gomb kérést küld a szervernek, és ha
+       feltételes készletre indulna, a szerver visszautasítaná. A megbízás
+       függőben van - amíg nem szállított, nem készlet. Ugyanez az elv élt már
+       eddig is, azért nézi a Max a raktar-t és nem ezt a függvényt. */
     function keszlet(cel) {
         const k = Object.assign({}, raktar);
+        const v = beszVarhato();
+        Object.keys(v).forEach(id => { k[id] = (Number(k[id]) || 0) + v[id]; });
         cel.forEach(t => { if (t.x !== false) delete k[t.i]; });
         return k;
     }
@@ -2016,6 +3570,79 @@ li.collapsed > .node > .toggle::before{ content:"+" }
         return `<span class="maxj tehetetlen">${esc(T("max_nincs", { nev: nameOf(akadaly) }))}</span>`;
     }
 
+    /* A gyártás kapuja. Egy helyen dől el, hogy szabad-e, és ha nem, MIÉRT
+       nem - a gombot és az indítást ugyanaz vezérli, hogy ne csúszhassanak
+       szét. Visszatérés: { ok: true, rid, hatar } vagy { ok: false, ok_kod }.
+
+       A kapu SZIGORÚBB, mint a Max jelzőé. A jelző megengedő lehet, mert
+       csak számot mutat; a gomb viszont kérést küld a szervernek, ott pedig
+       a 7/e döntés szerint nem engedhetjük, hogy a szerver mondjon nemet. */
+    function gyartKapu(id, db) {
+        const n = maxDb(id);
+        if (n === null) return { ok: false, kod: "nem_tied" };
+
+        /* A Mesterség ablak felépülése két dolgot ad egyszerre: a recept
+           azonosítóját és a progressCrafting objektumot. Utóbbi nélkül a
+           startCraft visszahívása a HARMADIK során elszáll - miközben a
+           kérés már elment. Az a legrosszabb kimenet: a gyártás megtörténik
+           a szerveren, de a kliens nem tud róla. */
+        const CW = jatek().CharacterWindow;
+        if (!CW || !CW.progressCrafting) return { ok: false, kod: "nincs_ablak" };
+
+        /* Üres megtanult lista: nem tudjuk, mit ismersz. Ez jellemzően a
+           TW-Calc esete, ami felülírja a játék Crafting.recipes objektumát.
+           KÜLÖN kód kell rá, nem a "nyisd meg az ablakot": azt a felhasználó
+           hiába teszi meg, a halmaz sosem telik meg, és azt hinné, hogy a
+           panel hibás. A Beállítások fül a szűrőnél már ma is megnevezi a
+           TW-Calc-ot, itt is ezt tesszük. */
+        if (!megtanult.size) return { ok: false, kod: "nincs_lista" };
+        if (!megtanult.has(String(id))) return { ok: false, kod: "nem_tanult" };
+
+        const rid = receptAzon.get(String(id));
+        if (!rid) return { ok: false, kod: "nincs_recept" };
+
+        if (n <= 0) return { ok: false, kod: "nincs_alap" };
+
+        /* ZAROLAS. Eddig a kapu ezt NEM nezte: a gomb aktiv volt zarolt
+           recepten is, es a keres kiment. */
+        const veg = zarVeg(id);
+        if (veg > Date.now()) return { ok: false, kod: "zarolva", veg: veg };
+        if (zaroltDeIsmeretlen(id)) return { ok: false, kod: "zarolva_talan" };
+
+        /* Zárolt receptből a játékban is csak egy indítható egyszerre. */
+        const r = recipeMap.get(id);
+        const hatar = (r && r.t) ? 1 : n;
+        if (db < 1 || db > hatar) return { ok: false, kod: "tul_sok", hatar: hatar };
+
+        return { ok: true, rid: rid, hatar: hatar };
+    }
+
+    /* A gyártás gomb a léptető sorában, a Max jelző után. Csak az EGYCÉLÚ
+       nézetben: a tervlista bevásárlólista, nem gyártópult.
+
+       Ha a recept nem a tiéd, nincs gomb - ugyanúgy, ahogy a Max jelző sem
+       jelenik meg. Minden más esetben ott a gomb, és ha inaktív, a buboréka
+       MEGMONDJA AZ OKOT. Három ok van, és három különböző teendő tartozik
+       hozzájuk, ezért nem szabad némán hiányoznia. */
+    function gyartGomb(id, db) {
+        const k = gyartKapu(id, db);
+        if (!k.ok && k.kod === "nem_tied") return "";
+        let cim;
+        if (k.ok) cim = T("gyart_cim", { n: db });
+        else if (k.kod === "nincs_ablak") cim = T("gyart_nincs_ablak");
+        else if (k.kod === "nincs_lista") cim = T("gyart_nincs_lista");
+        else if (k.kod === "nem_tanult") cim = T("gyart_nem_tanult");
+        else if (k.kod === "zarolva") cim = T("zarolas_meddig", { mikor: zarIdopont(k.veg) });
+        else if (k.kod === "zarolva_talan") cim = T("zarolas_ismeretlen");
+        else if (k.kod === "nincs_recept") cim = T("gyart_nincs_recept");
+        else if (k.kod === "tul_sok") cim = T("gyart_tul_sok", { n: k.hatar });
+        else cim = T("gyart_nincs_alap");
+        const tilt = !k.ok || gyartFut;
+        return `<button class="gyartb" data-gyart="${id}" data-gyartdb="${db}"`
+            + `${tilt ? " disabled" : ""} title="${esc(cim)}">`
+            + `${esc(T("gyart_gomb"))}</button>`;
+    }
+
     /* Az első olyan hozzávaló a láncban, ami nincs meg és nem is mi gyártjuk. */
     function elsoIdegen(id, k) {
         let talalt = null;
@@ -2036,8 +3663,19 @@ li.collapsed > .node > .toggle::before{ content:"+" }
         return talalt;
     }
 
-    function szamol(cel) {
-        const k = keszlet(cel);
+    /* A BRUTTÓ kapcsoló üres készlettel számol.
+
+       Az "Összesen kell a gyártáshoz" doboz azt hivatott mutatni, mennyi
+       alapanyag kellene NULLA KÉSZLETRŐL a teljes gyártáshoz - a köztes
+       termékek anyagigényével együtt. A "Még ennyit gyűjts" az, ami a mostani
+       hiányt mondja; a kettő szerepe így válik el.
+
+       Enélkül a fedett ágak alatti alapanyagok nullát kapnak: ha a
+       Házipálinka megvan a raktáradban, a Burgonya, a Cukor és a Gabona
+       igénye soha nem jelenik meg. Mérve a Különleges likőrön: a doboz
+       egyetlen tételt hozott a kilencből. */
+    function szamol(cel, brutto) {
+        const k = brutto ? {} : keszlet(cel);
         const kell = {};
         cel.forEach(t => { kell[t.i] = (kell[t.i] || 0) + t.q; });
         const alap = [], lepesek = [], id_szerint = {};
@@ -2113,6 +3751,91 @@ li.collapsed > .node > .toggle::before{ content:"+" }
         return csp;
     }
 
+    /* A FÁBAN IS SZÉTBONTVA. A csp.van már tartalmazza a megbízást, tehát a
+       "99 raktárból" azt állítaná, hogy a raktáradban van - pedig egy darab
+       sincs ott. A csillag ugyanaz a jel, amit a jobb oszlopban a felhasználó
+       már megtanult: itt valami nem mérés, hanem feljegyzés. */
+    function faBontas(csp) {
+        const v = Number(beszVarhato()[String(csp.id)] || 0);
+        if (v <= 0) return null;
+
+        /* ELŐBB A RAKTÁR, UTÁNA A MEGBÍZÁS.
+
+           Az első változat fordítva számolt: a megbízásból töltötte fel a
+           fedezett mennyiséget, és ami maradt, azt írta raktárnak. A számok
+           összege stimmelt, a jelentésük viszont nem.
+
+           Két baja volt. Egyrészt azt sugallta, hogy a saját, biztos
+           készletedet félreteszed, és a bizonytalanból élsz - pedig a raktárban
+           lévő darab mérés, a megbízás csak feljegyzés. Másrészt LÉTRE NEM
+           LÉTEZŐ SZÁMOT írt ki: 152 raktárkészletnél és 80-as megbízásnál
+           "118 raktárból" jött ki, holott 118 se nem készlet, se nem megbízás,
+           csak a képlet mellékterméke.
+
+           Így a csillagos szám azt mondja meg, ami tényleg érdekel: MENNYI
+           MÚLIK a beszerzőn. Ha nem szállít, annyi hiányzik, nem több.
+
+           A kizárás pipát figyelembe kell venni: ha a cél saját készletét
+           kizártad, a keszlet() sem számolt vele, tehát itt sem szabad. */
+        const kizart = celok().some(t => String(t.i) === String(csp.id) && t.x !== false);
+        const valos = kizart ? 0 : Number(raktar[String(csp.id)] || 0);
+        const raktarbol = Math.min(valos, csp.van);
+        const megrendelt = Math.max(0, csp.van - raktarbol);
+        if (megrendelt <= 0) return null;   /* teljesen raktárból van */
+        return { raktarbol: raktarbol, megrendelt: megrendelt };
+    }
+
+    function faVanSzoveg(csp) {
+        if (!csp.van) return "";
+        const b = faBontas(csp);
+        if (!b) return esc(T("fa_raktarbol", { n: csp.van })) + " · ";
+        const reszek = [];
+        if (b.raktarbol > 0) reszek.push(esc(T("fa_raktarbol", { n: b.raktarbol })));
+        reszek.push(esc(T("fa_megrendelve", { n: b.megrendelt })) + '<span class="csill">*</span>');
+        return reszek.join(", ") + " · ";
+    }
+
+    function faMegvanSzoveg(csp) {
+        const b = faBontas(csp);
+        if (!b) return esc(T("fa_megvan", { n: csp.van }));
+        if (b.raktarbol <= 0)
+            return esc(T("fa_megrendelve", { n: b.megrendelt })) + '<span class="csill">*</span>'
+                 + " · " + esc(T("fa_megvan_rovid"));
+        return esc(T("fa_raktarbol", { n: b.raktarbol })) + ", "
+             + esc(T("fa_megrendelve", { n: b.megrendelt })) + '<span class="csill">*</span>'
+             + " · " + esc(T("fa_megvan_rovid"));
+    }
+
+    function faFedveSzoveg(csp) {
+        const b = faBontas(csp);
+        if (!b) return T("fa_raktarbol_fedezve");
+        if (b.raktarbol <= 0)
+            return esc(T("fa_megrendelve", { n: b.megrendelt })) + '<span class="csill">*</span>';
+        return esc(T("fa_raktarbol", { n: b.raktarbol })) + ", "
+             + esc(T("fa_megrendelve", { n: b.megrendelt })) + '<span class="csill">*</span>';
+    }
+
+    /* HONNAN VAN, AMI MEGVAN - MINDEN ÁGON.
+
+       A faFedveSzoveg csak a TELJESEN fedett esetre készült. A részben fedett
+       gyártott csomópontnál viszont beégetve a "raktárból" szöveg állt, tehát
+       ha a fedezet megbízásból jött, a fa azt hazudta, hogy a raktáradban van.
+
+       MÉRVE: 200 Bőrszíj megbízással, 400-as szükségletnél a sor azt mondta,
+       hogy "200 raktárból · 200× gyártás" - pedig egy sem volt a raktárban.
+
+       A weboldalon mind a négy ág a saját honnan() függvényét hívja; a
+       panelben ez az egy ág maradt ki. Ugyanaz a hiba, mint korábban a
+       "118 raktárból": olyan állítás, aminek nincs valóságtartalma. */
+    function faHonnan(csp) {
+        const b = faBontas(csp);
+        if (!b) return esc(T("fa_raktarbol", { n: csp.van }));
+        if (b.raktarbol <= 0)
+            return esc(T("fa_megrendelve", { n: b.megrendelt })) + '<span class="csill">*</span>';
+        return esc(T("fa_raktarbol", { n: b.raktarbol })) + ", "
+             + esc(T("fa_megrendelve", { n: b.megrendelt })) + '<span class="csill">*</span>';
+    }
+
     function faHTML(csp, gyoker) {
         const fedve = csp.marad === 0;
         const hianyos = !csp.gyartott && csp.marad > 0;
@@ -2121,29 +3844,88 @@ li.collapsed > .node > .toggle::before{ content:"+" }
                      .filter(Boolean).join(" ");
         let meta;
         if (csp.korkoros) meta = `<span class="mt">${T("fa_korkoros")}</span>`;
-        else if (csp.gyartott) meta = `<span class="mt">${esc(profLabel(csp.p))} · ${esc(csp.szint)}</span>`
-            + (csp.t ? `<span class="zar">${esc(zarCimke(csp.t))}</span>` : "")
-            + (fedve ? `<span class="mt ok">${T("fa_raktarbol_fedezve")}</span>`
-                     : `<span class="mt">${csp.van ? esc(T("fa_raktarbol", { n: csp.van })) + " · " : ""}${esc(T("fa_gyartas", { n: csp.adag }))}</span>`);
+        /* 1.1.0: a lépcsőszámok a fában is színt kapnak, ugyanazt a hármas
+           jelölést, ami a munkalapon már működik. Ez az 1.0.1-es döntés
+           visszavonása - akkor szándékosan hagytuk színezetlenül. */
+        else if (csp.gyartott) meta = `<span class="mt">${esc(profLabel(csp.p))} · ${lepcso(csp.szint)}</span>`
+            /* A ZÖLD JELZÉS a fában is: a lánc közben derül ki, hogy egy
+               köztes terméket meg tudnál tanulni. A gomb itt is csak akkor
+               jelenik meg, ha a felhasználó bekapcsolta. */
+            + (megtanulhato(recipeMap.get(csp.id))
+                ? `<span class="mt tanul">${esc(T("tanul_jel"))}</span>`
+                  + (beall.tanulgomb
+                      ? `<span class="tanulgomb" data-tanul="${csp.id}" role="button" tabindex="0"
+                           title="${esc(T("tanul_gomb"))}">${esc(T("tanul_gomb"))}</span>` : "")
+                : "")
+            + (csp.t ? zarJelzo(csp.id, csp.t) : "")
+            + (fedve ? `<span class="mt ok">${faFedveSzoveg(csp)}</span>`
+                     : `<span class="mt">${csp.van ? faHonnan(csp) + " · " : ""}${esc(T("fa_gyartas", { n: csp.adag }))}</span>`);
+        /* A TELJESEN FEDETT ALAPANYAG is szétbontva. Ez az ág maradt ki
+           először: a "198 raktárból · megvan" azt állította, hogy mind a 198
+           a raktáradban van, pedig 46 megbízásból jött. A hiba csak akkor
+           látszott, amikor a megbízás pont fedezte a szükségletet. */
         else meta = csp.marad === 0
-            ? `<span class="mt ok">${esc(T("fa_megvan", { n: csp.van }))}</span>`
-            : `<span class="mt">${csp.van ? esc(T("fa_raktarbol", { n: csp.van })) + " · " : ""}${esc(T("fa_meg_kell", { n: csp.marad }))}</span>`;
+            ? `<span class="mt ok">${faMegvanSzoveg(csp)}</span>`
+            : `<span class="mt">${faVanSzoveg(csp)}${esc(T("fa_meg_kell", { n: csp.marad }))}</span>`;
         const gy = csp.gyerekek.length;
         return `<li class="${gy ? "has-kids" : ""}">
           <div class="${oszt}">${gy ? `<button class="toggle" aria-label="${T("fa_ag_aria")}"></button>`
                                     : `<span class="toggle-hely"></span>`}
-            <span class="q">${csp.kell} ×</span>${ico(csp.id, "sm") || ""}
-            <span class="nm">${esc(csp.nev)}</span>${meta}</div>
+            <span class="q">${csp.kell} ×</span>${munkaIkon(csp.id, "sm")}
+            <span class="nm">${munkaNev(csp.id, esc(csp.nev))}</span>${meta}</div>
           ${gy ? `<ul>${csp.gyerekek.map(x => faHTML(x)).join("")}</ul>` : ""}</li>`;
     }
 
     /* Összes anyagszükséglet, név szerint - ahogy a weboldalon. */
-    const teljesLista = () => (terv ? terv.alap.filter(b => b.kell > 0) : [])
+    /* Az Összesen doboz a BRUTTÓ tervből dolgozik, a Még ennyit gyűjts a
+       készlettel számoltból. */
+    const teljesLista = () => (bruttoTerv ? bruttoTerv.alap.filter(b => b.kell > 0) : [])
         .slice().sort((a, b) => a.nev.localeCompare(b.nev, "hu"));
 
     /* Ami még hiányzik, csökkenő darabszám szerint: elöl a legnagyobb tétel. */
     const hianyLista = () => (terv ? terv.alap.filter(b => b.marad > 0) : [])
         .slice().sort((a, b) => b.marad - a.marad || a.nev.localeCompare(b.nev, "hu"));
+
+    /* ---- A ZAROLAS KET MEGJELENITOJE ----
+       A HATRALEVO ido relativ, a felbontasa igazodik: nap folott nap es ora,
+       egy nap alatt ora es perc, egy ora alatt perc:masodperc. */
+    function zarHatra(veg) {
+        const mp = Math.max(0, Math.round((veg - Date.now()) / 1000));
+        if (mp >= 86400) return T("zarolas_nap_ora", { n: Math.floor(mp / 86400), o: Math.floor(mp % 86400 / 3600) });
+        if (mp >= 3600) return T("zarolas_ora_perc", { o: Math.floor(mp / 3600), p: Math.floor(mp % 3600 / 60) });
+        const pp = Math.floor(mp / 60), ss = mp % 60;
+        return pp + ":" + String(ss).padStart(2, "0");
+    }
+
+    /* Az ABSZOLUT idopont a buborekba megy, mert a "4 nap 22 ora" onmagaban
+       nem mondja meg, mikor erdemes visszanezni. A panel sajat nyelvet
+       hasznaljuk, nem a bongeszoet - kulonben magyar panelen nemet datum
+       jonne. Hat ora alatt a hetkoznap folosleges, ott eleg az ora. */
+    function zarIdopont(veg) {
+        const d = new Date(veg);
+        const kozel = (veg - Date.now()) < 6 * 3600 * 1000;
+        const nyelvKod = INTL_NYELV[nyelv] || "hu-HU";
+        try {
+            return new Intl.DateTimeFormat(nyelvKod, kozel
+                ? { hour: "2-digit", minute: "2-digit" }
+                : { month: "long", day: "numeric", weekday: "long", hour: "2-digit", minute: "2-digit" }
+            ).format(d);
+        } catch (e) { return d.toLocaleString(); }
+    }
+
+    /* A kirajzolt zarcimke. Harom eset, es a kozepso az egyetlen, amiben
+       visszaszamlalunk. A data-zarveg attributumot a percenkenti ora hasznalja:
+       NEM rajzoljuk ujra a listat, csak ezeknek a szoveget irjuk at. */
+    function zarJelzo(id, t) {
+        const veg = zarVeg(id);
+        if (veg > Date.now())
+            return `<span class="zar fut" data-zarveg="${veg}"`
+                + ` title="${esc(T("zarolas_meddig", { mikor: zarIdopont(veg) }))}">`
+                + `${esc(zarHatra(veg))}</span>`;
+        if (zaroltDeIsmeretlen(id))
+            return `<span class="zar" title="${esc(T("zarolas_ismeretlen"))}">${esc(zarCimke(t))}</span>`;
+        return `<span class="zar" title="${esc(T("zarolas_lesz"))}">${esc(zarCimke(t))}</span>`;
+    }
 
     const zarCimke = t => !t ? ""
         : (t >= 86400
@@ -2161,17 +3943,19 @@ li.collapsed > .node > .toggle::before{ content:"+" }
         }
 
         terv = szamol(cel);
+        bruttoTerv = szamol(cel, true);
+        rajzolTervek();
         const tobb = cel.length > 1;
 
         /* --- a rendelés fejléce: egy cél vagy tervlista, mellette a gyűrű --- */
         let fejBal;
         if (!tobb) {
             const t = cel[0], r = recipeMap.get(t.i);
-            const zar = r.t ? ` · <span class="zar">${esc(zarCimke(r.t))}</span>` : "";
+            const zar = r.t ? ` · ${zarJelzo(r.i, r.t)}` : "";
             const van = raktar[t.i] || 0;
             fejBal = `
-              <div class="fej">${ico(r.i, "xl")}
-                <div><h1>${esc(nameOf(r.i))}</h1>
+              <div class="fej">${munkaIkon(r.i, "xl")}
+                <div><h1>${munkaNev(r.i, esc(nameOf(r.i)))}</h1>
                 <p class="meta">${esc(profLabel(r.p))} · ${lepcso(r.l)}${zar}</p></div>
               </div>
               <div class="stepper">
@@ -2179,6 +3963,7 @@ li.collapsed > .node > .toggle::before{ content:"+" }
                 <input data-tq="${r.i}" inputmode="numeric" maxlength="4" value="${t.q}" aria-label="${esc(T("darabszam_aria", { nev: nameOf(r.i) }))}">
                 <button data-tinc="${r.i}" aria-label="${T("leptető_tobb")}">+</button>
                 ${maxJelzo(r.i)}
+                ${gyartGomb(r.i, t.q)}
               </div>
               <label class="excl${van ? "" : " tehetetlen"}">
                 <input type="checkbox" data-tx="${r.i}" ${t.x !== false ? "checked" : ""} ${van ? "" : "disabled"}>
@@ -2219,17 +4004,21 @@ li.collapsed > .node > .toggle::before{ content:"+" }
         /* --- a három nézetmód --- */
         const lepesSorok = terv.lepesek.map(l => {
             const r = recipeMap.get(l.id);
-            const zar = r && r.t ? `<span class="zar">${esc(zarCimke(r.t))}</span>` : "";
+            /* A záró címke elé ugyanaz a · elválasztó kell, mint a munkalap
+               fejlécében - enélkül a névhez tapadt: "Méhviasz gyertya7 napos
+               zárolás". A név <b>, a címke <span>, tehát a szóköz sem
+               maradhat el, azt a HTML összevonná a sortöréssel. */
+            const zar = r && r.t ? ` · ${zarJelzo(r.i, r.t)}` : "";
             const hozzavalo = r ? r.g.map(([gid, q]) => {
                 const b = terv.id_szerint[gid];
                 const kell = q * l.adag;
                 const megvan = b && b.van >= kell;
-                return `<span class="hoz ${megvan ? "megvan" : "hiany"}">${ico(gid) || ""}
-                  ${esc(nameOf(gid))} <b>${kell}</b></span>`;
+                return `<span class="hoz ${megvan ? "megvan" : "hiany"}">${munkaIkon(gid)}
+                  ${munkaNev(gid, esc(nameOf(gid)))} <b>${kell}</b></span>`;
             }).join("") : "";
             return `<li class="card lepes ${l.adag ? "" : "megvan"}">
-              ${ico(l.id, "lg") || '<i class="ico lg"></i>'}
-              <div class="lfej"><b>${esc(l.nev)}</b>${zar}
+              ${munkaIkon(l.id, "lg") || '<i class="ico lg"></i>'}
+              <div class="lfej"><b>${munkaNev(l.id, esc(l.nev))}</b>${zar}
                 <div class="hozok">${hozzavalo}</div></div>
               <span class="kell">${esc(l.adag ? T("lepes_db_gyartas", { n: l.adag }) : T("lepes_megvan"))}</span></li>`;
         }).join("");
@@ -2241,7 +4030,9 @@ li.collapsed > .node > .toggle::before{ content:"+" }
             return `<div class="treebar">
                 <button data-tb="open">${T("fa_mind_kinyit")}</button>
                 <button data-tb="close">${T("fa_mind_bezar")}</button></div>
-              <ul class="tree">${erdo.map(n => faHTML(n, true)).join("")}</ul>`;
+              <ul class="tree">${erdo.map(n => faHTML(n, true)).join("")}</ul>`
+              + (Object.keys(beszVarhato()).length
+                  ? `<p class="beszlab">${esc(T("besz_labjegyzet"))}</p>` : "");
         };
 
         /* Csak alapanyag: két blokk, ahogy a weboldalon - a teljes
@@ -2299,19 +4090,49 @@ li.collapsed > .node > .toggle::before{ content:"+" }
         $("ncount").textContent = hianyzo.length
             ? T("gyujts_fejlec", { tetel: hianyzo.length, db: hianyDb }) : "";
         $("gyujts").innerHTML = hianyzo.length
-            ? `<ul class="needlist">` + hianyzo.map(b => {
-                const szaz = Math.round(Math.min(1, b.van / b.kell) * 100);
-                return `<li class="need">${ico(b.id, "lg") || ""}
-                  <b>${esc(b.nev)}<span class="szam">${b.van} / ${b.kell}</span></b>
-                  <div class="sav"><i style="width:${szaz}%"></i></div></li>`;
-            }).join("") + `</ul>
+            ? `<ul class="needlist">` + (() => {
+                const varhato = beszVarhato();
+                let voltCsillag = false;
+                const sorok = hianyzo.map(b => {
+                    /* A KÉSZLET zölden, a MEGBÍZÁSBÓL VÁRHATÓ kéken, csillaggal.
+                       A szám a VALÓDI megbízás, akkor is, ha több, mint a hiány:
+                       épp az az információ, hogy túl sokat rendeltél. A SÁV
+                       viszont a készültséget mutatja, ezért ott levágjuk. */
+                    /* A b.van MÁR TARTALMAZZA a megbízást, mert a keszlet()
+                       oda adta hozzá. A kijelzéshez viszont szét kell bontani:
+                       a zöld a valódi raktárkészlet, a kék a megbízás. */
+                    /* ELŐBB A RAKTÁR, UTÁNA A MEGBÍZÁS - ugyanaz a sorrend,
+                       mint a fában. A b.van már tartalmazza a megbízást, de a
+                       kijelzéshez a VALÓDI raktárkészletből indulunk ki, és a
+                       megbízás csak a maradékot fedezi. Így a csillagos szám
+                       azt mondja meg, mennyi múlik a beszerzőn. */
+                    const v = Number(varhato[String(b.id)] || 0);
+                    const valos = Math.min(Number(raktar[String(b.id)] || 0), b.van);
+                    const rendelt = Math.max(0, b.van - valos);
+                    if (rendelt > 0) voltCsillag = true;
+                    const zold = Math.min(1, valos / b.kell) * 100;
+                    const kek = Math.max(0, Math.min(100 - zold, (rendelt / b.kell) * 100));
+                    const jel = rendelt > 0
+                        ? `<span class="besz">+${rendelt}<span class="csill">*</span></span>`
+                        : "";
+                    return `<li class="need">${munkaIkon(b.id)}
+                      <b>${munkaNev(b.id, esc(b.nev))}<span class="szam">${valos}${jel} / ${b.kell}</span></b>
+                      ${(() => { const o = oraSzoveg(b.id, b.kell - b.van);
+                          return o ? `<span class="orajel">${esc(o)}</span>` : ""; })()}
+                      <div class="sav"><i style="width:${zold}%"></i>`
+                      + (kek > 0 ? `<u style="width:${kek}%"></u>` : "")
+                      + `</div></li>`;
+                }).join("");
+                return sorok + (voltCsillag
+                    ? `<li class="beszlab">${esc(T("besz_labjegyzet"))}</li>` : "");
+            })() + `</ul>
             <button class="act" data-mit="masol"><i class="kozep"></i><span class="cimke">${T("gomb_hianylista")}</span></button>`
             : `<p class="ures">${T("gyujts_minden_megvan")}</p>`;
 
         kotesekTerv();
     }
 
-    /* A modern vágólap-API több esetben visszautasít: ha az oldal nincs
+    /* Az aszinkron vágólap-API több esetben visszautasít: ha az oldal nincs
        fókuszban, vagy a játék kontextusában nincs engedély. Ilyenkor a régi,
        rejtett textarea + execCommand úton próbálkozunk. */
     function vagolapra(txt) {
@@ -2396,29 +4217,71 @@ li.collapsed > .node > .toggle::before{ content:"+" }
                     jegy = { id: a.dataset.tq, kezd: a.selectionStart, veg: a.selectionEnd };
             } catch (e) { jegy = null; }
 
-            rajzolMunkalap();
+            /* A JELZŐT AZ ÚJRAÉPÍTÉS ELÉ KELL TENNI.
 
-            if (jegy) {
-                const uj = $("munkalap").querySelector(`[data-tq="${jegy.id}"]`);
-                if (uj) {
-                    try {
+               Nem a visszafókuszálás a veszélyes pillanat, hanem maga az
+               innerHTML csere: a böngésző blur eseményt küld a DOM-ból
+               kivett, még fókuszált mezőre. Az nem felhasználói kilépés, de
+               a kezelő teljes egészében lefutott - meghívta az allit-ot
+               rajzolás közben, és törölte a uresRegi bejegyzést. Onnantól
+               sem a visszaállítás, sem a normalizálás nem működött.
+
+               A jsdom NEM küld blurt a kivett elemre, a böngésző igen -
+               ezért nem bukott ki a próbán.
+
+               A régi értéket visszaadjuk, nem hamisra állítunk: az allit
+               önmagát is meghívhatja. */
+            const voltUjra = ujraFokusz;
+            ujraFokusz = true;
+            try {
+                rajzolMunkalap();
+                if (jegy) {
+                    const uj = $("munkalap").querySelector(`[data-tq="${jegy.id}"]`);
+                    if (uj) {
                         uj.focus();
                         const h = uj.value.length;
                         uj.setSelectionRange(Math.min(jegy.kezd ?? h, h), Math.min(jegy.veg ?? h, h));
-                    } catch (e) { /* nem baj */ }
+                        /* Az újraépített mezőnek nincs helyőrzője, tehát a régi
+                           szám a második leütés után eltűnne. */
+                        const r = uresRegi.get(jegy.id);
+                        if (r !== undefined) uj.placeholder = r;
+                    }
                 }
-            }
+            } catch (e) { /* nem baj */ }
+            finally { ujraFokusz = voltUjra; }
         };
         const qOf = id => {
             const t = tervek.find(x => x.i === id);
             return t ? t.q : 1;
         };
+        /* Kizárólag felhasználói kattintásra. Nincs időzítő, nincs
+           automatikus indítás, nincs kötegelés. */
+        fo.querySelectorAll("[data-gyart]").forEach(b =>
+            b.addEventListener("click", () =>
+                gyartas(b.dataset.gyart, parseInt(b.dataset.gyartdb, 10) || 1)));
         fo.querySelectorAll("[data-tinc]").forEach(b =>
             b.addEventListener("click", () => allit(b.dataset.tinc, qOf(b.dataset.tinc) + 1)));
         fo.querySelectorAll("[data-tdec]").forEach(b =>
             b.addEventListener("click", () => allit(b.dataset.tdec, qOf(b.dataset.tdec) - 1)));
-        fo.querySelectorAll("[data-tq]").forEach(inp =>
-            inp.addEventListener("input", () => allit(inp.dataset.tq, parseInt(inp.value, 10) || 1)));
+        fo.querySelectorAll("[data-tq]").forEach(inp => {
+            /* Egy jelző véd a duplikált kezelő ellen. Ma a mezők minden
+               rajzoláskor kicserélődnek, tehát nem okozna bajt - de ha valaha
+               újrahasznált elem kerül a munkalapra, a kezelő többször futna. */
+            if (inp.dataset.tqkotve) return;
+            inp.dataset.tqkotve = "1";
+            /* Az üres szöveg NEM érték, hanem a "még nem írtam" állapot -
+               tehát azonnal visszatérünk, és a tervhez sem nyúlunk. */
+            inp.addEventListener("input", () => {
+                const nyers = (inp.value || "").trim();
+                if (nyers === "") return;
+                allit(inp.dataset.tq, parseInt(nyers, 10) || 1);
+            });
+            /* Az ertek() a MOSTANI állapotot kérdezze, ne egy elmentett
+               példányt: a tervek tömb elemei újrarajzoláskor kicserélődhetnek. */
+            uresFokuszra(inp,
+                () => qOf(inp.dataset.tq),
+                v => allit(inp.dataset.tq, v));
+        });
         fo.querySelectorAll("[data-tx]").forEach(cb =>
             cb.addEventListener("change", () => {
                 if (!tervek.length && valasztott === cb.dataset.tx)
@@ -2430,6 +4293,70 @@ li.collapsed > .node > .toggle::before{ content:"+" }
             b.addEventListener("click", () => tervbolKi(b.dataset.tdel)));
 
         /* nézetváltás */
+        /* TERVEK: mentés, megnyitás, törlés. */
+        const tg = $("tervgombok"), tl = $("tervlista");
+        if (tg && !tg.dataset.kotve) {
+            tg.dataset.kotve = "1";
+            tg.addEventListener("click", e => {
+                const b = e.target.closest("[data-mit]");
+                if (!b) return;
+                if (b.dataset.mit === "tervment") {
+                    const cel = celok();
+                    if (!cel.length) return;
+                    const c = cel.map(t => ({ i: t.i, q: t.q, x: t.x !== false }));
+                    const nev = tervNev(c);
+                    const volt = mentettTervek.findIndex(t => tervNev(t.c) === nev);
+                    if (volt >= 0) mentettTervek.splice(volt, 1);
+                    mentettTervek.unshift({ c: c, d: new Date().toISOString().slice(0, 10) });
+                    if (mentettTervek.length > TERV_MAX) mentettTervek.length = TERV_MAX;
+                    tervMent();
+                    tervTorlesre = null;
+                    rajzolTervek();
+                    /* A visszajelzés a gomb feliratában, ahogy a másolásnál is -
+                       a panelnek nincs külön üzenetsávja. A felülírásról külön
+                       szólunk: egy csendben eltűnő mentés rosszabb, mint egy
+                       duplikátum. */
+                    const eredeti = b.textContent;
+                    b.textContent = volt >= 0 ? T("terv_felulirt") : T("terv_mentve");
+                    setTimeout(() => { b.textContent = eredeti; }, 2200);
+                } else if (b.dataset.mit === "tervnyit") {
+                    tervTorlesre = null;
+                    rajzolTervek();
+                    if (tl) tl.hidden = !tl.hidden;
+                }
+            });
+        }
+        if (tl && !tl.dataset.kotve) {
+            tl.dataset.kotve = "1";
+            tl.addEventListener("click", e => {
+                const ny = e.target.closest("[data-tervnyitas]");
+                if (ny) {
+                    /* A mostani terv RÁKÉRDEZÉS NÉLKÜL elvész: gyakran csak
+                       gyorsan megnéznél valamit, és egy kérdés minden
+                       alkalommal útban lenne. */
+                    const t = mentettTervek[Number(ny.dataset.tervnyitas)];
+                    if (!t) return;
+                    tervek = t.c.map(x => ({ i: x.i, q: x.q, x: x.x !== false }));
+                    valasztott = tervek.length === 1 ? tervek[0].i : tervek[0].i;
+                    if (tervek.length === 1) tervek = [];
+                    tl.hidden = true;
+                    rajzolReceptek(); rajzolMunkalap();
+                    return;
+                }
+                const kerd = e.target.closest("[data-tervkerdes]");
+                if (kerd) { tervTorlesre = Number(kerd.dataset.tervkerdes); rajzolTervek(); return; }
+                const tor = e.target.closest("[data-tervtorol]");
+                if (tor) {
+                    mentettTervek.splice(Number(tor.dataset.tervtorol), 1);
+                    tervMent(); tervTorlesre = null; rajzolTervek();
+                }
+            });
+        }
+
+        /* A tanulás gombjai a receptlistában és a fában is ott lehetnek;
+           mindkét helyen ugyanaz a kötés, lásd kotTanul(). */
+        kotTanul(fo);
+
         fo.querySelectorAll("[data-nezet]").forEach(b =>
             b.addEventListener("click", () => {
                 nezet = b.dataset.nezet; beall.nezet = nezet; ment();
@@ -2911,9 +4838,92 @@ li.collapsed > .node > .toggle::before{ content:"+" }
         return abl;
     }
 
-    /* átkapcsolás a két megjelenési mód között */
     /* Nagy, de a képernyőn belül maradó méret. A három hasáb így kényelmes,
        nem kell összezsúfolni semmit. */
+    /* Nagy, de a képernyőn belül maradó méret. A három hasáb így kényelmes.
+
+       A KICSINYÍTÉS NEM ITT TÖRTÉNIK. Volt egy köre annak, hogy a méretet
+       a nézetablak százalékában számoljuk - az viszont a panel SZÉLESSÉGÉT
+       csökkentette, amitől a tartalom átrendeződött: három hasáb helyett
+       kettő, majd egy. Ez akkor jó, ha kevés a hely, de nem az volt a kérés.
+
+       A valódi igény az, hogy a panel ARÁNYOSAN menjen össze, tartalommal
+       együtt, mintha a sarkánál fogva húznánk be - a három hasáb maradjon,
+       csak minden legyen kisebb. Ezt a nagyitElem() és a scale() végzi.
+
+       Egy dolog egy helyen döntsön: ez a függvény a méretről szól, a
+       nagyítás külön kérdés. */
+    /* A KICSINYÍTÉS.
+
+       Nem a panel méretét állítja, hanem az egészet arányosan kicsinyíti -
+       tartalommal, kerettel együtt. A hasábok hárman maradnak, csak minden
+       kisebb lesz. Ez az, ami nagy monitoron is értelmet ad a választónak:
+       a szélességi képlet ott az 1240-es korlát miatt semmit nem csinálna.
+
+       A transform-origin KELL: enélkül a panel a középpontja körül menne
+       össze, és elmászna a helyéről.
+
+       Natív módban a JÁTÉK ABLAKÁT kicsinyítjük, nem csak a tartalmat -
+       különben a fakeret ugyanakkora maradna, és a tartalom körül üres hely
+       nyílna. A mainDiv a saját ablakunké, a skin is ezt tartja számon,
+       tehát nem nyúlunk idegen elemhez.
+
+       100 százaléknál a stílus TÖRLŐDIK, nem "scale(1)" marad: így a panel
+       pontosan olyan, mint a kapcsoló bevezetése előtt, és a visszaállás is
+       egyszerű. */
+    const MERET_FOKOZATOK = [60, 65, 70, 75, 80, 85, 90, 95, 100];
+    function autoMeretSzazalek() {
+        const alap = nagyMeret();
+        const arany = Math.min(1,
+            (window.innerWidth * 0.84) / Math.max(1, alap.w),
+            (window.innerHeight * 0.82) / Math.max(1, alap.h));
+        const cel = Math.max(75, Math.floor(arany * 100));
+        return MERET_FOKOZATOK.filter(v => v <= cel).pop() || 75;
+    }
+    function meretSzazalek() {
+        if (beall.meretmod === "auto") return autoMeretSzazalek();
+        const v = Number(beall.meretszaz);
+        return MERET_FOKOZATOK.includes(v) ? v : 100;
+    }
+
+    function nagyitElem() {
+        if (host.dataset.nativ && skin && skin.mainDiv) return skin.mainDiv;
+        return host;
+    }
+
+    function allitNagyitas() {
+        const sz = meretSzazalek();
+        /* Előbb minden korábbi célpontról levesszük, hogy natív módra
+           váltáskor ne maradjon ott árván. */
+        [host, (skin && skin.mainDiv) || null].forEach(el => {
+            if (!el) return;
+            el.style.transform = "";
+            el.style.transformOrigin = "";
+        });
+        if (sz === 100) return;
+        const el = nagyitElem();
+        el.style.transformOrigin = "top left";
+        el.style.transform = "scale(" + (sz / 100) + ")";
+    }
+
+    /* A tényleges nagyítás, mérve. A képpontos számítások ezzel osztanak:
+       a getBoundingClientRect a KICSINYÍTETT méretet adja vissza, a
+       clientX/clientY viszont a valódi képernyőkoordinátát - e nélkül a
+       buborék elcsúszna, és az ablak húzása is gyorsabban mozogna a
+       kurzornál. Méréssel megyünk, nem a beállításból: így akkor is helyes,
+       ha a nagyítás valahonnan máshonnan jön. */
+    function nagyitas() {
+        try {
+            const r = host.getBoundingClientRect();
+            const w = host.offsetWidth;
+            if (w > 0 && r.width > 0) {
+                const s = r.width / w;
+                if (s > 0.05 && s < 20) return s;
+            }
+        } catch (e) { /* marad az 1 */ }
+        return 1;
+    }
+
     function nagyMeret() {
         return {
             w: Math.max(880, Math.min(1240, window.innerWidth - 60)),
@@ -3036,9 +5046,24 @@ li.collapsed > .node > .toggle::before{ content:"+" }
   font-size:13px; font-weight:400; color:rgb(0,0,0);
   text-shadow:none; opacity:1 }
 
-/* kontraszt: a halvány másodlagos szöveg sötétebb barnára */
-:host([data-nativ][data-ui5c]) .frame{
+/* kontraszt: a halvány másodlagos szöveg sötétebb barnára.
+   A GAZDAELEMRE szól, nem a keretre: a paletta is ott áll, és a keret
+   mellett élő buborék csak így kapja ugyanazokat a színeket. */
+:host([data-nativ][data-ui5c]){
   --dim:#4a3b28; --faint:#6b5940; --line:#b9a483 }
+
+/* A tiltott gyártás gomb natívban külön szabályt kap, ahogy a formátumváltó
+   és a Max jelző is. A pergamenen a --faint értéke sötét meleg barna, ezért
+   a betűszín önmagában nem jelez eleget. Az áttetszőség itt a legerősebb
+   eszköz, mert nem függ attól, melyik változó milyen értéket vesz fel. */
+:host([data-nativ][data-ui5c]) .gyartb:disabled{
+  background:transparent; border:1px dashed #a08a68; color:#6b5940;
+  opacity:.7; text-shadow:none }
+/* t34: a savon BELUL az atlatszo hatter atengedte a sav beige-et, es a
+   szaggatott keret a sav kozepen uszott. Ott lapos, tompa kitoltes kell. */
+:host([data-nativ][data-ui5c]) .workshop .stepper .gyartb:disabled,
+:host([data-nativ][data-ui5c]) .workshop .stepper .gyartb:disabled:hover{
+  border:0; opacity:1; color:#7d6444; background:#e2cb9d; text-shadow:none }
 
 :host([data-nativ][data-ui5c]) .colhead,
 :host([data-nativ][data-ui5c]) .kicsi,
@@ -3063,16 +5088,16 @@ li.collapsed > .node > .toggle::before{ content:"+" }
 :host([data-nativ][data-ui5c]) .col::-webkit-scrollbar,
 :host([data-nativ][data-ui5c]) .rlist::-webkit-scrollbar{ width:15px }
 
-:host([data-nativ][data-ui5c]) .stage::-webkit-scrollbar-track,
-:host([data-nativ][data-ui5c]) .col::-webkit-scrollbar-track,
-:host([data-nativ][data-ui5c]) .rlist::-webkit-scrollbar-track{
+:host([data-nativ][data-ui5c]) .stage::-webkit-scrollbar-track:vertical,
+:host([data-nativ][data-ui5c]) .col::-webkit-scrollbar-track:vertical,
+:host([data-nativ][data-ui5c]) .rlist::-webkit-scrollbar-track:vertical{
   background-image:url("${UI5D_ASSET}window2_scrollbar_vertical.png?1");
   background-repeat:repeat-y; background-position:-30px 0px;
   background-color:transparent }
 
-:host([data-nativ][data-ui5c]) .stage::-webkit-scrollbar-thumb,
-:host([data-nativ][data-ui5c]) .col::-webkit-scrollbar-thumb,
-:host([data-nativ][data-ui5c]) .rlist::-webkit-scrollbar-thumb{
+:host([data-nativ][data-ui5c]) .stage::-webkit-scrollbar-thumb:vertical,
+:host([data-nativ][data-ui5c]) .col::-webkit-scrollbar-thumb:vertical,
+:host([data-nativ][data-ui5c]) .rlist::-webkit-scrollbar-thumb:vertical{
   background-image:url("${UI5D_ASSET}window2_scrollbar_vertical.png?3");
   background-repeat:repeat-y; background-position:-45px 0px;
   background-color:transparent; border:0; border-radius:0 }
@@ -3344,8 +5369,9 @@ li.collapsed > .node > .toggle::before{ content:"+" }
    1.5.2 - erősebb kontraszt a pergamenen
    Nincs új tömör panel; a pergamen látható marad, csak a tokenek erősödnek.
    =================================================================== */
-:host([data-nativ][data-ui5c]) .frame{
-  --ink:#241b12; --dim:#463522; --faint:#5d4a30; --line:#a08a68 }
+:host([data-nativ][data-ui5c]){
+  --ink:#241b12; --dim:#463522; --faint:#5d4a30; --line:#a08a68;
+  --vart:#6f9fc4; --vart2:#1f5178 }
 
 :host([data-nativ][data-ui5c]) .stage,
 :host([data-nativ][data-ui5c]) .col,
@@ -3392,6 +5418,112 @@ li.collapsed > .node > .toggle::before{ content:"+" }
   border-color:#3a2b18; background:#54401f }
 :host([data-nativ][data-ui5c]) .charbar .szintsav > i{
   background:#5f9a34; border-right-color:#2f4d1c }
+
+/* ================= T17 - egységes natív The-West felület =================
+   A játék saját ablakkerete marad a külső réteg. Mindhárom hasáb pergamenes,
+   fa- és sárgaréz részletekkel; külön felületváltozat nincs. */
+:host([data-nativ][data-ui5c]) .frame::after,
+:host([data-nativ][data-ui5c]) .bar::after{ content:none; display:none }
+
+:host([data-nativ][data-ui5c]) .stage{
+  padding:7px;
+  background:
+    radial-gradient(circle at 50% -18%,rgba(188,131,45,.14),transparent 44%),
+    repeating-linear-gradient(90deg,#2b190f 0 52px,#321d11 52px 104px) }
+
+:host([data-nativ][data-ui5c]) .wrap{ gap:7px }
+:host([data-nativ][data-ui5c]) .col{
+  border:1px solid #856039; border-radius:2px;
+  box-shadow:0 5px 14px rgba(45,24,10,.25),inset 0 0 0 1px rgba(255,249,224,.18) }
+
+:host([data-nativ][data-ui5c]) .recipe-depot{
+  color:#2b2119; border-color:#8b6337;
+  background:
+    radial-gradient(circle at 78% 2%,rgba(255,255,255,.48),transparent 31%),
+    repeating-linear-gradient(0deg,rgba(104,69,30,.05) 0 1px,transparent 1px 27px),
+    linear-gradient(112deg,#f6e8c3,#e8cc8e 72%,#dcb872) }
+:host([data-nativ][data-ui5c]) .recipe-depot .eyebrow{
+  color:#49301b; border-bottom-color:rgba(112,72,30,.38) }
+:host([data-nativ][data-ui5c]) .recipe-depot .legend,
+:host([data-nativ][data-ui5c]) .recipe-depot .enyem{ color:#59442c }
+:host([data-nativ][data-ui5c]) .recipe-depot .charbar .szakma{ color:#3e2a18 }
+:host([data-nativ][data-ui5c]) .recipe-depot .rlist button{
+  min-height:41px; color:#2c2116;
+  border:1px solid rgba(116,77,34,.24); border-radius:2px;
+  background:linear-gradient(100deg,rgba(255,250,226,.38),rgba(170,112,44,.055));
+  box-shadow:inset 3px 0 0 rgba(143,94,37,.28) }
+:host([data-nativ][data-ui5c]) .recipe-depot .rlist button:hover{
+  color:#21170f; border-color:#a87832;
+  background:linear-gradient(100deg,rgba(231,190,105,.58),rgba(255,247,215,.32));
+  box-shadow:inset 4px 0 0 #a87027,0 3px 8px rgba(77,43,17,.16) }
+:host([data-nativ][data-ui5c]) .recipe-depot .rlist button[aria-current=true]{
+  color:#211208; border-color:#f1c76f;
+  background:linear-gradient(100deg,#efc665,#b97a24);
+  box-shadow:inset 4px 0 0 #fff0ad,0 5px 12px rgba(0,0,0,.24) }
+:host([data-nativ][data-ui5c]) .recipe-depot .rlist button.halvany span,
+:host([data-nativ][data-ui5c]) .recipe-depot .rlist button.halvany .szint{ color:#6b5940 }
+:host([data-nativ][data-ui5c]) .recipe-depot .rlist button[aria-current=true] span,
+:host([data-nativ][data-ui5c]) .recipe-depot .rlist button[aria-current=true] .szint{ color:#3f2411 }
+
+/* A receptszám pergamenen sötét tintaszínű és mindig olvasható. */
+:host([data-nativ][data-ui5c]) .recipe-depot .rlist .szint{
+  color:#4b3824; font-family:"Space Mono",monospace; font-size:12px;
+  font-weight:700; text-shadow:none }
+:host([data-nativ][data-ui5c]) .recipe-depot .rlist button.halvany .szint{
+  color:#725f43 }
+:host([data-nativ][data-ui5c]) .recipe-depot .rlist button[aria-current=true] .szint{
+  color:#3e2512; text-shadow:none }
+
+/* Ugyanaz a felulras a nativ boron, csak itt fajsulyban is nagyobb volt a
+   .recipe-depot szabaly. Ezek allnak utana, tehat ezek nyernek. */
+:host([data-nativ][data-ui5c]) .recipe-depot .rlist button.tanulhato{
+  border-color:var(--green); box-shadow:inset 3px 0 0 var(--green) }
+:host([data-nativ][data-ui5c]) .recipe-depot .rlist .szint.tanul{
+  color:var(--green); text-shadow:none }
+
+:host([data-nativ][data-ui5c]) .workshop{
+  color:#241b12; border-color:#aa783d;
+  background:
+    radial-gradient(circle at 72% 4%,rgba(255,255,255,.5),transparent 28%),
+    repeating-linear-gradient(0deg,rgba(112,77,34,.045) 0 1px,transparent 1px 27px),
+    linear-gradient(105deg,#f7ebcb,#eed69d 72%,#e2c17f) }
+:host([data-nativ][data-ui5c]) .manifest{
+  color:#241b12; border-color:#9c4a31;
+  background:
+    linear-gradient(90deg,rgba(139,49,30,.09) 0 5px,transparent 5px),
+    repeating-linear-gradient(0deg,rgba(111,72,30,.055) 0 1px,transparent 1px 26px),
+    linear-gradient(135deg,#f2deae,#e4c47f) }
+:host([data-nativ][data-ui5c]) .workshop .eyebrow,
+:host([data-nativ][data-ui5c]) .manifest .eyebrow{ color:#3b2918 }
+:host([data-nativ][data-ui5c]) .manifest .need b{ color:#332116 }
+:host([data-nativ][data-ui5c]) .manifest .need .szam{ color:#59412a }
+
+:host([data-nativ][data-ui5c]) .workshop .excl.tehetetlen,
+:host([data-nativ][data-ui5c]) .workshop .texcl.tehetetlen{
+  color:#715c41; opacity:.78 }
+
+:host([data-nativ][data-ui5c]) .settings-ledger{
+  color:#2c2116;
+  background:
+    repeating-linear-gradient(0deg,rgba(112,77,34,.045) 0 1px,transparent 1px 28px),
+    linear-gradient(120deg,#f8ecc9,#e5c783) }
+:host([data-nativ][data-ui5c]) .settings-card{
+  border-color:rgba(124,79,35,.52); background:rgba(255,248,220,.48) }
+:host([data-nativ][data-ui5c]) .settings-card h2{
+  margin:0; padding:9px 12px 7px; color:#63371d;
+  border:0; border-bottom:1px solid rgba(124,79,35,.42);
+  background:linear-gradient(90deg,rgba(157,74,39,.13),rgba(211,161,69,.07));
+  box-shadow:inset 4px 0 0 #9c4b2e }
+:host([data-nativ][data-ui5c]) .settings-card .drows li{
+  border-bottom-color:rgba(123,79,35,.25) }
+:host([data-nativ][data-ui5c]) .settings-card .mono{ color:#634b33 }
+:host([data-nativ][data-ui5c]) .settings-card select,
+:host([data-nativ][data-ui5c]) .settings-card input:not([type="checkbox"]){
+  border-color:#a67a42; color:#302215; background:#fff2cc }
+
+:host([data-nativ][data-ui5c]) .topbar .proftabs .chip{
+  min-height:0; transition:none; transform:none }
+:host([data-nativ][data-ui5c]) .topbar .proftabs .chip:hover{ transform:none }
 `;
 
     /* ==========  NATIVE UI PREVIEW 5D BLOKK VÉGE  ========== */
@@ -3405,6 +5537,353 @@ li.collapsed > .node > .toggle::before{ content:"+" }
        A korábbi fejlesztői diagnosztika helyén. Csak olyasmit mutat, ami a
        felhasználónak is mond valamit: nyelv, verzió, adatállapot, honlap.
        =================================================================== */
+
+    /* A megbízások szakasza: fent az űrlap, alatta a folyamatban lévők
+       BESZERZŐNKÉNT csoportosítva, a név mellett a LEGUTÓBBI felvitel
+       dátumával - az mondja meg, mennyire friss a megbízás.
+
+       Soronként EGYETLEN gomb, egy ×. Az leveszi a listáról, akár megkaptad,
+       akár lemondta. Két gomb nem kell, és nem is szabad: a raktár élőben
+       frissül, tehát ha a teljesített megbízás a listán maradna, a panel
+       DUPLÁN SZÁMOLNA - a tíz fa bejön a raktárba, és a megbízás is ott van. */
+    function beszUrlap() {
+        /* A megbízás nem csak alapanyagra szólhat: ha András kovácsként legyárt
+           száz kést, azt is fel kell tudni vinni. Virtuális készletként a
+           gyártott termék magától kiveszi a saját alapanyagait a számításból,
+           mert a lánc lebontása készként kezeli. Ezért a TELJES tétellista. */
+        const opciok = [...new Set(Object.keys(BASE_NAMES).concat(RECIPES.map(r => String(r.i))))]
+            .map(id => ({ id: id, nev: nameOf(id) }))
+            .sort((a, b) => a.nev.localeCompare(b.nev, "hu"))
+            .map(x => x.nev);
+
+        const csop = new Map();
+        beszerzok.forEach(x => {
+            const k = String(x.nev);
+            if (!csop.has(k)) csop.set(k, []);
+            csop.get(k).push(x);
+        });
+
+        const lista = [...csop.entries()].map(([nev, tetelek]) => {
+            const utolso = tetelek.map(t => t.mikor || "").sort().pop() || "";
+            return `<div class="bcsop"><div class="bfej2"><b>${esc(nev)}</b>`
+                 + `<button class="bplusz" data-bplusz="${esc(nev)}"`
+                 + ` title="${esc(T("besz_ujtetel"))}" aria-label="${esc(T("besz_ujtetel"))}">+</button>`
+                 + (utolso ? `<span class="mono">${esc(utolso)}</span>` : "")
+                 + `</div>`
+                 + tetelek.map(t =>
+                     `<div class="bsor">${ico(t.id, "sm") || ""}`
+                     + `<span>${esc(nameOf(t.id))}</span>`
+                     + `<b>${Number(t.db)}</b>`
+                     + `<button class="btorol" data-btorol="${esc(t.kulcs)}"`
+                     + ` title="${esc(T("besz_torles"))}" aria-label="${esc(T("besz_torles"))}">✕</button></div>`
+                   ).join("")
+                 /* A + a csoport ALATT nyit egy sort, nem a fenti űrlaphoz
+                    ugrat: kétszáz sornál az a képernyőn kívül lenne, és
+                    elvesztenéd szem elől azt, akihez épp hozzáadsz.
+                    Egyszerre egy sor lehet nyitva, Esc zár. */
+                 + `<div class="bujsor" data-bujsor="${esc(nev)}" hidden>`
+                 + `<input class="bujTargy" inputmode="text" spellcheck="false"`
+                 + ` placeholder="${esc(T("besz_targy"))}" aria-label="${esc(T("besz_targy"))}">`
+                 + `<input class="bujDb" inputmode="numeric"`
+                 + ` placeholder="${esc(T("besz_db"))}" aria-label="${esc(T("besz_db"))}">`
+                 + `<button class="bujOk">${esc(T("besz_hozzaad"))}</button></div>`
+                 + `</div>`;
+        }).join("");
+
+        return `<div class="beszdoboz">
+            <div class="besuj">
+              <span class="jwrap"><input data-mez="beszNev" autocomplete="off" spellcheck="false"
+                placeholder="${esc(T("besz_nev"))}" aria-label="${esc(T("besz_nev"))}">
+                <ul class="jlista" data-mez="beszNevLista" hidden></ul></span>
+              <span class="jwrap"><input data-mez="beszTargy" autocomplete="off" spellcheck="false"
+                placeholder="${esc(T("besz_targy"))}" aria-label="${esc(T("besz_targy"))}">
+                <ul class="jlista" data-mez="beszTargyLista" hidden></ul></span>
+              <input data-mez="beszDb" inputmode="numeric" placeholder="${esc(T("besz_db"))}" aria-label="${esc(T("besz_db"))}">
+              <button data-mit="beszAdd">${esc(T("besz_hozzaad"))}</button>
+            </div>`
+          + (lista || `<p class="mono besures">${esc(T("besz_ures"))}</p>`)
+          + `</div>`;
+    }
+
+    /* SAJÁT JAVASLATLISTA, mert a natív datalist a böngésző saját, sötét
+       legördülőjét rajzolja: idegen a pergamentől, és üres mezőre mind a 375
+       tételt kiönti - pont az ellenkezője annak, amit egy beírásos mezőtől
+       várunk. Ugyanaz az elv, amiért a title helyett saját buborék készült.
+
+       Két karakter után nyílik, legfeljebb nyolc találat, ékezetre
+       érzéketlenül. Fel-le nyíllal léptethető, Enterrel választható, Esc-re
+       eltűnik. A választás után a lista bezárul.
+
+       A forrás függvényként érkezik, hogy a beszerzőnevek mindig a FRISS
+       listából jöjjenek: felvitel után az új név is felajánlható legyen. */
+    /* ÜRÍTÉS FÓKUSZRA, VISSZAÁLLÁS ÜRESEN KILÉPVE.
+
+       A szabály egyetlen mondat: az üres mező azt jelenti, hogy nem írtál
+       újat. Belépéskor a mező kiürül, a régi szám a placeholderbe kerül -
+       tehát végig látod, mi volt -, a TERVHEZ viszont nem nyúlunk.
+
+       Kilépéskor az üres mező mindkettőt visszaállítja, a mezőt és a tervet
+       is. Ez az a pont, ami miatt a mező és a gyűrű nem tud elcsúszni: ha
+       beírtál 250-et, majd kitörölted, a terv sem marad 250-en.
+
+       KORÁBBAN a kijelölést építettem be helyette. Az működött, de a régi
+       szám bent maradt, és a bevitel nem érződött tiszta lapnak. A weboldalon
+       ez a megoldás született meg, és jobb - a két felület így egyezik is.
+
+       ertek(): mennyi most a szám. allit(v): állítsd a tervet ennyire. */
+    /* A PANEL ÚJRAÉPÍTI A MEZŐT minden változásnál, majd visszaadja a
+       fókuszt. Ilyenkor a fókuszkezelő ÚJRA lefutna, és kiürítené azt, amit
+       épp gépelsz - a beírt számjegy eltűnne.
+
+       Két dolog véd ellene. Az ujraFokusz jelző a programból kiváltott
+       visszafókuszálás alatt áll, és olyankor a kezelő nem ürít. A regi
+       értéket pedig nem a mezőben tartjuk - az elem kicserélődik -, hanem
+       kulcs szerint egy térképben, ami túléli az újraépítést. */
+    let ujraFokusz = false;
+    const uresRegi = new Map();
+
+    function uresFokuszra(inp, ertek, allit) {
+        if (!inp || inp.dataset.uresfok) return;
+        inp.dataset.uresfok = "1";
+        const kulcs = inp.dataset.tq || inp.dataset.mez || "?";
+        inp.addEventListener("focus", () => {
+            if (ujraFokusz) return;            /* újraépítés utáni visszatérés */
+            uresRegi.set(kulcs, String(ertek()));
+            inp.placeholder = uresRegi.get(kulcs);
+            inp.value = "";
+        });
+        inp.addEventListener("blur", () => {
+            if (ujraFokusz) return;            /* csak az elem cserélődik ki */
+            const regi = uresRegi.get(kulcs);
+            if (regi === undefined) return;
+            const nyers = (inp.value || "").trim();
+            /* ELŐBB A MEZŐ, AZTÁN A TERV. Fordítva a terv frissítése rajzolást
+               indíthat, ami még az üres mezőt látja, és azt írhatja vissza. */
+            if (nyers === "") {
+                inp.value = regi;
+                allit(parseInt(regi, 10));
+            } else {
+                /* A LEGKISEBB ÉRTELMES DARABSZÁM AZ 1. A 0 és a szemét nem
+                   jelent semmit, de gépelés közben beengedjük. Kilépéskor nem
+                   csak a terv áll helyre, hanem a mező felirata is - különben
+                   a mezőben 0 állna, a tervben pedig 1. */
+                const v = Math.max(1, parseInt(nyers, 10) || 1);
+                inp.value = String(v);
+                allit(v);
+            }
+            inp.placeholder = "";
+            /* A törlés nem díszítés: enélkül egy programból kiváltott blur()
+               visszaírna egy elavult számot. */
+            uresRegi.delete(kulcs);
+        });
+    }
+
+    function javaslo(mezoNev, listaNev, forras, utana) {
+        const be = $(mezoNev), li = $(listaNev);
+        if (!be || !li || be.dataset.kotve) return;
+        be.dataset.kotve = "1";
+        let akt = -1;
+
+        const zar = () => { li.hidden = true; li.innerHTML = ""; akt = -1; };
+        /* A KIVÁLASZTÁS UTÁN TOVÁBBLÉPÜNK.
+
+           A javaslatlistából választva eddig a saját mezőben maradt a fókusz,
+           és kézzel kellett a darabszámhoz kattintani. Az "utana" mező nevét
+           megkapva odaugrunk, és a tartalmát ki is jelöljük - így egy Enter
+           elég a felvitelhez.
+
+           A halasztás azért kell, mert a zar() még a listát bontja le, és a
+           fókusz ilyenkor visszaeshet a saját mezőre. */
+        const valaszt = sz => {
+            be.value = sz;
+            zar();
+            const kov = utana ? $(utana) : null;
+            if (kov) setTimeout(() => { try { kov.focus(); kov.select(); } catch (e) { /* nem baj */ } }, 0);
+            else be.focus();
+        };
+
+        const nyit = () => {
+            const q = ekNelkul((be.value || "").trim());
+            if (q.length < 2) { zar(); return; }
+            /* ELŐBB A KEZDŐDŐK. Aki "fa"-t gépel, a Fa tételt keresi, nem az
+               "Egy fából készült tortaállvány"-t - a szűrés bárhol illeszkedik,
+               a SORREND viszont a kezdődőket hozza előre. Hatnál nem mutatunk
+               többet: a hét soros lista görgetősávot kapott, és eltakarta a
+               megbízásokat. */
+            const mind = forras().filter(x => ekNelkul(x).includes(q));
+            const elol = mind.filter(x => ekNelkul(x).startsWith(q));
+            const tal = elol.concat(mind.filter(x => !ekNelkul(x).startsWith(q))).slice(0, 6);
+            if (!tal.length) { zar(); return; }
+            li.innerHTML = tal.map((x, i) =>
+                `<li data-jav="${esc(x)}"${i === 0 ? ' class="akt"' : ""}>${esc(x)}</li>`).join("");
+            akt = 0;
+            li.hidden = false;
+        };
+
+        be.addEventListener("input", nyit);
+        be.addEventListener("blur", () => setTimeout(zar, 120));
+        be.addEventListener("keydown", e => {
+            if (li.hidden) return;
+            const sorok = [...li.querySelectorAll("[data-jav]")];
+            if (!sorok.length) return;
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                e.preventDefault();
+                akt = (akt + (e.key === "ArrowDown" ? 1 : sorok.length - 1)) % sorok.length;
+                sorok.forEach((x, i) => x.classList.toggle("akt", i === akt));
+            } else if (e.key === "Enter") {
+                e.preventDefault();
+                valaszt(sorok[Math.max(0, akt)].dataset.jav);
+            } else if (e.key === "Escape") {
+                e.preventDefault();
+                e.stopPropagation();
+                zar();
+            }
+        });
+        li.addEventListener("mousedown", e => {
+            const x = e.target.closest("[data-jav]");
+            if (x) { e.preventDefault(); valaszt(x.dataset.jav); }
+        });
+    }
+
+    function beszKotesek() {
+        /* ENTER a darabszám mezőben felviszi a tételt - a + gombos soron ez
+           már így működik, a fenti űrlapon eddig kattintani kellett. */
+        const dbm = $("beszDb");
+        if (dbm && !dbm.dataset.entkotve) {
+            dbm.dataset.entkotve = "1";
+            dbm.addEventListener("keydown", e => {
+                if (e.key !== "Enter") return;
+                e.preventDefault();
+                const g = gyoker.querySelector('[data-mit="beszAdd"]');
+                if (g) g.click();
+            });
+        }
+
+        const add = gyoker.querySelector('[data-mit="beszAdd"]');
+        if (add && !add.dataset.kotve) {
+            add.dataset.kotve = "1";
+            add.addEventListener("click", () => {
+                const nev = ($("beszNev").value || "").trim();
+                /* A tárgy mező BEÍRÁSOS: a datalist csak segít, a mező
+                   szabad szöveget tartalmaz. Ezért a beírt NÉVBŐL keressük
+                   vissza az azonosítót, ékezetre érzéketlenül - ugyanazzal a
+                   függvénnyel, amivel a receptkereső is dolgozik. */
+                const beirt = ekNelkul(($("beszTargy").value || "").trim());
+                let id = "";
+                if (beirt) {
+                    const mind = [...new Set(Object.keys(BASE_NAMES)
+                        .concat(RECIPES.map(r => String(r.i))))];
+                    id = mind.find(x => ekNelkul(nameOf(x)) === beirt)
+                      || mind.find(x => ekNelkul(nameOf(x)).startsWith(beirt)) || "";
+                }
+                const db = Math.floor(Number($("beszDb").value));
+                if (!nev || !id || !(db > 0)) return;
+                beszerzok.push({
+                    kulcs: String(Date.now()) + "-" + Math.random().toString(36).slice(2, 7),
+                    nev: nev, id: String(id), db: db,
+                    mikor: new Date().toISOString().slice(0, 10)
+                });
+                beszMent();
+                $("beszNev").value = "";
+                $("beszTargy").value = "";
+                /* A mező ÜRESEN marad: ha "1" állna benne, minden felvitelnél
+                   előbb ki kellene jelölni a számot, hogy átírhasd. Telefonon ez
+                   külön kényelmetlen. A felvitel úgyis kiszűri az üreset:
+                   Number("") nullát ad, a db > 0 pedig hamis. */
+                $("beszDb").value = "";
+                rajzolBeallitasok();
+                rajzolMunkalap();
+            });
+        }
+        /* A tétellista állandó, a beszerzőnevek listája viszont változik,
+           ezért függvényként adjuk át - így felvitel után az új név is
+           azonnal felajánlható. */
+        javaslo("beszTargy", "beszTargyLista",
+            () => [...new Set(Object.keys(BASE_NAMES).concat(RECIPES.map(r => String(r.i))))]
+                    .map(id => nameOf(id)).sort((a, b) => a.localeCompare(b, "hu")),
+            "beszDb");
+        /* A névből a TÁRGYRA lépünk tovább, onnan a darabszámra - így a három
+           mező egyetlen sorozattá áll össze. */
+        javaslo("beszNev", "beszNevLista",
+            () => [...new Set(beszerzok.map(x => String(x.nev)))]
+                    .sort((a, b) => a.localeCompare(b, "hu")),
+            "beszTargy");
+
+        gyoker.querySelectorAll("[data-btorol]").forEach(b => {
+            if (b.dataset.kotve) return;
+            b.dataset.kotve = "1";
+            b.addEventListener("click", () => {
+                beszerzok = beszerzok.filter(x => String(x.kulcs) !== b.dataset.btorol);
+                beszMent();
+                rajzolBeallitasok();
+                rajzolMunkalap();
+            });
+        });
+
+        /* A + a csoport alatt nyit egy sort. EGYSZERRE EGY lehet nyitva -
+           a másik nyitásakor az előző becsukódik. */
+        const zarMind = () => gyoker.querySelectorAll("[data-bujsor]")
+            .forEach(x => { x.hidden = true; });
+
+        gyoker.querySelectorAll("[data-bplusz]").forEach(g => {
+            if (g.dataset.kotve) return;
+            g.dataset.kotve = "1";
+            g.addEventListener("click", () => {
+                const sor = [...gyoker.querySelectorAll("[data-bujsor]")]
+                    .find(x => x.dataset.bujsor === g.dataset.bplusz);
+                const nyitva = sor && !sor.hidden;
+                zarMind();
+                if (sor && !nyitva) {
+                    sor.hidden = false;
+                    sor.querySelector(".bujTargy").value = "";
+                    sor.querySelector(".bujDb").value = "";
+                    sor.querySelector(".bujTargy").focus();
+                }
+            });
+        });
+
+        const felvesz = (nev, targyMezo, dbMezo) => {
+            const beirt = ekNelkul((targyMezo.value || "").trim());
+            const db = Math.floor(Number(dbMezo.value));
+            let id = "";
+            if (beirt) {
+                const mind = [...new Set(Object.keys(BASE_NAMES)
+                    .concat(RECIPES.map(r => String(r.i))))];
+                id = mind.find(x => ekNelkul(nameOf(x)) === beirt)
+                  || mind.find(x => ekNelkul(nameOf(x)).startsWith(beirt)) || "";
+            }
+            if (!nev || !id || !(db > 0)) return;
+            beszerzok.push({
+                kulcs: String(Date.now()) + "-" + Math.random().toString(36).slice(2, 7),
+                nev: nev, id: String(id), db: db,
+                mikor: new Date().toISOString().slice(0, 10)
+            });
+            beszMent();
+            rajzolBeallitasok();
+            rajzolMunkalap();
+        };
+
+        gyoker.querySelectorAll("[data-bujsor]").forEach(sor => {
+            if (sor.dataset.kotve) return;
+            sor.dataset.kotve = "1";
+            const nev = sor.dataset.bujsor;
+            const targy = sor.querySelector(".bujTargy");
+            const dbm = sor.querySelector(".bujDb");
+            sor.querySelector(".bujOk").addEventListener("click", () => felvesz(nev, targy, dbm));
+            [targy, dbm].forEach(m => m.addEventListener("keydown", e => {
+                if (e.key === "Escape") { e.preventDefault(); zarMind(); }
+                else if (e.key === "Enter") {
+                    e.preventDefault();
+                    /* A TÁRGYMEZŐBEN az Enter TOVÁBBLÉP, nem visz fel: ott még
+                       nincs darabszám. A darabszám mezőben viszont felvisz. */
+                    if (m === targy) { dbm.focus(); dbm.select(); }
+                    else felvesz(nev, targy, dbm);
+                }
+            }));
+            /* A beszerzői sor darabszáma ÜRESEN indul, tehát nincs mit
+               üríteni vagy kijelölni - ott a helyőrző mondja meg, mi kell. */
+        });
+    }
 
     function rajzolBeallitasok() {
         const nyelvEl = $("dnyelv");
@@ -3422,6 +5901,154 @@ li.collapsed > .node > .toggle::before{ content:"+" }
             sor(T("beall_nyelv_most"), `<b>${esc((NYELVEK.find(x => x.kod === nyelv) || {}).nev || nyelv)}</b>`),
             sor("", `<span class="mono">${esc(T("beall_nyelv_megj"))}</span>`)
         ].join("");
+
+        /* MEGJELENÉS: az elfogadott logikai csoportok külön szakaszokban. */
+        const megjEl = $("dmegjelenes");
+        if (megjEl) {
+            megjEl.innerHTML = [
+                `<li class="dfej">${esc(T("beall_megjelenes"))}</li>`,
+                sor(T("beall_mikon"),
+                    `<label class="dkapcs"><input type="checkbox" data-mez="mikonkapcs"${beall.mikon ? " checked" : ""}>
+                     <span>${esc(T(beall.mikon ? "beall_mikon_ikon" : "beall_mikon_nev"))}</span></label>`),
+                sor("", `<span class="mono">${esc(T("beall_mikon_megj"))}</span>`),
+                sor(T("beall_meret"),
+                    `<select data-mez="meretvalaszto" style="max-width:100%;font:12px sans-serif">`
+                    + `<option value="auto"${beall.meretmod === "auto" ? " selected" : ""}>${esc(T("beall_meret_auto", { n: autoMeretSzazalek() }))}</option>`
+                    + MERET_FOKOZATOK.map(v =>
+                        `<option value="${v}"${beall.meretmod !== "auto" && meretSzazalek() === v ? " selected" : ""}>${v} %</option>`).join("")
+                    + `</select>${beall.meretmod === "auto" ? `<span class="meretajanlott">${esc(T("beall_meret_ajanlott"))}</span>` : ""}`),
+                sor("", `<span class="mono">${esc(T("beall_meret_megj"))}</span>`),
+                `<li class="dfej">${esc(T("besz_cim"))}</li>`,
+                sor(T("besz_cim"),
+                    `<label class="dkapcs"><input type="checkbox" data-mez="beszkapcs"${beall.beszerzok ? " checked" : ""}>
+                     <span>${esc(T("besz_alcim"))}</span></label>`),
+                sor("", `<span class="mono">${esc(T("besz_gephez"))}</span>`),
+                beszUrlap(),
+                `<li class="dfej">${esc(T("ora_cim"))}</li>`,
+                sor(T("ora_cim"),
+                    `<label class="dkapcs"><input type="checkbox" data-mez="orakapcs"${beall.orak ? " checked" : ""}>
+                     <span>${esc(T("ora_alcim"))}</span></label>`),
+                sor("", `<span class="mono">${esc(T("ora_megj"))}</span>`),
+                sor(T("hatasz_cim"),
+                    `<label class="dkapcs"><input type="checkbox" data-mez="hatasszurokapcs"${beall.hatasszuro ? " checked" : ""}>
+                     <span>${esc(T("hatasz_barmelyik"))}</span></label>`),
+                sor("", `<span class="mono">${esc(T("hatasz_megj"))}</span>`),
+                sor(T("terv_cim"),
+                    `<label class="dkapcs"><input type="checkbox" data-mez="tervkapcs"${beall.tervmentes ? " checked" : ""}>
+                     <span>${esc(T("terv_mentes"))}</span></label>`),
+                sor("", `<span class="mono">${esc(T("terv_megj"))}</span>`),
+                sor(T("tanul_cim"),
+                    `<label class="dkapcs"><input type="checkbox" data-mez="tanulkapcs"${beall.tanulgomb ? " checked" : ""}>
+                     <span>${esc(T("tanul_gomb"))}</span></label>`),
+                sor("", `<span class="mono">${esc(T("tanul_megj"))}</span>`)
+            /* A NYILVÁNTARTÁS MINDIG LÁTSZIK, a kapcsolótól függetlenül.
+               Korábban a kapcsoló két dolgot csinált egyszerre: eldöntötte,
+               hogy a megbízások beszámítanak-e, ÉS azt is, hogy a felület
+               látszik-e. Így alapesetben nem lehetett a listát szerkeszteni,
+               pedig a kettőnek semmi köze egymáshoz. */
+            ].join("");
+
+            const nk = $("tanulkapcs");
+            if (nk && !nk.dataset.kotve) {
+                nk.dataset.kotve = "1";
+                nk.addEventListener("change", ev => {
+                    beall.tanulgomb = !!ev.target.checked;
+                    ment();
+                    /* A JELZÉS marad, akárhogy is áll a kapcsoló - az nem küld
+                       semmit. Csak a gomb tűnik el vagy jelenik meg. */
+                    rajzolReceptek();
+                    rajzolMunkalap();
+                });
+            }
+
+            const tk = $("tervkapcs");
+            if (tk && !tk.dataset.kotve) {
+                tk.dataset.kotve = "1";
+                tk.addEventListener("change", e => {
+                    beall.tervmentes = !!e.target.checked;
+                    ment();
+                    /* A kikapcsolás csak a felületet rejti el, ADATOT NEM TÖRÖL:
+                       visszakapcsolva a mentett tervek ott vannak. Ugyanígy
+                       működik a termékbeszerzők kapcsolója is. */
+                    rajzolTervek();
+                });
+            }
+
+            const hk = $("hatasszurokapcs");
+            if (hk && !hk.dataset.kotve) {
+                hk.dataset.kotve = "1";
+                hk.addEventListener("change", e => {
+                    beall.hatasszuro = !!e.target.checked;
+                    /* Kikapcsoláskor a választás is elvész: egy rejtett szűrő
+                       csendben rossz listát adna. */
+                    if (!beall.hatasszuro) hatasValasztott = "";
+                    ment();
+                    rajzolHatasSzuro();
+                    rajzolReceptek();
+                });
+            }
+
+            const ok2 = $("orakapcs");
+            if (ok2 && !ok2.dataset.kotve) {
+                ok2.dataset.kotve = "1";
+                ok2.addEventListener("change", e => {
+                    beall.orak = !!e.target.checked;
+                    ment();
+                    rajzolFmt();
+                    rajzolMunkalap();
+                    oraKeresHaKell();
+                });
+            }
+
+            const bk = $("beszkapcs");
+            if (bk && !bk.dataset.kotve) {
+                bk.dataset.kotve = "1";
+                bk.addEventListener("change", e => {
+                    beall.beszerzok = !!e.target.checked;
+                    ment();
+                    /* A FELSŐ SÁVOT IS ÚJRA KELL RAJZOLNI. Ugyanaz a beállítás
+                       két helyről állítható, és a gyorskapcsoló állapotát csak
+                       a rajzolFmt frissíti - enélkül a fülön váltva a gomb a
+                       régi állapotot mutatná, és a kettő ellentétesnek
+                       látszana. */
+                    rajzolFmt();
+                    rajzolBeallitasok();
+                    rajzolMunkalap();
+                });
+            }
+            beszKotesek();
+
+            const kap = $("mikonkapcs");
+            if (kap && !kap.dataset.kotve) {
+                kap.dataset.kotve = "1";
+                kap.addEventListener("change", e => {
+                    beall.mikon = !!e.target.checked;
+                    ment();
+                    rajzolFmt();          /* ugyanezért, lásd fent */
+                    rajzolMunkalap();
+                    rajzolBeallitasok();
+                });
+            }
+
+            const msel = $("meretvalaszto");
+            if (msel && !msel.dataset.kotve) {
+                msel.dataset.kotve = "1";
+                msel.addEventListener("change", e => {
+                    if (e.target.value === "auto") beall.meretmod = "auto";
+                    else {
+                        beall.meretmod = "kezi";
+                        beall.meretszaz = Number(e.target.value);
+                    }
+                    ment();
+                    /* Nincs újranyitás és nincs setSize: a kicsinyítés
+                       kizárólag CSS-átalakítás, tehát azonnal hat, és nem
+                       nyúl az ablak méretéhez. Épp ezért nem is tudja
+                       előhozni a H13-as elcsúszást. */
+                    allitNagyitas();
+                    rajzolBeallitasok();
+                });
+            }
+        }
 
         const sel = $("nyelvvalaszto");
         if (sel && !sel.dataset.kotve) {
@@ -3470,7 +6097,8 @@ li.collapsed > .node > .toggle::before{ content:"+" }
             : `<span class="varo">még nem futott</span>`;
 
         $("dverzio").innerHTML = [
-            sor(T("beall_verzio"), `<b>${esc(VERZIO)}</b>`),
+            sor(T("beall_verzio"), `<b>${esc(VERZIO)}</b>`
+                + (EPITES ? ` <span class="mono">· ${esc(EPITES)}</span>` : "")),
             sor(T("beall_frissites_keres"),
                 `<button class="icon" style="width:auto;padding:4px 10px" data-mit="frissiteskeres">`
                 + `${T("beall_frissites_keres")}</button>`
@@ -3529,14 +6157,66 @@ li.collapsed > .node > .toggle::before{ content:"+" }
         if (!gyoker.querySelector('[data-lap="diag"]').hidden) rajzolBeallitasok();
     }
 
+    /* A keresőmező ürítése. A fókusz VISSZAMEGY a mezőbe, hogy a törlés után
+       azonnal lehessen újra gépelni - ez a jel és az Esc közös útja. */
+    function keresoUrit() {
+        const k = $("kereso");
+        if (!k) return;
+        k.value = "";
+        const t = $("ktorol");
+        if (t) t.hidden = true;
+        rajzolReceptek();
+        k.focus();
+    }
+
     function kotesek() {
         huzas();
         $("kereso").addEventListener("input", rajzolReceptek);
 
+        /* A törlő jel csak beírt szövegnél látszik. A rajzolReceptek külön
+           kezelő, ezért ez nem befolyásolja a szűrést. */
+        const keresoJel = () => {
+            const t = $("ktorol");
+            if (t) t.hidden = !$("kereso").value;
+        };
+        $("kereso").addEventListener("input", keresoJel);
+        keresoJel();
+
+        /* Esc ugyanazt teszi, mint a jelre kattintás. */
+        $("kereso").addEventListener("keydown", e => {
+            if (e.key !== "Escape" || !$("kereso").value) return;
+            e.preventDefault();
+            e.stopPropagation();   /* ne csukja be a játék ablakát is */
+            keresoUrit();
+        });
+
+        /* A buborék egérráhúzásra jelenik meg, és elmenéskor eltűnik.
+           Késleltetés nincs: a buborék nem kattintható (pointer-events:none),
+           tehát nem kell "átérni" rajta. */
+        gyoker.addEventListener("mouseover", e => {
+            const m = e.target.closest && e.target.closest("[data-munka]");
+            if (m) munkaBubMutat(m, m.dataset.munka);
+        });
+        gyoker.addEventListener("mouseout", e => {
+            const m = e.target.closest && e.target.closest("[data-munka]");
+            if (!m) return;
+            const ide = e.relatedTarget;
+            if (ide && m.contains(ide)) return;   /* csak az ikonon belül mozog */
+            munkaBubRejt();
+        });
+        /* Görgetéskor a buborék elcsúszna az ikonjától, ezért eltűnik. */
+        gyoker.addEventListener("scroll", munkaBubRejt, true);
+
         gyoker.addEventListener("click", e => {
+            /* A gyűjtenivaló listája minden újrarajzoláskor kicserélődik,
+               ezért a kattintás DELEGÁLVA van: nem a sorokra kötjük. */
+            const m = e.target.closest("[data-munka]");
+            if (m) { munkaBubRejt(); munkaNyit(m.dataset.munka, m); return; }
+
             const b = e.target.closest("[data-mit]");
             if (!b) return;
             const mit = b.dataset.mit;
+            if (mit === "keresotorol") keresoUrit();
             if (mit === "bezar") nyit(false);
             if (mit === "frissit") frissit();
             /* 1.5.2 SINGLE-VIEW: a fogaskerék oda-vissza vált */
@@ -3576,9 +6256,17 @@ li.collapsed > .node > .toggle::before{ content:"+" }
         gyoker.querySelectorAll(".tabs button").forEach(b =>
             b.addEventListener("click", () => valtLap(b.dataset.tab)));
 
+        let meretOra = null;
         window.addEventListener("resize", () => {
             if (host.hidden) return;
             if (!host.dataset.nativ) allitMeret();
+            if (meretOra) clearTimeout(meretOra);
+            meretOra = setTimeout(() => {
+                meretOra = null;
+                if (beall.meretmod !== "auto") return;
+                allitNagyitas();
+                if (beall.tab === "diag") rajzolBeallitasok();
+            }, 120);
         });
 
         /* natív ablaknál a méretváltozást a böngésző jelzi */
@@ -3591,6 +6279,16 @@ li.collapsed > .node > .toggle::before{ content:"+" }
        Így a raktár és a megtanult receptek maguktól megjelennek, amint a
        játékos megnyitotta a hátizsákot vagy a mesterség ablakot. */
     let ora = null;
+    /* Az utolsó ismert ujjlenyomat. Azért nem a körfutás helyi változója,
+       mert a gyártás utáni sűrített figyelés is ezt nézi és ezt írja - a
+       kettőnek ugyanarra a valóságra kell hivatkoznia, különben a lassú
+       körfutás másodszor is újrarajzolna. */
+    let voltUjj = "";
+    let suritOra = null;
+    /* Egyszerre egy gyártás indulhat. NEM a szerver válaszáig tart, mert
+       arra nincs rálátásunk: a sűrített figyelés végéig, ami vagy a készlet
+       megmozdulásakor, vagy időtúllépéssel zárul. Így nem tud beragadni. */
+    let gyartFut = false;
 
     /* Egyetlen közös bezáró a saját ablakunkhoz. A kliens Window API-jában
        destroy() van, close() nem feltétlenül - ezért több lépcsős. Más
@@ -3634,8 +6332,128 @@ li.collapsed > .node > .toggle::before{ content:"+" }
         kozepreIgazitva = null;
     }
 
+    /* 7/c: a Mesterség ablak egyszeri felépítése.
+
+       A gyártáshoz két dolog kell, és mindkettő csak ettől áll be: a
+       CharacterWindow.progressCrafting (enélkül a startCraft visszahívása
+       elszáll), és a Crafting.recipes feltöltése (enélkül nincs recept-tárgy
+       azonosítónk).
+
+       A felhasználó DÖNTÉSE, hogy ezt a panel magától elvégzi, mert így nem
+       kell neki kézzel megnyitnia. Tudja és vállalja, hogy az ablak
+       megnyitása KÉRÉST KÜLD a szervernek (/game.php?window=crafting) -
+       mérve, az átadó 6.3 pontja. Ezért NEM lehet ez a panel kiadott
+       változatában.
+
+       Munkamenetenként pontosan egyszer fut le, utána megjegyezzük. */
+    let ablakMegvolt = false;
+
+    function melegitMesterseg() {
+        if (ablakMegvolt) return;
+        const W = jatek();
+        const CW = W.CharacterWindow;
+        if (!CW || typeof CW.toggleOpen !== "function") return;
+        if (CW.progressCrafting) { ablakMegvolt = true; return; }  /* már felépült */
+        ablakMegvolt = true;          /* akkor is jegyezzük, ha nem sikerül: egyszer próbáljuk */
+
+        /* A HORGONY csak akkor ismert, ha a Crafting.recipes ELOTTE URES volt,
+           tehat a mi betoltesunk hozta az adatot. MERVE: telt allapoton a
+           toggleOpen NEM frissit, az ertek regi marad. */
+        let uresVolt = false;
+        try {
+            const C0 = jatek().Crafting;
+            uresVolt = !C0 || !C0.recipes || Object.keys(C0.recipes).length === 0;
+        } catch (e) { uresVolt = false; }
+        try {
+            /* MÉRVE: egyetlen toggleOpen("crafting") hívás felépíti az ablakot,
+               beállítja az aktív fület, és feltölti a Crafting.recipes-t.
+               showTab-ot NEM szabad mellé hívni: az open() maga is beállítja a
+               fület, a második hívástól pedig kétszer épült fel a tartalom, és
+               dupla "Csak elkészíthető receptek" sáv jelent meg. */
+            CW.toggleOpen("crafting");
+        } catch (e) { return; }       /* a kapu úgyis elfog, a gomb inaktív marad */
+
+        /* Nem fix várakozással zárunk, és NEM a progressCrafting megjelenésére.
+
+           MÉRVE: a progressCrafting már 300 ezredmásodpercnél létezik, de az
+           ablak csak 473-nál áll össze, a receptekkel együtt. Aki a
+           progressCrafting első megjelenésére zár, beleeshet ebbe a résbe, és
+           egy félkész ablakra hívja a toggleOpen-t - az pedig NEM zár, az
+           ablak nyitva marad a panel mögött. Pontosan ez történt.
+
+           A receptek a lassabbak, tehát az a biztosabb kapu.
+
+           A 473 egyetlen gépen, egyetlen kapcsolattal mért érték. A felépülés
+           egy része szerverkérés, tehát nem a gép sebességén múlik, hanem a
+           hálózaton: rossz kapcsolaton két másodperc is lehet. Ezért kizárólag
+           figyelésre építünk - gyorson fél másodperc, lassún kettő, de
+           mindkettő kivárja. */
+        let hatra = 40;               /* 40 × 100 ms = 4 másodperc felső korlát */
+        let rahagyas = 3;             /* 3 × 100 ms ráhagyás, ha megjöttek a receptek */
+        let vart = false;             /* igaz, ha a receptek már megvannak */
+        const varo = setInterval(() => {
+            if (!vart) {
+                let db = 0;
+                try {
+                    const C = jatek().Crafting;
+                    db = (C && C.recipes) ? Object.keys(C.recipes).length : 0;
+                } catch (e) { db = 0; }
+                if (db > 0) { vart = true; return; }
+                if (--hatra > 0) return;
+                /* A felső korlát letelt: feladjuk a várakozást. Zárni akkor is
+                   megpróbáljuk, mert MI nyitottuk ki - különben ottmaradna. */
+            } else if (rahagyas > 0) { rahagyas--; return; }
+            clearInterval(varo);
+            /* A horgony a BETOLTES pillanata, nem a zarase. A rahagyas 3 x 100 ms,
+               azt levonjuk, hogy a szamitas ne csusszon el annyival. */
+            if (uresVolt) zarHorgony = Date.now() - 300;
+            gyujtZarolas();
+            zarMesterseg(3);
+        }, 100);
+    }
+
+    /* A zárás ELLENŐRZÖTT, nem vakon hívott.
+
+       MÉRVE: a receptek megérkezése még NEM jelenti, hogy az ablak teljesen
+       összeállt. Az első nekifutásban a progressCrafting-ra zártunk (300 ms),
+       a másodikban a receptekre (473 ms) - mindkettő beleesett egy résbe, ahol
+       a toggleOpen már lefut, de nem zár. A rés nem szűnt meg, csak arrébb
+       csúszott. Bármilyen fix szám mellémehet lassabb gépen vagy kapcsolaton,
+       ezért az időt nem hangoljuk tovább.
+
+       Helyette megnézzük, hogy az ablak TÉNYLEG eltűnt-e, és ha nem, újra
+       próbáljuk. A láthatóságot a .character-crafting elem offsetParent
+       mezője adja - ezzel mértük a bezárást korábban is.
+
+       Minden hívás ELŐTT ellenőrizzük a látható állapotot: a toggleOpen
+       váltogat, tehát egy már bezárt ablakot visszanyitna. */
+    function mestersegLatszik() {
+        try {
+            const D = (jatek() && jatek().document) || document;
+            const e = D.querySelector(".character-crafting");
+            return !!(e && e.offsetParent);
+        } catch (e) { return false; }
+    }
+
+    function zarMesterseg(probal) {
+        if (!mestersegLatszik() || probal <= 0) {
+            gyujtMegtanult();
+            gyujtReceptAzon();
+            rajzolMunkalap();
+            return;
+        }
+        try { jatek().CharacterWindow.toggleOpen("crafting"); }
+        catch (e) { /* nyitva marad, nem tragédia */ }
+        setTimeout(() => zarMesterseg(probal - 1), 250);
+    }
+
     function nyit(mit) {
         if (ora) { clearInterval(ora); ora = null; }
+        /* A sűrített figyelést is le kell állítani, különben bezárás után
+           még másodpercekig futna, és egy már lebontott munkalapra rajzolna.
+           Az őrt is feloldjuk: újranyitáskor ne találjon beragadt gyártást. */
+        if (suritOra) { clearInterval(suritOra); suritOra = null; }
+        gyartFut = false;
 
         if (!mit) {
             host.hidden = true;
@@ -3644,6 +6462,7 @@ li.collapsed > .node > .toggle::before{ content:"+" }
         }
 
         host.hidden = false;
+        melegitMesterseg();
 
         /* elsőként a játék saját ablakát próbáljuk */
         if (vanNativ()) {
@@ -3662,12 +6481,793 @@ li.collapsed > .node > .toggle::before{ content:"+" }
             elore();
         }
 
+        /* A kicsinyítést a felépítés UTÁN tesszük fel, hogy natív módban a
+           skin már megtalálja a mainDiv-et. Nyitásonként egyszer fut. */
+        allitNagyitas();
+        ruhaFigyelo();
+        rajzolHatasSzuro();
+
         frissit();
-        let volt = ujjlenyomat();
+        voltUjj = ujjlenyomat();
         ora = setInterval(() => {
             const most = ujjlenyomat();
-            if (most !== volt) { volt = most; frissit(); }
+            if (most !== voltUjj) { voltUjj = most; frissit(); }
         }, 3000);
+    }
+
+    /* Gyártás után nem várunk három másodpercet a képfrissítéssel: rövid
+       időre sűrítjük a meglévő figyelést. A döntést továbbra is az
+       ujjlenyomat hozza, nem egy kitalált várakozás - ha a készlet nem
+       mozdul, nem rajzolunk újra. A mérés szerint nincs olyan játékbeli
+       esemény, amire fel lehetne iratkozni: az inventory_changed a
+       bag_updated jelek ELŐTT érkezik, tehát arra rajzolva elavult
+       darabszámokat írnánk ki. */
+    const SURIT_LEPES = 300;
+    const SURIT_KOR = 20;          /* 20 × 300 ms = 6 másodperc */
+
+    function suritettFigyeles() {
+        if (suritOra) { clearInterval(suritOra); suritOra = null; }
+        let hatra = SURIT_KOR;
+        suritOra = setInterval(() => {
+            const most = ujjlenyomat();
+            if (most !== voltUjj) {
+                voltUjj = most;
+                frissit();
+                zarSurites();
+                return;
+            }
+            if (--hatra <= 0) zarSurites();
+        }, SURIT_LEPES);
+    }
+
+    function zarSurites() {
+        if (suritOra) { clearInterval(suritOra); suritOra = null; }
+        gyartFut = false;
+        rajzolMunkalap();          /* a gomb visszakapja az aktív állapotát */
+    }
+
+    /* A játék SAJÁT gyártását indítjuk el. Saját hálózati hívást nem
+       írunk: a kérést a játék állítja össze és küldi, ugyanúgy, mintha a
+       natív ablakban nyomtál volna Gyártás gombot. A visszajelzést is a
+       játék adja a saját Sikeres/Hiba ablakában, ezért mi nem írunk ki
+       semmit. */
+    function gyartas(id, db) {
+        if (gyartFut) return;
+        const C = jatek().Crafting;
+        if (!C || typeof C.startCraft !== "function") return;
+
+        /* Ugyanaz a kapu, ami a gombot rajzolta. Nem elég a gomb tiltása:
+           a kattintás máshonnan is jöhet, és a gomb rajzolása óta változhatott
+           a készlet. */
+        const k = gyartKapu(id, db);
+        if (!k.ok) return;
+
+        /* 1.1.0: A MEGERŐSÍTŐ KÉRDÉS KIKERÜLT.
+
+           Két oka volt, és mindkettő elévült. Egyrészt a játék alapfelülete
+           sem kérdez: a natív Gyártás gomb akárhány darabot rákérdezés nélkül
+           indít, tehát a kérdés életidegen volt a felülethez. Másrészt az
+           eredeti veszély megszűnt: a megerősítés akkor került be, amikor a
+           Max még GOMB volt, és egy kattintással beírta a darabszámot. A Max
+           azóta kijelzés, nem kattintható, tehát nagy darabszám csak
+           szándékos beírással vagy léptetéssel kerülhet a mezőbe. */
+
+        gyartFut = true;
+        rajzolMunkalap();
+        voltUjj = ujjlenyomat();   /* a kattintás PILLANATÁBAN, hogy legyen mihez mérni */
+        /* A RECEPT-TÁRGY azonosítója megy át, nem a terméké. */
+        try { C.startCraft(k.rid, db); }
+        catch (e) { zarSurites(); return; }
+        suritettFigyeles();
+    }
+
+    /* =====================================================================
+       MUNKAKERESÉS
+
+       A jobb oszlop tárgyikonjai gombbá válnak: kattintásra a játék saját
+       munkaablaka nyílik meg a hozzád LEGKÖZELEBBI ponton.
+
+       KÉRÉST KÜLD, de csak az ELSŐ kattintáskor: a minitérkép egyetlen
+       kéréssel jön le, és a munkamenet végéig megmarad. A panel megnyitása
+       nem küld kérést - nem kérünk le semmit azért, amit a felhasználó nem
+       kért. A rajzoláshoz (van-e keret) nem kell kérés, az a JobList és a
+       tábla alapján helyben eldől.
+
+       KORLÁT, amit érdemes tudni: a job_groups a munkaCSOPORT pontjaival van
+       kulcsolva, nem az egyes munkáéval. A TW-Calc is pontosan így dolgozik,
+       tehát bevált út, de ha egy csoport valamelyik pontján mégsem érhető el
+       az adott munka, az itt fog kijönni.
+
+       SZINTSZŰRÉS NINCS. A job.level azt a szintet adja, ahol a munka RUHA
+       NÉLKÜL elvégezhető; felszereléssel jóval korábban is nekiállhatsz
+       (Prémvadászat 101, negyvenesen szettel megy). Kizárásra tehát nem
+       alkalmas: a felhasználó dönt, a munkaablakban ott a munkapont-jelző és
+       a Munkaruházat gomb. */
+
+    let terkep = null;        /* a minitérkép válasza, munkamenetre */
+    let munkaFut = false;     /* őr: amíg a kérés fut, ne induljon újabb */
+    let munkaOra = null;      /* az üzenet visszaszámlálója */
+
+    /* A TÁRGY ESÉLYE EGY MUNKÁBÓL.
+
+       A valódi érték a kliensben van, kérés nélkül: a JobsModel.Beans
+       munkaazonosítóval kulcsolt, és a basis.long.yields adja az egyórás
+       értékeket. A képlet prop + probBonus, és ez PONTOSAN azt a számot adja,
+       amit a játék natív buboréka mutat (mérve a Fára: Favágás 121+804=925,
+       Faúsztatás 330+2210=2540, Erdőirtás 450+3013=3463). Ugyanez a képlet
+       van a TW-Calc getJobProductLuck függvényében is, csak az a munkaablak
+       válaszából veszi - a Beans viszont helyben van.
+
+       Az érték FELSZERELÉSFÜGGŐ, és ruhacsere után azonnal más lesz. Ezért
+       nem tároljuk: minden rajzoláskor újraolvassuk.
+
+       MÉRVE: a Beans közvetlenül F5 után, a Mesterség ablak megnyitása
+       NÉLKÜL is fel van töltve, mind a 203 munkával. Nincs tehát időzítési
+       kérdés: a százalékok az első rajzolástól kezdve rendelkezésre állnak.
+
+       Ha a Beans hiányzik vagy nincs benne a bejegyzés, marad a nyers
+       yields.prop. Ez a fenti mérés szerint a gyakorlatban nem fordul elő,
+       ezért nem tervezünk rá - csak nem szállunk el, ha mégis. Kiírásra nem
+       alkalmas, RENDEZÉSRE viszont igen: mérve, kétféle ruhában is ugyanazt
+       a sorrendet adta. */
+    function munkaEsely(j, id) {
+        try {
+            const B = jatek().JobsModel;
+            const be = B && B.Beans && B.Beans[j.id];
+            const so = be && be.basis && be.basis.long && be.basis.long.yields;
+            const t = (so || []).find(y => y && String(y.itemid) === String(id));
+            if (t) {
+                const p = Number(t.prop) || 0;
+                const b = Number(t.probBonus) || 0;
+                return { szazalek: p + b, rang: p + b };
+            }
+        } catch (e) { /* marad a tartalék */ }
+        try {
+            const y = j.yields && j.yields[String(id)];
+            if (y && typeof y.prop === "number") return { szazalek: null, rang: y.prop };
+        } catch (e) { /* nincs */ }
+        return { szazalek: null, rang: 0 };
+    }
+
+    /* Van-e munka a tárgyhoz, és melyik forrásból. NEM küld kérést.
+       A lista ESÉLY SZERINT CSÖKKENŐEN jön vissza: nem a legközelebbi
+       pontot keressük bármelyik munkából, hanem a LEGJOBB munkáét. */
+    function munkaForras(id) {
+        const JL = jatek().JobList;
+        if (!JL || typeof JL.getJobsByItemId !== "function") return null;
+
+        let lista = [];
+        try {
+            const r = JL.getJobsByItemId(Number(id));
+            lista = Array.isArray(r) ? r : (r && typeof r === "object" ? Object.values(r) : []);
+        } catch (e) { lista = []; }
+        lista = lista.filter(j => j && j.id != null && j.groupid != null);
+
+        /* A JÁTÉK ADATA NYER. A tábla csak akkor jut szóhoz, ha ez üres. */
+        if (lista.length) {
+            const sorok = lista.map(j => {
+                const e = munkaEsely(j, id);
+                return { munka: j, szazalek: e.szazalek, rang: e.rang };
+            }).sort((a, b) => b.rang - a.rang);
+            /* Százalékot csak akkor írunk ki, ha MINDEGYIKRE megvan.
+               Félig kitöltött oszlop rosszabb, mint semmilyen. */
+            const szazalekos = sorok.every(s => s.szazalek != null);
+            return { munkak: sorok.map(s => s.munka), sorok: sorok,
+                     szazalekos: szazalekos, eselyes: false };
+        }
+
+        const jid = MUNKA_TABLA[String(id)];
+        if (jid == null) return null;
+        let j = null;
+        try { j = JL.getJobById(jid); } catch (e) { j = null; }
+        if (!j || j.id == null || j.groupid == null) return null;
+        return { munkak: [j], sorok: [{ munka: j, szazalek: null, rang: 0 }],
+                 szazalekos: false, eselyes: true };
+    }
+
+    /* A CDN GYÖKERE.
+
+       A munkaikonok a játék képkiszolgálójáról jönnek. A cím aldomainje
+       szerverfüggő lehet (a magyar szerveren westhu), és ezt NEM mértük meg
+       más nyelvű szervereken - ezért nem égetjük be, hanem kiolvassuk abból,
+       amit a játék maga már betöltött. Így akkor is helyes marad, ha az
+       aldomain szerverenként más.
+
+       Megjegyzés a későbbi olvasónak: a natív ablakkeret CSS-e (UI5D_CSS)
+       jelenleg beégetve tartalmazza a westhu címet. Az külön kérdés, és
+       külön döntést kíván - ez a függvény csak a munkaikonokra vonatkozik.
+
+       FONTOS, HOGY HONNAN: kizárólag abból, amit a skin a SAJÁT ABLAKUNK
+       részfájából már összegyűjtött. A játék DOM-ját nem pásztázzuk érte -
+       erre külön próba is van, és az első megoldásom el is bukott rajta.
+
+       Ha nincs skin (nem natív mód), marad a beégetett tartalék. Rosszabb
+       esetben az ikon nem tölt be, és az onerror elrejti; az elrendezés áll. */
+    const CDN_TARTALEK = "https://westhu.innogamescdn.com/images/";
+    let cdnMentve = null;
+    function cdnBazis() {
+        if (cdnMentve) return cdnMentve;
+        const minta = /https?:\/\/[^"')\s]*innogamescdn\.com\/images\//i;
+        const forrasok = [];
+        try {
+            if (skin) {
+                /* skinKep = getComputedStyle().backgroundImage, a SAJÁT
+                   ablakunk elemein. A soron belüli style attribútum nem jó
+                   forrás: a háttérkép osztályból jön, nem onnan. */
+                if (skin.inset) forrasok.push(skinKep(skin.inset));
+                (skin.quadok || []).forEach(q => { if (q && q.el) forrasok.push(skinKep(q.el)); });
+            }
+        } catch (e) { /* marad a tartalék */ }
+        let talalat = null;
+        for (let i = 0; i < forrasok.length && !talalat; i++) {
+            const m = forrasok[i].match(minta);
+            if (m) talalat = m[0];
+        }
+        cdnMentve = talalat || CDN_TARTALEK;
+        return cdnMentve;
+    }
+
+    /* A munkaikon útvonala a shortname mezőből épül. MÉRVE, a játékban:
+       Favágás wood, Faúsztatás float, Erdőirtás clearing, Dohányszedés
+       tabacco - mind a négy kép betölt a .../images/jobs/ alól. */
+    const munkaKepUt = rovid => cdnBazis() + "jobs/" + rovid + ".png";
+
+    /* A buborék tartalma. A natív buborék mintáját követi, de esély szerint
+       rendezve, hogy LÁTSZÓDJON, miért azt nyitjuk meg. */
+    /* A buborék tartalma. Lehet csak munka, csak hatás, vagy - ha a játék
+       valaha ilyet hoz - mindkettő, elválasztóval. */
+    function tudBuborek(t) {
+        const reszek = [];
+        if (t.munka) reszek.push(munkaBuborek(t.munka));
+        if (t.hatas) {
+            if (reszek.length) reszek.push(`<div class="vonal"></div>`);
+            reszek.push(`<div class="cim">${esc(T("hatas_fejlec"))}</div>`
+                + t.hatas.map(x => `<div class="hsor">${esc(x)}</div>`).join(""));
+        }
+        return reszek.join("");
+    }
+
+    function munkaBuborek(f) {
+        if (f.eselyes) {
+            const j = f.munkak[0];
+            return `<div class="cim">${esc(T("munka_fejlec"))}</div>`
+                 + munkaBubSor(j, null, false)
+                 + `<div class="vonal"></div>`
+                 + `<div class="lab">${esc(T("munka_esely_rovid"))}</div>`;
+        }
+        const sorok = f.sorok.map((s, i) =>
+            munkaBubSor(s.munka, f.szazalekos ? s.szazalek : null, i === 0 && f.sorok.length > 1));
+        return `<div class="cim">${esc(T("munka_fejlec"))}</div>` + sorok.join("")
+             + (f.sorok.length > 1
+                 ? `<div class="vonal"></div><div class="lab">${esc(T("munka_labjegyzet"))}</div>`
+                 : "");
+    }
+
+    function munkaBubSor(j, szazalek, jo) {
+        const kep = j.shortname
+            ? `<img src="${esc(munkaKepUt(j.shortname))}" alt="" loading="lazy"
+                 onerror="this.style.visibility='hidden'">`
+            : `<i></i>`;
+        const db = szazalek == null ? "" : `<span class="db">${szazalek} %</span>`;
+        return `<div class="msor${jo ? " jo" : ""}">${kep}`
+             + `<span>${esc(String(j.name || ""))}</span>${db}</div>`;
+    }
+
+    /* Megjelenítés az ikon mellett, BALRA nyílva: a jobb oszlop a panel jobb
+       szélén van, jobbra nyílva kilógna.
+
+       A buborék KÖZVETLENÜL AZ ÁRNYÉKGYÖKÉRBE kerül, nem a .frame-be. Az
+       első változat a keret gyermeke volt, és ott két baj is érte: a natív
+       mód ":host([data-nativ]) .frame > *{ position:relative }" szabálya
+       visszavette a lebegést, mire a buborék közönséges folyamelemmé vált a
+       flex-oszlop alján, az pedig összenyomta a receptlistát; a keret
+       overflow:hidden-je ráadásul le is vágta, tehát nem is látszott.
+
+       A .frame sosem volt lebegő elemre felkészítve. A gazdaelem viszont
+       position:fixed, tehát ő a viszonyítási pont, és nem vág semmit. */
+    let bubElem = null;
+    function munkaBubMutat(elem, id) {
+        const t = targyTud(id);
+        if (!t) return;
+        if (!bubElem || !bubElem.isConnected) {
+            bubElem = document.createElement("div");
+            bubElem.className = "mbub";
+            gyoker.appendChild(bubElem);
+        }
+        bubElem.innerHTML = tudBuborek(t);
+        bubElem.hidden = false;
+
+        /* A téglalapok a KICSINYÍTETT méretet adják, a style.left viszont a
+           panel saját, kicsinyítés előtti koordinátarendszerében hat -
+           ezért minden mért távolságot vissza kell osztani. */
+        const n = nagyitas();
+        const kr = host.getBoundingClientRect();
+        const er = elem.getBoundingClientRect();
+        const br = bubElem.getBoundingClientRect();
+        const k = { left: kr.left, top: kr.top, width: kr.width / n, height: kr.height / n };
+        const e = { left: (er.left - kr.left) / n + kr.left, top: (er.top - kr.top) / n + kr.top,
+                    right: (er.right - kr.left) / n + kr.left,
+                    height: er.height / n };
+        const b = { width: br.width / n, height: br.height / n };
+        const hezag = 8;
+
+        /* VÍZSZINTESEN: elsődlegesen JOBBRA, az ikon jobb széléhez. Balra
+           nyitva a középső oszlopba lógna, rá a készültségi gyűrűre - oda,
+           aminek semmi köze a tárgyhoz. Ha jobbra nem fér (sok munka vagy
+           hosszú név), akkor balra esik vissza, és csak legvégső esetben
+           tapad a panel széléhez. Tehát nem fix irány, hanem elsődleges
+           irány tartalékkal. */
+        let bal = e.right - k.left + hezag;
+        if (bal + b.width > k.width - 6) {
+            const balra = e.left - k.left - b.width - hezag;
+            bal = balra >= 6 ? balra : Math.max(6, k.width - 6 - b.width);
+        }
+
+        /* FÜGGŐLEGESEN: az ikon TETEJÉHEZ igazodik, tehát lefelé nő, és nem
+           takarja el a fölötte lévő fejlécet. */
+        let fent = e.top - k.top;
+        if (fent + b.height > k.height - 6) fent = Math.max(6, k.height - 6 - b.height);
+        if (fent < 6) fent = 6;
+
+        bubElem.style.left = bal + "px";
+        bubElem.style.top = fent + "px";
+    }
+
+    function munkaBubRejt() {
+        if (bubElem) bubElem.hidden = true;
+    }
+
+    /* A TERMÉK HATÁSA HASZNÁLATKOR.
+
+       Az ItemManager.get(id).usebonus kész mondatok tömbjét adja, a szerver
+       nyelvén - nem fordítjuk, ugyanaz az elv, mint a munkaneveknél. Ha
+       nincs hatás, null.
+
+       MÉRVE: nem függ a készlettől. A Megélezett fegyvernél és a Sült babnál
+       nulla darab van a hátizsákban, a usebonus mégis megvan - az adat tehát
+       teljes körű, nem csak arra, amiből van nálad.
+
+       Összesen 35 terméknek van hatása. A leghosszabb A sarlatán emlékei
+       (54601000): hat sor, 184 karakter. Nem rövidítünk: ha valakit érdekel
+       a hatás, az egész érdekli. */
+    function hatasSorok(id) {
+        try {
+            const IM = jatek().ItemManager;
+            const t = IM && typeof IM.get === "function" ? IM.get(Number(id)) : null;
+            const u = t && t.usebonus;
+            if (!u) return null;
+            const l = (Array.isArray(u) ? u : [u]).map(x => String(x)).filter(Boolean);
+            return l.length ? l : null;
+        } catch (e) { return null; }
+    }
+
+    /* HATÁSTÍPUSOK - a játék adatából, futásidőben.
+
+       A weboldalon ez beégetett tábla, mert ott nem fut a játék. Itt viszont
+       az ItemManager élőben elérhető, tehát a lista MAGÁTÓL követi a játékot:
+       ha új hatásos termék jön, megjelenik a szűrőben, karbantartás nélkül.
+
+       Ami KIMARAD: a "Használható: N akcióig" és az "Időtartam: N óra"
+       időtartam-jelölő, nem hatás; a gyűjtőkártyák tartalma pedig
+       zsákbamacska-tartalom, arra egyetlen összevont tétel való.
+
+       A típus a szám nélküli rész. Három alak fordul elő:
+         "+ 25 - 75 sebzés erődharcon"  -> sebzés erődharcon
+         "+20%-kal nő a szerencse"      -> nő a szerencse
+         "Energia növekedése: 20%"      -> Energia növekedése             */
+    const HATAS_KIMARAD = /^(Használható:|Időtartam:|Tartalmaz egyet|\d+[,.]\d+%\s)/;
+    const KARTYA_JEL = "Tartalmaz egyet";
+    const HATAS_KARTYA = "__kartya";
+
+    function hatasTipus(x) {
+        if (/^\+\s*[\d.,]+\s*-\s*[\d.,]+\s+/.test(x))
+            return x.replace(/^\+\s*[\d.,]+\s*-\s*[\d.,]+\s+/, "").trim();
+        let y = String(x).replace(/^\+\s*[\d.,]+%?(-kal|-kel)?\s*/, "");
+        y = y.replace(/[:\s]*[-+]?[\d.,]+\s*%?\s*$/, "");
+        return y.trim();
+    }
+
+    /* Az egyetlen "munkapont erre: Építkezés" a munkapont alá tartozik: egyetlen
+       termék adja, és a kettő ugyanaz a fogalom. */
+    const HATAS_OSSZEVON = { "munkapont erre: Építkezés": "munkapont" };
+
+    const HATAS_ELLATMANY = ["Energia növekedése", "Életerő bónusz",
+        "Párbajmotiváció növelése", "Munka motiváció növelése", "sebesség",
+        "munkapont", "regeneráció",
+        "tapasztalat a munkákból, párbajokból és az erődharcokból",
+        "találati esély", "Menetidő rövidítése",
+        "fizetség a munkákból és a párbajokból", "nő a szerencse"];
+    const HATAS_HARC = ["sebzés erődharcon", "Többjátékos Támadás",
+        "sebzés párbajban", "Többjátékos Védekezés"];
+
+    const HATAS_CIMKE = { "nő a szerencse": "Szerencse", "sebesség": "Sebesség",
+        "munkapont": "Munkapont", "regeneráció": "Regeneráció",
+        "találati esély": "Találati esély",
+        "tapasztalat a munkákból, párbajokból és az erődharcokból": "Tapasztalat",
+        "fizetség a munkákból és a párbajokból": "Fizetség",
+        "sebzés erődharcon": "Sebzés erődharcon",
+        "sebzés párbajban": "Sebzés párbajban" };
+
+    /* A térkép egyszer épül fel, az első használatkor: az ItemManager 375
+       lekérdezése nem olcsó, és a lista a munkamenet alatt nem változik. */
+    let hatasTerkep = null;
+    function hatasIndex() {
+        if (hatasTerkep) return hatasTerkep;
+        hatasTerkep = new Map();
+        const mind = [...new Set(Object.keys(BASE_NAMES)
+            .concat(RECIPES.map(r => String(r.i))))];
+        mind.forEach(id => {
+            const sorok = hatasSorok(id);
+            if (!sorok) return;
+            const h = new Set();
+            sorok.forEach(sor => {
+                if (String(sor).indexOf(KARTYA_JEL) === 0) { h.add(HATAS_KARTYA); return; }
+                if (HATAS_KIMARAD.test(sor)) return;
+                let t = hatasTipus(sor);
+                if (!t) return;
+                t = HATAS_OSSZEVON[t] || t;
+                h.add(t);
+            });
+            if (!h.size) return;
+            hatasTerkep.set(String(id), h);
+        });
+        return hatasTerkep;
+    }
+
+    function hatasNev(t) {
+        if (t === HATAS_KARTYA) return T("hatasz_kartya");
+        return HATAS_CIMKE[t] || t;
+    }
+
+    /* Mit tud egy tárgy: munkát, hatást, mindkettőt, vagy semmit.
+
+       ÜTKÖZÉSNÉL A MUNKA NYER a keret színében: az cselekvést kínál (elmehetsz
+       érte), a hatás csak tájékoztat. A buborékban viszont MINDKETTŐ
+       megjelenik, elválasztóval. Ma nulla ilyen tárgy van - lemérve -, de a
+       játék hozhat ilyet, és akkor ne kelljen újra idejönni. */
+    function targyTud(id) {
+        const m = munkaForras(id);
+        const h = hatasSorok(id);
+        if (!m && !h) return null;
+        return { munka: m, hatas: h, fo: m ? "munka" : "hatas" };
+    }
+
+    /* MENNYI IDEIG KELL DOLGOZNI ÉRTE.
+
+       A prop + probBonus EGYÓRÁS érték - ezt mértük, pontosan azt a számot
+       adja, amit a játék natív buboréka mutat. 316% tehát azt jelenti, hogy
+       óránként 3 darab GARANTÁLTAN jön, a maradék 0,16 pedig ráadás.
+
+       LEFELÉ KEREKÍTÜNK, mert csak azért állunk jót, ami biztos. A felfelé
+       kerekítés hamis pontosság lenne: a százalék valószínűség, nem sebesség.
+       80%-nál a "2 óra" azt ígérné, hogy két óra alatt meglesz - pedig nem
+       lesz meg biztosan. Ugyanaz a hiba, mint a korábbi "118 raktárból":
+       matematikailag kijön, jelentésében hazudik.
+
+       A LEGJOBB ESÉLYŰ munkával számolunk, azzal, amelyiket a tárgyikonra
+       kattintva a panel meg is nyit - különben a szám nem arról szólna,
+       ahova a gomb visz.
+
+       Négy eset, és mindegyiknek más a válasza:
+         - van egyórás adat, 100% vagy több  -> a kiszámolt óraszám
+         - van adat, de 100% alatt           -> nincs garantált darab
+         - zsákbamacska (a beégetett tábla)  -> nincs esélyadat
+         - nincs egyórás adat (basis.long)   -> semmi
+
+       A basis.long hiánya NEM ritka: ha a karakter még nem tud egyórás
+       munkát vállalni, ez a mező üres. Alacsony szinten gyakori, mérve.
+
+       ÖSSZEGET NEM ADUNK. Az órák nem adódnak össze értelmesen: a kerekítés
+       miatt minden sor külön veszít, és egy munka több tételt is adhat. */
+    function oraSzoveg(id, hianyzo) {
+        if (!beall.orak || !(hianyzo > 0)) return "";
+
+        /* Az Union Pacific boltból megvehető tétel nem munkából jön. */
+        if (String(id) === "52499000") return T("ora_up_bolt");
+
+        const f = munkaForras(id);
+        if (!f) return "";
+        if (f.eselyes) return T("ora_zsakbamacska");
+
+        const elso = f.sorok && f.sorok[0];
+        if (!elso) return "";
+
+        /* ZSÁKBAMACSKA A JÁTÉK ADATÁBÓL IS.
+
+           MÉRVE: az Aranyozott fogaskerékre (2009000) a JobList AD találatot -
+           Vadvízi szállítás -, tehát a beégetett tábla nem is jut szóhoz, és
+           az f.eselyes hamis marad. A munka viszont zsákbamacska: a yields
+           üres ({}), a randomyields nem ([0.28]). Ez a zsákbamacska aláírása,
+           és magából a munkából felismerhető.
+
+           Enélkül az ilyen tételeknél NEM JELENT MEG SEMMI, mert nincs
+           százalék - pedig épp azt kellene kimondani, hogy miért nincs. */
+        if (elso.szazalek == null && zsakbamacskaMunka(elso.munka))
+            return T("ora_zsakbamacska");
+
+        if (elso.szazalek == null) return "";
+
+        const garantalt = Math.floor(elso.szazalek / 100);
+        if (garantalt < 1) return T("ora_kicsi_esely");
+        return T("ora_kell", { n: Math.ceil(hianyzo / garantalt) });
+    }
+
+    /* A sor ikonja. Keretet csak akkor kap, ha van hova menni érte.
+       TITLE NINCS: azt a rendszer rajzolná, és két buborék jelenne meg.
+
+       KÍSÉRLET (1.1.0): a jobb oszlopon kívül a robbantott ábra és a
+       lépéskártyák is ezt használják. A gyártott termékek MAGUKTÓL kimaradnak:
+       hozzájuk sem a JobList, sem a tábla nem ad munkát, tehát a munkaForras
+       null-t ad, és a puszta kép megy vissza - pontosan úgy, ahogy eddig.
+       Ez teszi a kísérletet könnyen bonthatóvá: elég visszaírni az ico()
+       hívásokat a két helyen, más nem függ tőle. */
+    function munkaIkon(id, meret) {
+        /* KIKAPCSOLVA AZ IKON EL SEM KÉSZÜL. Nem a keret költözik a névre,
+           hanem a kép tűnik el - a kapcsoló célja a HELYMEGTAKARÍTÁS kis
+           felbontáson, azt pedig csak így éri el. A kattintható szerepet és a
+           keretet a név veszi át, lásd munkaNev(). */
+        if (!beall.mikon) return "";
+        const kep = ico(id, meret || "lg") || "";
+        if (!kep) return "";
+        const f = targyTud(id);
+        if (!f) return kep;
+        return `<span class="mgomb ${f.fo === "munka" ? "job" : "hat"}"`
+             + ` data-munka="${esc(String(id))}">${kep}</span>`;
+    }
+
+    /* A NÉV mint munkakereső gomb. Akkor lép működésbe, ha a kapcsoló ki van
+       kapcsolva: a funkció nem tűnik el, csak átköltözik az ikonról a névre.
+       A hívó a KÉSZ, escape-elt szöveget adja át, ezért itt nem escape-elünk
+       újra - különben a nevekben lévő aposztróf kétszer kódolódna. */
+    function munkaNev(id, htmlNev) {
+        if (beall.mikon) return htmlNev;   /* ilyenkor az ikon a gomb */
+        const f = targyTud(id);
+        if (!f) return htmlNev;
+        return `<span class="mgomb nev ${f.fo === "munka" ? "job" : "hat"}"`
+             + ` data-munka="${esc(String(id))}">${htmlNev}</span>`;
+    }
+
+    /* A minitérkép. Egyetlen kérés, utána gyorsítótárból. */
+    function terkepet(kesz) {
+        if (terkep) { kesz(true); return; }
+        const A = jatek().Ajax;
+        if (!A || typeof A.get !== "function") { kesz(false); return; }
+        let egyszer = false;
+        try {
+            A.get("map", "get_minimap", {}, valasz => {
+                if (egyszer) return;
+                egyszer = true;
+                if (valasz && !valasz.error && valasz.job_groups) { terkep = valasz; kesz(true); }
+                else kesz(false);
+            });
+        } catch (e) { kesz(false); }
+    }
+
+    /* A MUNKA ELŐBB, A PONT UTÁNA.
+
+       1.1.0-ig a legközelebbi pont nyert bármelyik munkából, és ez rossz
+       munkát adott: a Fánál a Faúsztatást ajánlotta fel, mert közelebb volt,
+       pedig az Erdőirtás lényegesen többet ad. Mostantól a LEGJOBB munkát
+       választjuk ki elsőként, és annak a pontjai közül keressük a
+       legközelebbit.
+
+       A lista már esély szerint rendezve érkezik, de a rendezés HOLTVERSENYT
+       hagyhat: két munka adhatja ugyanazzal az eséllyel a tárgyat. Ilyenkor
+       a sorrend a forrás sorrendje lenne, ami tetszőleges - ezért az azonos
+       esélyűeket EGYÜTT nézzük, és közülük a legközelebbi pont nyer. Így a
+       régi viselkedés megmarad ott, ahol az esély nem dönt.
+
+       Csoportonként haladunk lefelé: az első olyan esélyszint nyer, amelyen
+       EGYÁLTALÁN VAN pont a térképen - különben a legjobb munka egy üres
+       csoportja miatt semmi nem nyílna meg.
+
+       Gyökvonás nincs: a négyzetes távolság ugyanabban a sorrendben rendez. */
+    function legkozelebbi(sorok) {
+        let hx, hy;
+        try {
+            const p = jatek().Character.position;
+            hx = p.x; hy = p.y;
+        } catch (e) { return null; }
+        if (typeof hx !== "number" || typeof hy !== "number") return null;
+
+        let i = 0;
+        while (i < sorok.length) {
+            let v = i;
+            while (v < sorok.length && sorok[v].rang === sorok[i].rang) v++;
+
+            let jo = null;
+            for (let n = i; n < v; n++) {
+                const j = sorok[n].munka;
+                const pontok = (terkep && terkep.job_groups && terkep.job_groups[j.groupid]) || [];
+                pontok.forEach(p => {
+                    const x = p && p[0], y = p && p[1];
+                    if (typeof x !== "number" || typeof y !== "number") return;
+                    const d = (x - hx) * (x - hx) + (y - hy) * (y - hy);
+                    if (!jo || d < jo.d) jo = { d: d, x: x, y: y, munka: j };
+                });
+            }
+            if (jo) return jo;
+            i = v;
+        }
+        return null;
+    }
+
+    /* Rövid üzenet a gyűjtenivaló fejlécében. Nem ablak, nem riasztás. */
+    function munkaUzen(kulcs) {
+        const m = $("ncount");
+        if (!m) return;
+        m.textContent = T(kulcs);
+        if (munkaOra) clearTimeout(munkaOra);
+        munkaOra = setTimeout(() => { munkaOra = null; rajzolMunkalap(); }, 4000);
+    }
+
+    /* Kizárólag felhasználói kattintásra. */
+    function munkaNyit(id, elem) {
+        if (munkaFut) return;
+        /* Hatásos terméknél nincs mit megnyitni - ott a keret csak
+           tájékoztat, ezért a kattintás némán elmarad. */
+        const f = munkaForras(id);
+        if (!f) return;
+
+        munkaFut = true;
+        if (elem) elem.classList.add("var");
+        const veg = hiba => {
+            munkaFut = false;
+            if (elem) elem.classList.remove("var");
+            if (hiba) munkaUzen(hiba);
+        };
+
+        terkepet(ok => {
+            if (!ok) { veg("munka_terkep_hiba"); return; }
+            const cel = legkozelebbi(f.sorok);
+            if (!cel) { veg("munka_nincs_pont"); return; }
+
+            const G = jatek();
+            let sikerult = false;
+            try {
+                if (G.JobWindow && typeof G.JobWindow.open === "function") {
+                    G.JobWindow.open(cel.munka.id, cel.x, cel.y);
+                    sikerult = true;
+                } else if (G.GameMap && G.GameMap.JobHandler &&
+                           typeof G.GameMap.JobHandler.openJob === "function") {
+                    G.GameMap.JobHandler.openJob(cel.munka.id, { x: cel.x, y: cel.y });
+                    sikerult = true;
+                }
+            } catch (e) { sikerult = false; }
+            veg(sikerult ? null : "munka_nincs_ablak");
+        });
+    }
+
+    /* RUHACSERE UTÁN ÚJRARAJZOLÁS.
+
+       A JobsModel.Beans FELSZERELÉSFÜGGŐ, és mérve követi is a ruhacserét -
+       de a panel nem tudja, mikor kell újraolvasnia, ezért a képernyőn a régi
+       szám maradt. Nem hiba volt, hanem hiányzó kiváltó ok.
+
+       MÉRVE, lépcsőzetesen: a ruhacsere sok eseményt vált ki egymás után
+       (wear_remove, wear_add, bag_updated_*, char_skills_changed), és a
+       LEGUTOLSÓ a wear_changed. Arra iratkozunk fel.
+
+       DE A BEANS EKKOR MÉG NEM FRISS. Naplózó tesztpéldánnyal mérve: a
+       wear_changed után 60 ms-mal a panel még a RÉGI értéket olvasta (1013),
+       miközben másodpercekkel később már az újat (3463). A Beans tehát a
+       szerver válaszára frissül, nem az eseményre.
+
+       Egy korábbi mérés az ellenkezőjét sugallta - de az a ruhacsere UTÁN
+       indult, tehát a már frissült értéket látta. Helyes mérésből vontam le
+       rossz következtetést.
+
+       A JÁTÉK SAJÁT MEGOLDÁSA. A JobWindow.checkWearChanged és a
+       JobsModel.updateSkillPoints forrása is ugyanezt csinálja: 2000 ms
+       összevonás, majd újratöltés a szerverről. Ezért frissül a NYITOTT
+       munkaablak gyorsan, és ezért lassú a Beans, ha egy ablak sincs nyitva -
+       akkor senki nem kéri az újratöltést.
+
+       A JobWindow ráadásul SZŰR is: csak akkor tölt újra, ha a fel- vagy
+       levett tárgynak van bónusza (hasItemBonus). Ezt lemásoljuk, hogy ne
+       küldjünk többet, mint amennyit a játék maga küldene.
+
+       EZÉRT KÉRÜNK, DE CSAK HA VAN KIT ÉRDEKELNIE: a JobsModel.updateSkillPoints
+       hívása KÉRÉST KÜLD a szervernek. Ezért kizárólag akkor hívjuk, ha a
+       panel NYITVA van ÉS a munkaóra-jelzés BE van kapcsolva - vagyis ha
+       tényleg nézed a számot. Csukott panelnél vagy kikapcsolt jelzésnél
+       semmi nem megy el.
+
+       A rajzolás kétszer fut: egyszer gyorsan, hogy a készlet és a hiánylista
+       azonnal kövesse, és egyszer a kérés válasza után.
+
+       Ez nem csak a munkaóra-jelzést érinti: a buborék százalékai és a munkák
+       SORRENDJE is a Beans-ből jön, tehát ruhacsere után más munka lehet a
+       legjobb. Ez szándékos.
+
+       EGYSZER iratkozunk fel, és csak akkor rajzolunk, ha a panel nyitva van.
+       Az összevonás azért kell, mert egy csere alatt többször is elhangozhat. */
+    /* Zsákbamacska-munka: nincs garantált terméke, csak esélye. A játék
+       adatában ez úgy látszik, hogy a yields üres, a randomyields viszont
+       nem - mérve a Vadvízi szállításon (yields {}, randomyields [0.28]). */
+    function zsakbamacskaMunka(j) {
+        try {
+            if (!j) return false;
+            const y = j.yields;
+            const van = y && (Array.isArray(y) ? y.length : Object.keys(y).length);
+            const r = j.randomyields;
+            return !van && !!(r && r.length);
+        } catch (e) { return false; }
+    }
+
+    /* KÉRÉS A JELZÉS BEKAPCSOLÁSAKOR.
+
+       Kikapcsolt jelzésnél nem kérünk - így akartuk. Ezért ha kikapcsolva
+       cserélsz ruhát, majd visszakapcsolod, a Beans még a régi: senki nem
+       kérte. A rajzolás megtörténik, de elavult adatból számol.
+
+       A BEKAPCSOLÁS viszont szándékos cselekvés: épp azt mondod vele, hogy
+       ezt a számot most nézni akarod. Egy kérés ilyenkor ugyanolyan indokolt,
+       mint a munkakeresés első kattintásakor.
+
+       PANELNYITÁSKOR NEM KÉRÜNK. A panelt naponta sokszor megnyitod, és az
+       nem jelzés arról, hogy ez a szám érdekel - csak a panel használata.
+
+       A perces védelem azért kell, mert a jelzés oda-vissza kapcsolgatható:
+       egy percen belüli újabb bekapcsolás nem küld újabb kérést. */
+    let oraKeresMikor = 0;
+    function oraKeresHaKell() {
+        if (!beall.orak) return;
+        const most = Date.now();
+        if (most - oraKeresMikor < 60000) return;
+        oraKeresMikor = most;
+        try {
+            const JM = jatek().JobsModel;
+            if (JM && typeof JM.updateSkillPoints === "function") JM.updateSkillPoints();
+        } catch (e) { /* marad a régi érték */ }
+        setTimeout(rajzolMunkalap, 2600);
+    }
+
+    /* Van-e bónusza a cserélt tárgynak. A JobWindow.checkWearChanged pontosan
+       ezt nézi: ha se a felvett, se a levett darabnak nincs bónusza, meg sem
+       mozdul. Ha az esemény adata nem olvasható, INKÁBB KÉRÜNK - a hiányzó
+       adat miatt nem hagyjuk elavulni a számot. */
+    function bonuszosCsere(v) {
+        try {
+            if (!v || (!v.added && !v.removed)) return true;
+            const mind = [].concat(v.added || [], v.removed || []);
+            if (!mind.length) return true;
+            return mind.some(t => t && typeof t.hasItemBonus === "function" && t.hasItemBonus());
+        } catch (e) { return true; }
+    }
+
+    let ruhaFigyelve = false;
+    let ruhaOra = null, ruhaOra2 = null;
+    function ruhaFigyelo() {
+        if (ruhaFigyelve) return;
+        try {
+            const E = jatek().EventHandler;
+            if (!E || typeof E.listen !== "function") return;
+            E.listen("wear_changed", valtozas => {
+                if (!host || !host.parentNode || host.hidden) return;
+
+                /* A készlet és a hiánylista azonnal követhet - ehhez nem kell
+                   szerver, tehát ez mindig lefut. */
+                if (ruhaOra) clearTimeout(ruhaOra);
+                ruhaOra = setTimeout(() => { ruhaOra = null; rajzolMunkalap(); }, 60);
+
+                /* A százalékokhoz viszont friss adat kell a szerverről. Csak
+                   akkor kérünk, ha a jelzés be van kapcsolva, ÉS a cserélt
+                   tárgynak van bónusza - a játék is így szűr. */
+                if (!beall.orak || !bonuszosCsere(valtozas)) return;
+                if (ruhaOra2) clearTimeout(ruhaOra2);
+                ruhaOra2 = setTimeout(() => {
+                    ruhaOra2 = null;
+                    try {
+                        const JM = jatek().JobsModel;
+                        if (JM && typeof JM.updateSkillPoints === "function") JM.updateSkillPoints();
+                    } catch (e) { /* marad a régi érték, nem tragédia */ }
+                    /* A játék 2000 ms-os összevonása után jön a válasz. */
+                    setTimeout(rajzolMunkalap, 2600);
+                }, 120);
+            });
+            ruhaFigyelve = true;
+        } catch (e) { /* a panel enélkül is működik, csak kézzel kell frissíteni */ }
     }
 
     /* Olcsó összehasonlítás: csak akkor rajzolunk újra, ha tényleg változott.
@@ -3857,7 +7457,7 @@ li.collapsed > .node > .toggle::before{ content:"+" }
 
         /* a szerző jelzése, halványan, a doboz jobb alsó sarkában */
         const alairas = document.createElement("div");
-        alairas.textContent = "powered by smcZ";
+        alairas.textContent = ALAIRAS;
         alairas.style.cssText = "margin-top:14px;text-align:right;font:11px Arial,sans-serif;" +
             "color:rgba(43,33,25,.45);letter-spacing:.03em";
 
