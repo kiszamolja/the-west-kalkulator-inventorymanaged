@@ -2621,13 +2621,17 @@ li.collapsed > .node > .toggle::before{ content:"+" }
   grid-template-columns:minmax(300px,.8fr) minmax(440px,1.2fr);
   gap:12px; align-items:start }
 .settings-col{ display:flex; flex-direction:column; gap:12px; min-width:0 }
+/* t35: az overflow:hidden a lekerekitett sarkok miatt kellett, de elvagja a
+   javaslatlistat, ami a beszerzoi "+" sorbol lefele nyilik - az pedig a
+   kartya aljan van. A vizszintes vagas megmarad (az kell a sarkokhoz), a
+   fuggoleges viszont lathatova valik. */
 .settings-card{
-  min-width:0; overflow:hidden; align-self:start;
+  min-width:0; align-self:start;
   border:1px solid rgba(133,87,38,.48); border-radius:4px;
   background:rgba(255,248,222,.42);
   box-shadow:inset 0 0 0 1px rgba(255,255,244,.34),0 4px 10px rgba(78,43,16,.08) }
 .settings-card h2{
-  margin:0; padding:9px 12px 7px;
+  margin:0; padding:9px 12px 7px; border-radius:3px 3px 0 0;
   color:#63371d; border:0; border-bottom:1px solid rgba(133,87,38,.42);
   background:linear-gradient(90deg,rgba(157,74,39,.13),rgba(211,161,69,.07));
   box-shadow:inset 4px 0 0 #9c4b2e }
@@ -5510,7 +5514,7 @@ li.collapsed > .node > .toggle::before{ content:"+" }
 :host([data-nativ][data-ui5c]) .settings-card{
   border-color:rgba(124,79,35,.52); background:rgba(255,248,220,.48) }
 :host([data-nativ][data-ui5c]) .settings-card h2{
-  margin:0; padding:9px 12px 7px; color:#63371d;
+  margin:0; padding:9px 12px 7px; border-radius:3px 3px 0 0; color:#63371d;
   border:0; border-bottom:1px solid rgba(124,79,35,.42);
   background:linear-gradient(90deg,rgba(157,74,39,.13),rgba(211,161,69,.07));
   box-shadow:inset 4px 0 0 #9c4b2e }
@@ -5582,8 +5586,13 @@ li.collapsed > .node > .toggle::before{ content:"+" }
                     elvesztenéd szem elől azt, akihez épp hozzáadsz.
                     Egyszerre egy sor lehet nyitva, Esc zár. */
                  + `<div class="bujsor" data-bujsor="${esc(nev)}" hidden>`
-                 + `<input class="bujTargy" inputmode="text" spellcheck="false"`
+                 /* t35: a targymezo IDE IS kap javaslatlistat. Eddig csak a
+                    fenti urlapon volt, a "+" sorban nem - ott a felhasznalo
+                    ket karakter utan hiaba varta a felajanlast. */
+                 + `<span class="jwrap"><input class="bujTargy" inputmode="text"`
+                 + ` autocomplete="off" spellcheck="false"`
                  + ` placeholder="${esc(T("besz_targy"))}" aria-label="${esc(T("besz_targy"))}">`
+                 + `<ul class="jlista bujLista" hidden></ul></span>`
                  + `<input class="bujDb" inputmode="numeric"`
                  + ` placeholder="${esc(T("besz_db"))}" aria-label="${esc(T("besz_db"))}">`
                  + `<button class="bujOk">${esc(T("besz_hozzaad"))}</button></div>`
@@ -5678,8 +5687,20 @@ li.collapsed > .node > .toggle::before{ content:"+" }
         });
     }
 
+    /* t35: a javaslo eredetileg data-mez NEVEKKEL dolgozott. A beszerzoi
+       "+" sorbol viszont beszerzonkent egy van, tehat ott nem lehet egyedi
+       nev. Ezert a mag ELEMEKET kap, a neves alak pedig burkolo lett. */
+    /* A felajanlhato tetelnevek. KOZOS forras a fenti urlap es a beszerzoi
+       "+" sor kozott - kulonben a ket helyen mas lista jelenhetne meg. */
+    const tetelNevek = () =>
+        [...new Set(Object.keys(BASE_NAMES).concat(RECIPES.map(r => String(r.i))))]
+            .map(id => nameOf(id)).sort((a, b) => a.localeCompare(b, "hu"));
+
     function javaslo(mezoNev, listaNev, forras, utana) {
-        const be = $(mezoNev), li = $(listaNev);
+        return javasloElem($(mezoNev), $(listaNev), forras, utana ? $(utana) : null);
+    }
+
+    function javasloElem(be, li, forras, utana) {
         if (!be || !li || be.dataset.kotve) return;
         be.dataset.kotve = "1";
         let akt = -1;
@@ -5697,8 +5718,7 @@ li.collapsed > .node > .toggle::before{ content:"+" }
         const valaszt = sz => {
             be.value = sz;
             zar();
-            const kov = utana ? $(utana) : null;
-            if (kov) setTimeout(() => { try { kov.focus(); kov.select(); } catch (e) { /* nem baj */ } }, 0);
+            if (utana) setTimeout(() => { try { utana.focus(); utana.select(); } catch (e) { /* nem baj */ } }, 0);
             else be.focus();
         };
 
@@ -5798,10 +5818,7 @@ li.collapsed > .node > .toggle::before{ content:"+" }
         /* A tétellista állandó, a beszerzőnevek listája viszont változik,
            ezért függvényként adjuk át - így felvitel után az új név is
            azonnal felajánlható. */
-        javaslo("beszTargy", "beszTargyLista",
-            () => [...new Set(Object.keys(BASE_NAMES).concat(RECIPES.map(r => String(r.i))))]
-                    .map(id => nameOf(id)).sort((a, b) => a.localeCompare(b, "hu")),
-            "beszDb");
+        javaslo("beszTargy", "beszTargyLista", tetelNevek, "beszDb");
         /* A névből a TÁRGYRA lépünk tovább, onnan a darabszámra - így a három
            mező egyetlen sorozattá áll össze. */
         javaslo("beszNev", "beszNevLista",
@@ -5869,6 +5886,10 @@ li.collapsed > .node > .toggle::before{ content:"+" }
             const nev = sor.dataset.bujsor;
             const targy = sor.querySelector(".bujTargy");
             const dbm = sor.querySelector(".bujDb");
+            /* Ugyanaz a forras, mint a fenti urlapon - egy helyen definialva
+               lenne szebb, de a ket hivas kozott van a rajzolas, ezert most
+               a kozos TETELEK segedet hasznaljak mindketten. */
+            javasloElem(targy, sor.querySelector(".bujLista"), tetelNevek, dbm);
             sor.querySelector(".bujOk").addEventListener("click", () => felvesz(nev, targy, dbm));
             [targy, dbm].forEach(m => m.addEventListener("keydown", e => {
                 if (e.key === "Escape") { e.preventDefault(); zarMind(); }
