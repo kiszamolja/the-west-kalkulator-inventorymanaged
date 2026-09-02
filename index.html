@@ -1202,9 +1202,14 @@ html[data-edition="nova"] body::after { background-image: linear-gradient(rgba(4
      ott lóg a lámpa. Az első hangolás ezt a lámpát nyomta el, holott a
      sáv egyetlen érdekes pontja. Ezért a sötétítés visszafogott: a cím
      így is 9 fölötti kontraszttal ül a háttéren, mérve. */
-  background-image:
-    linear-gradient(180deg, rgba(9,4,3,.46), rgba(13,6,4,.26) 58%, rgba(15,7,5,.4)),
-    linear-gradient(90deg, rgba(9,4,3,.26), rgba(9,4,3,.05) 40%, rgba(9,4,3,.16));
+  /* Egyetlen függőleges fedés, éles határ nélkül. Végig erős marad, amíg a
+     felirat tart (a szövegblokk a sáv 75%-áig ér), és csak az utolsó
+     negyedében fut ki nullára - ott már nincs alatta szöveg, viszont a
+     kifutás elég hosszú ahhoz, hogy ne legyen látható pereme.
+     Vízszintes tag nincs: az korábban pont a bal oldali lámpát nyomta el. */
+  background-image: linear-gradient(180deg,
+    rgba(8,4,2,.92) 0%, rgba(8,4,2,.88) 50%, rgba(9,5,3,.8) 76%,
+    rgba(10,5,3,.3) 92%, rgba(10,5,3,0) 100%);
   filter: none;
   transform: none;
 }
@@ -1287,6 +1292,16 @@ html[data-edition="nova"] .header-light { background: linear-gradient(105deg, tr
 .jelgomb.brand-mark:hover { transform: translateY(-2px) scale(1.035); }
 .jelgomb.brand-mark:hover .jel { filter: brightness(1.08) drop-shadow(0 6px 10px rgba(0,0,0,.52)); }
 .brand-copy { min-width: 0; display: block; color: #f8e2b1; text-shadow: 0 2px 3px rgba(0,0,0,.8); }
+
+/* A FEJLÉC SÖTÉTÍTÉSE.
+   Volt egy kísérlet helyi, a felirat mögé tett árnyékfolttal: mérésben jó
+   volt, látványban viszont lebegő sötét folt lett a világos égen. Vissza a
+   teljes szélességű sötétítéshez - de úgy, hogy ne sávnak látsszon: a
+   fedés a kép legtetején a legerősebb, és a fejléc aljára nullára fogy.
+   Sehol nincs éle, tehát nincs mit észrevenni rajta, csak azt, hogy az ég
+   felfelé sötétedik. A hangolás lentebb, a .town-scene szabálynál. */
+.brand-copy strong { text-shadow: 0 2px 3px rgba(0,0,0,.85), 0 0 16px rgba(0,0,0,.7); }
+.brand-copy small, .brand-copy em { text-shadow: 0 1px 2px rgba(0,0,0,.9), 0 0 10px rgba(0,0,0,.75); }
 .brand-copy small, .brand-copy em { display: block; font: 700 8px "Space Mono", monospace; letter-spacing: .13em; text-transform: uppercase; }
 .brand-copy small { color: #e6b958; }
 .brand-copy strong { display: block; margin: 3px 0; font: 400 clamp(23px, 2.3vw, 37px) "Rye", Georgia, serif; white-space: nowrap; }
@@ -2416,7 +2431,7 @@ html[data-edition="nova"] .top #tabCalc::before { background-image: url("kepek_n
   box-shadow: inset 0 0 0 1px rgba(255,235,186,.04), 0 6px 14px rgba(0,0,0,.26);
 }
 .header-tools-label { color: #e8c47b; font: 700 8px/1 "Space Mono", monospace; letter-spacing: .14em; text-transform: uppercase; }
-/* Három eleme van: másolásváltó, ↶, 🖼. */
+/* Négy eleme van: másolásváltó, ↶, ◈ és az eseménytémák ⬢ gombja. */
 .header-tools-row { display: grid; grid-template-columns: minmax(155px,1fr) 38px 38px; gap: 6px; align-items: stretch; }
 .header-tools-row .masolvalto { width: 100%; margin: 0; }
 .header-tools-row .icon, .header-tools-row .motion-toggle { width: 100%; min-width: 0; padding: 0; justify-content: center; font-size: 16px; }
@@ -2937,7 +2952,601 @@ html[data-edition="saloon"] .recipe-depot .lvl,
 html[data-edition="saloon"] .recipe-depot .legend{ color:#c2b5a4; }
 
 /* ---- Apróságok ---- */
-#theme,#impX{ min-width:44px; min-height:44px }
+/* A 44 pixeles érintőméret a régi világos/sötét gombtól maradt itt. A
+   témagomb most a Műveletek 38 pixeles ikonsorában ül, és ez a szabály
+   44-re feszítette - ettől volt nagyobb a szomszédjainál, és ettől lett
+   az egész sor 44 pixel magas. Asztali méreten a sorhoz igazodik,
+   mobilon marad a nagyobb érintőfelület. */
+#impX{ min-width:44px; min-height:44px }
+#theme{ min-width:44px; min-height:44px }
+@media (min-width:821px){
+  #theme.event-theme-trigger{ min-width:0; min-height:0; }
+}
+
+/* A fejléc alján eddig 5 pixel tömör narancs vonal futott. Amíg a fejléc
+   saját, átlátszatlan képet hordott, ez elválasztotta a két réteget - de
+   mióta egyetlen összefüggő jelenet fut végig a lapon, ez az egy vonal
+   maradt az egyetlen törés benne, és ott vágja el a festményt, ahol
+   épp éri: az eseményképeken emberi fejeken és alakokon megy keresztül.
+
+   A tömör vonal helyett a sáv alja lágyan kifut a semmibe: a sötétítés
+   nullára fogy, tehát nincs éles határ, amin bármi elvágódhatna. */
+.top.town-header.no-switcher { border-bottom: 0; }
+   A Műveletek panel régi világos/sötét gombjának helyén egyetlen,
+   geometrikus témagomb nyitja az Alap + eseményhátterek listáját.
+   A lista lebeg, ezért nem növeli meg a fejléc magasságát. */
+.header-tools { position:relative; overflow:visible; }
+@media (min-width:821px){
+  .header-tools-row,
+  .top.town-header.no-switcher .header-tools-row{
+    grid-template-columns:minmax(140px,1fr) repeat(3,38px);
+  }
+}
+
+#theme.event-theme-trigger{
+  position:relative;
+  font-size:19px;
+  line-height:1;
+  color:#f2d083;
+}
+#theme.event-theme-trigger.has-event{
+  color:#fff1bd;
+  border-color:var(--world-accent-2);
+  background:var(--ctl-primary-hover);
+  box-shadow:0 0 0 1px rgba(255,229,154,.17),0 0 12px rgba(224,171,68,.22);
+}
+#theme.event-theme-trigger.has-event::after{
+  content:"";
+  position:absolute;
+  right:4px;
+  top:4px;
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:#ffe09a;
+  box-shadow:0 0 7px #f1b74d;
+}
+
+.event-theme-menu{
+  position:fixed;
+  z-index:140;
+  /* A pontos helyet nyitáskor a JS számolja a gombhoz igazítva
+     (lásd igazitMenut). Ezek csak kiindulási értékek. */
+  top:calc(var(--header-occ,300px) + 8px);
+  right:18px;
+  width:min(310px,calc(100vw - 24px));
+  padding:7px;
+  border:1px solid rgba(225,183,99,.72);
+  background:linear-gradient(155deg,rgba(38,18,8,.98),rgba(15,7,4,.99));
+  box-shadow:inset 0 0 0 1px rgba(255,240,197,.06),0 18px 38px rgba(0,0,0,.52);
+}
+.event-theme-menu[hidden]{ display:none !important; }
+.event-theme-menu::before{
+  content:"TÉMAVÁLASZTÓ";
+  display:block;
+  padding:5px 8px 8px;
+  color:#d8b572;
+  font:700 9px/1 "Space Mono",monospace;
+  letter-spacing:.14em;
+}
+.event-theme-option{
+  width:100%;
+  min-height:39px;
+  margin:0;
+  padding:7px 10px;
+  display:grid;
+  grid-template-columns:18px 1fr 18px;
+  gap:8px;
+  align-items:center;
+  color:#f1dfbd !important;
+  text-align:left;
+  border:1px solid transparent !important;
+  border-radius:2px !important;
+  background:transparent !important;
+  box-shadow:none !important;
+}
+.event-theme-option + .event-theme-option{ margin-top:2px; }
+.event-theme-option:hover,
+.event-theme-option:focus-visible{
+  color:#fff6dc !important;
+  border-color:rgba(224,177,84,.52) !important;
+  background:rgba(177,112,41,.2) !important;
+}
+.event-theme-option.active{
+  color:#fff8df !important;
+  border-color:var(--world-accent-2) !important;
+  background:linear-gradient(90deg,rgba(177,112,41,.34),rgba(177,112,41,.08)) !important;
+}
+.event-theme-option .event-theme-shape{
+  width:12px;
+  height:12px;
+  justify-self:center;
+  transform:rotate(45deg);
+  border:1px solid #d6ad5c;
+  background:rgba(224,177,84,.14);
+}
+.event-theme-option.active .event-theme-shape{
+  background:var(--world-accent-2);
+  box-shadow:0 0 8px rgba(241,190,83,.6);
+}
+.event-theme-option .event-theme-name{
+  font:700 13px/1.2 "Alegreya Sans",sans-serif;
+}
+.event-theme-option .event-theme-check{
+  color:#f7d681;
+  text-align:center;
+  opacity:0;
+}
+.event-theme-option.active .event-theme-check{ opacity:1; }
+
+/* Az eseményképek eleve világos, telt színű festmények. A normál világok
+   erős barnító fedése helyett csak annyi árnyékot kapnak, hogy a panelek
+   körvonala olvasható maradjon.
+
+   A KERETEZÉST is itt kell felülírni, nem a JS-ből. A JS a --scene-*
+   értékeket a <html>-re tette, csakhogy a html[data-edition="saloon"]
+   body::before szabály ugyanezeket MAGÁN a pszeudoelemen deklarálja - a
+   helyi deklaráció pedig erősebb az öröklöttnél, ezért a JS beállításai
+   némán elvesztek. Az eseményképek így a kocsmároshoz hangolt 1,42-es
+   nagyítást és a 0%-os felső igazítást kapták: ezért látszottak túl
+   közelinek.
+
+   Az eseményképek egész jelenetek, nincs bennük kiemelt alak, amit a sáv
+   alá kellene hozni. Ezért a legkisebb nagyítás jár nekik, ami még
+   kitakarja az ablakot (1,035), és a vízszintes fókuszkeresés is kikapcsol.
+   2560x985-ön így a kép teljes szélessége látszik a magasságának 77%-ával
+   - ennél többet egy 2:1-es képből nem lehet megmutatni üres sáv nélkül.
+
+   A függőleges igazítás 30%, nem 50%. A festményeken az alakok a teljes
+   magasságot kitöltik, de az ARCOK a felső harmadban vannak (0,10-0,30),
+   alul jég, láb és havas talaj van. Középre igazítva a vágás fele felülről
+   menne el, és pont a fejeket nyesné le; 30%-nál a felső 7% vész csak el,
+   a maradék pedig az alsó, kevésbé fontos sávból. */
+html[data-event-theme]:not([data-event-theme="base"]) body::before{
+  --scene-ar: 2;
+  --scene-zoom: 1.035;
+  --scene-x: 50%;
+  --scene-y: 30%;
+  --scene-head: 1;
+  background-image:
+    linear-gradient(rgba(17,9,5,.25),rgba(42,21,9,.05) 42%,rgba(20,10,5,.18)),
+    var(--world-image);
+  background-position-x: center, var(--scene-x);
+  background-position-y: center, var(--scene-y);
+  filter:saturate(1.04) contrast(1.03) brightness(.94);
+}
+html[data-event-theme]:not([data-event-theme="base"])[data-edition="nova"] body::before{
+  filter:saturate(1.04) contrast(1.03) brightness(.94);
+}
+
+@media (max-width:820px){
+  .event-theme-menu{
+    position:fixed;
+    top:62px;
+    right:8px;
+    width:min(310px,calc(100vw - 16px));
+    max-height:calc(100vh - 78px);
+    overflow:auto;
+  }
+}
+
+/* ========================================================================== */
+/* V12 PANEL – KORABELI MŰHELYI ÁTJÁRÓ                                      */
+/*
+   A három egyforma, pasztell „csomagkártya” helyett két irat és egy kiemelt
+   műhelymegbízás. A teljes panel szándékosan nagyobb: ez a nézet fő attrakciója.
+   Az ikonok legfeljebb a natív 74×74 képpontjukon jelennek meg, így élesek
+   maradnak nagy és ultraszéles kijelzőn is.
+*/
+#panelView .setup-cards {
+  max-width: 1120px;
+  grid-template-columns: minmax(350px, .82fr) minmax(520px, 1.38fr);
+  grid-template-rows: repeat(2, minmax(202px, auto));
+  gap: 18px 24px;
+  align-items: stretch;
+}
+
+#panelView .setup-card-link {
+  min-height: 0;
+  padding: 24px 24px 22px;
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 20px;
+  align-items: center;
+  overflow: visible;
+  color: #2d1a0d;
+  border: 1px solid #8d642e;
+  border-radius: 0;
+  background:
+    linear-gradient(105deg, rgba(255,248,213,.68), transparent 30%),
+    repeating-linear-gradient(0deg, rgba(86,54,20,.035) 0 1px, transparent 1px 9px),
+    radial-gradient(rgba(73,43,15,.13) .65px, transparent .75px),
+    linear-gradient(145deg, #e6d3a0, #c5a96e);
+  background-size: auto, auto, 7px 7px, auto;
+  box-shadow:
+    8px 10px 0 rgba(5,2,1,.34),
+    inset 0 0 0 4px rgba(255,244,202,.34),
+    inset 0 -14px 28px rgba(86,49,15,.09);
+  transform: none;
+  transition: transform .2s ease, filter .2s ease, box-shadow .2s ease;
+}
+
+#panelView .setup-card-gate {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+#panelView .setup-card-quick {
+  grid-column: 1;
+  grid-row: 2;
+  border-color: #756338;
+  background:
+    linear-gradient(105deg, rgba(255,249,218,.52), transparent 31%),
+    repeating-linear-gradient(0deg, rgba(55,51,25,.045) 0 1px, transparent 1px 10px),
+    radial-gradient(rgba(54,49,24,.14) .65px, transparent .75px),
+    linear-gradient(145deg, #d7c795, #aa955e);
+  background-size: auto, auto, 7px 7px, auto;
+}
+
+#panelView .setup-card-script {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  min-height: 422px;
+  padding: 48px 36px 32px 46%;
+  color: #f7e6bd;
+  border: 2px solid #c89842;
+  background:
+    linear-gradient(90deg, rgba(8,3,2,.02) 0%, rgba(8,3,2,.06) 32%, rgba(8,3,2,.36) 48%, rgba(8,3,2,.82) 65%, rgba(8,3,2,.94) 100%),
+    linear-gradient(180deg, rgba(6,2,1,.08), transparent 38%, rgba(6,2,1,.3)),
+    url("panel-production-warehouse.png") 48% center / cover no-repeat;
+  box-shadow:
+    11px 14px 0 rgba(5,2,1,.46),
+    inset 0 0 0 5px #160a06,
+    inset 0 0 0 7px rgba(230,177,76,.5),
+    inset 0 0 46px rgba(0,0,0,.5),
+    0 0 22px rgba(210,139,43,.12);
+  transform: none;
+}
+
+#panelView .setup-card::before,
+#panelView .setup-card::after {
+  z-index: 3;
+  width: 9px;
+  height: 9px;
+  border: 1px solid rgba(72,40,12,.65);
+  background: radial-gradient(circle at 35% 30%, #f0cf83, #9b6423 56%, #4b2910 100%);
+  box-shadow: 0 1px 2px rgba(0,0,0,.45);
+}
+
+#panelView .setup-card::before { left: 11px; top: 11px; }
+#panelView .setup-card::after { right: 11px; bottom: 11px; }
+
+#panelView .setup-card-light { display: none; }
+
+/* A kiemelt műhely sárgaréz kerete: nyugodt alapfény, végigfutó csillanás. */
+#panelView .setup-card-script .setup-card-light {
+  position: absolute;
+  inset: 5px;
+  z-index: 5;
+  display: block;
+  pointer-events: none;
+  opacity: .66;
+  border: 1px solid rgba(255,214,123,.78);
+  background:
+    linear-gradient(90deg, transparent 0%, rgba(225,158,48,.24) 28%, #ffe9a4 49%, rgba(225,158,48,.32) 70%, transparent 100%) -42% 0 / 38% 2px no-repeat,
+    linear-gradient(90deg, transparent 0%, rgba(225,158,48,.2) 28%, #ffd778 49%, rgba(225,158,48,.3) 70%, transparent 100%) 142% 100% / 38% 2px no-repeat;
+  box-shadow:
+    inset 0 0 7px rgba(255,203,91,.27),
+    0 0 8px rgba(237,166,49,.34),
+    0 0 19px rgba(210,126,25,.17);
+  transition: opacity .22s ease, border-color .22s ease, box-shadow .22s ease;
+}
+
+@keyframes panel-brass-call {
+  0%, 100% {
+    background-position: -42% 0, 142% 100%;
+    filter: brightness(.86);
+  }
+  46% {
+    background-position: 64% 0, 36% 100%;
+    filter: brightness(1.3);
+  }
+  72% {
+    background-position: 142% 0, -42% 100%;
+    filter: brightness(1.02);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  #panelView .setup-card-script .setup-card-light {
+    animation: panel-brass-call 4.8s ease-in-out infinite;
+  }
+}
+
+html.motion-off #panelView .setup-card-script .setup-card-light {
+  animation: none !important;
+}
+
+#panelView .setup-number {
+  z-index: 2;
+  top: 12px;
+  left: auto;
+  right: 14px;
+  width: 44px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  color: rgba(72,39,14,.66);
+  border: 1px solid rgba(91,52,18,.38);
+  font: 700 15px/1 "Space Mono", monospace;
+  letter-spacing: .08em;
+  transform: rotate(-2deg);
+}
+
+#panelView .setup-card-script .setup-number {
+  left: 19px;
+  right: auto;
+  color: #d9ad61;
+  border-color: rgba(219,171,87,.5);
+  background: rgba(15,6,3,.62);
+}
+
+#panelView .setup-card-icon {
+  width: 88px;
+  height: 88px;
+  margin: 0;
+  display: block;
+  align-self: center;
+  background-image:
+    var(--official-icon),
+    radial-gradient(circle, rgba(255,239,189,.84) 0 44%, rgba(136,91,34,.62) 45% 48%, rgba(63,34,13,.14) 49% 61%, transparent 62%);
+  background-position: center, center;
+  background-repeat: no-repeat, no-repeat;
+  background-size: 74px 74px, 88px 88px;
+  filter: drop-shadow(0 6px 4px rgba(51,27,10,.3));
+}
+
+#panelView .setup-card-script .setup-card-icon {
+  width: 126px;
+  height: 126px;
+  background-image:
+    var(--official-icon),
+    radial-gradient(circle, #3b1b0f 0 45%, #b88434 46% 49%, #1a0b06 50% 60%, #d1a24c 61% 63%, transparent 64%);
+  background-size: 74px 74px, 126px 126px;
+  filter: drop-shadow(0 10px 8px rgba(0,0,0,.5));
+}
+
+html[data-edition="nova"] #panelView .setup-card-icon {
+  background-image:
+    var(--nova-icon),
+    radial-gradient(circle, rgba(233,249,235,.76) 0 44%, rgba(126,102,53,.62) 45% 48%, rgba(30,28,15,.14) 49% 61%, transparent 62%);
+}
+
+html[data-edition="nova"] #panelView .setup-card-script .setup-card-icon {
+  background-image:
+    var(--nova-icon),
+    radial-gradient(circle, #3b1b0f 0 45%, #b88434 46% 49%, #1a0b06 50% 60%, #d1a24c 61% 63%, transparent 64%);
+}
+
+#panelView .setup-card-copy {
+  min-width: 0;
+  align-self: stretch;
+  justify-content: center;
+}
+
+#panelView .setup-card-script .setup-card-copy {
+  position: relative;
+  z-index: 2;
+  padding-left: 28px;
+  border-left: 3px solid rgba(221,169,75,.82);
+  background: linear-gradient(90deg, rgba(35,13,6,.42), rgba(20,7,3,.08) 72%, transparent);
+  text-shadow: 0 2px 3px rgba(0,0,0,.72);
+}
+
+#panelView .setup-card-script .setup-card-copy::before,
+#panelView .setup-card-script .setup-card-copy::after {
+  content: "";
+  position: absolute;
+  left: -6px;
+  width: 9px;
+  height: 34px;
+  border: 1px solid rgba(106,59,18,.7);
+  background: linear-gradient(#e6bb62, #8e5820);
+  box-shadow: 0 2px 4px rgba(0,0,0,.48);
+}
+
+#panelView .setup-card-script .setup-card-copy::before { top: 0; }
+#panelView .setup-card-script .setup-card-copy::after { bottom: 0; }
+
+#panelView .setup-card .setup-label {
+  margin-bottom: 7px;
+  color: #82471f;
+  font-size: 9px;
+  letter-spacing: .15em;
+}
+
+#panelView .setup-card-script .setup-label { color: #d6a655; }
+
+#panelView .setup-card h2 {
+  color: #2a160b;
+  font: 400 clamp(20px, 1.8vw, 25px)/1.15 "Rye", Georgia, serif;
+  text-shadow: 0 1px rgba(255,241,201,.55);
+}
+
+#panelView .setup-card-script h2 {
+  color: #fff0c8;
+  font-size: clamp(27px, 2.7vw, 38px);
+  line-height: 1.08;
+  text-shadow: 0 3px 0 rgba(0,0,0,.55);
+}
+
+#panelView .setup-card p:not(.setup-label):not(.setup-warning) {
+  margin: 9px 0 16px;
+  color: #5d452d;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+#panelView .setup-card-script p:not(.setup-label):not(.setup-warning) {
+  max-width: 480px;
+  margin-top: 14px;
+  color: #d5c09a;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+#panelView .setup-action,
+#panelView .setup-action.setup-action-secondary,
+#panelView .setup-action.setup-action-primary {
+  min-height: 43px;
+  margin-top: auto;
+  padding: 10px 13px !important;
+  color: #f8e7ba !important;
+  border: 1px solid #c18d3a !important;
+  border-radius: 0 !important;
+  background: linear-gradient(#5a3017, #32180d) !important;
+  font: 700 14px/1.15 "Alegreya Sans", sans-serif;
+  letter-spacing: .01em;
+  box-shadow:
+    inset 0 1px 0 rgba(255,230,170,.2),
+    inset 0 0 0 2px rgba(27,12,6,.45),
+    0 3px 0 #1b0c06 !important;
+}
+
+#panelView .setup-card-script .setup-action {
+  min-height: 52px;
+  padding: 13px 16px !important;
+  color: #281406 !important;
+  border-color: #f0ce7e !important;
+  background: linear-gradient(#e2bb66, #aa7329) !important;
+  font-size: 16px;
+  text-shadow: 0 1px rgba(255,239,190,.42);
+  box-shadow:
+    inset 0 1px 0 #f7dda0,
+    inset 0 0 0 2px rgba(79,42,12,.38),
+    0 4px 0 #5e3515 !important;
+}
+
+#panelView .setup-ribbon {
+  top: 17px;
+  right: -9px;
+  padding: 8px 18px 8px 22px;
+  color: #fff0cd;
+  border: 1px solid #d58a49;
+  background: linear-gradient(#9d3928, #6e2019);
+  font-size: 9px;
+  letter-spacing: .14em;
+  box-shadow: inset 0 0 0 2px rgba(65,13,10,.34), 0 5px 0 rgba(12,4,2,.38);
+}
+
+@media (hover:hover) and (pointer:fine) {
+  #panelView .setup-cards:has(.setup-card-link:hover) .setup-card-link:not(:hover) {
+    opacity: 1;
+    filter: none;
+  }
+
+  #panelView .setup-card-link:hover,
+  #panelView .setup-card-link:focus-visible {
+    z-index: 8;
+    transform: translateY(-4px);
+    filter: saturate(1.04) brightness(1.02);
+    box-shadow:
+      10px 14px 0 rgba(5,2,1,.38),
+      inset 0 0 0 4px rgba(255,244,202,.4),
+      inset 0 -14px 28px rgba(86,49,15,.08);
+  }
+
+  #panelView .setup-card-script:hover,
+  #panelView .setup-card-script:focus-visible {
+    filter: saturate(1.08) brightness(1.04);
+    box-shadow:
+      13px 18px 0 rgba(5,2,1,.48),
+      inset 0 0 0 5px #160a06,
+      inset 0 0 0 7px rgba(242,192,94,.62),
+      inset 0 0 46px rgba(0,0,0,.45),
+      0 0 30px rgba(222,155,53,.2);
+  }
+
+  #panelView .setup-card-script:hover .setup-card-light,
+  #panelView .setup-card-script:focus-visible .setup-card-light {
+    opacity: 1;
+    border-color: #ffe8a0;
+    box-shadow:
+      inset 0 0 13px rgba(255,226,149,.54),
+      0 0 15px rgba(255,199,85,.7),
+      0 0 38px rgba(225,140,34,.38);
+    animation-duration: 1.85s;
+  }
+
+  #panelView .setup-card-link:hover .setup-card-icon,
+  #panelView .setup-card-link:focus-visible .setup-card-icon {
+    transform: translateY(-2px) rotate(-2deg);
+    filter: drop-shadow(0 9px 6px rgba(43,22,8,.38));
+  }
+
+  #panelView .setup-card-link:hover .setup-action,
+  #panelView .setup-card-link:focus-visible .setup-action {
+    color: #fff2ce !important;
+    border-color: #e0ad55 !important;
+    background: linear-gradient(#70401f, #3d1d0f) !important;
+  }
+
+  #panelView .setup-card-script:hover .setup-action,
+  #panelView .setup-card-script:focus-visible .setup-action {
+    color: #1f0f05 !important;
+    border-color: #ffe1a0 !important;
+    background: linear-gradient(#f0cf82, #bd8737) !important;
+  }
+}
+
+@media (max-width: 1020px) {
+  #panelView .setup-cards {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    max-width: 720px;
+  }
+
+  #panelView .setup-card-gate,
+  #panelView .setup-card-quick,
+  #panelView .setup-card-script {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  #panelView .setup-card-script { min-height: 360px; }
+}
+
+@media (max-width: 620px) {
+  #panelView .setup-card-link,
+  #panelView .setup-card-script {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 38px 19px 21px;
+    text-align: center;
+  }
+
+  #panelView .setup-card-icon,
+  #panelView .setup-card-script .setup-card-icon { margin: 0 auto; }
+  #panelView .setup-card-script {
+    min-height: 540px;
+    padding: 270px 19px 21px;
+    background:
+      linear-gradient(180deg, rgba(8,3,2,.02) 0%, rgba(8,3,2,.08) 34%, rgba(8,3,2,.58) 52%, rgba(8,3,2,.94) 68%, rgba(8,3,2,.97) 100%),
+      url("panel-production-warehouse.png") 35% top / auto 100% no-repeat,
+      #160a06;
+  }
+  #panelView .setup-card-script .setup-card-copy {
+    padding: 18px 0 0;
+    border-top: 2px solid rgba(221,169,75,.72);
+    border-left: 0;
+    background: none;
+  }
+  #panelView .setup-card-script .setup-card-copy::before,
+  #panelView .setup-card-script .setup-card-copy::after { display: none; }
+  #panelView .setup-card-script p:not(.setup-label):not(.setup-warning) { font-size: 15px; }
+}
 </style>
 
 </head>
@@ -2963,7 +3572,7 @@ html[data-edition="saloon"] .recipe-depot .legend{ color:#c2b5a4; }
 </svg></button>
   <button class="icon" id="undo" title="Utolsó raktárművelet visszavonása" aria-label="Visszavonás" style="opacity:.35">↶</button>
   <button class="icon" id="icons" title="Ikonok ki- és bekapcsolása" aria-label="Ikonok ki- és bekapcsolása">🖼</button>
-  <button class="icon" id="theme" title="Világos / sötét mód" aria-label="Világos / sötét mód">☾</button>
+  <button class="icon" id="theme" title="Témaválasztó" aria-label="Témaválasztó">⬢</button>
 </div>
 
 <div class="wrap" id="calcView">
@@ -3097,12 +3706,12 @@ html[data-edition="saloon"] .recipe-depot .legend{ color:#c2b5a4; }
     <a class="setup-card setup-card-link setup-card-gate" href="https://www.tampermonkey.net/" target="_blank" rel="noopener">
       <span class="setup-card-light" aria-hidden="true"></span>
       <span class="setup-number">01</span>
-      <span class="setup-card-icon" style="--official-icon:url('kepek/toolbox.png');--nova-icon:url('kepek_nova/toolbox.png')" aria-hidden="true"></span>
+      <span class="setup-card-icon" style="--official-icon:url('kepek/notebook.png');--nova-icon:url('kepek_nova/notebook.png')" aria-hidden="true"></span>
       <div class="setup-card-copy">
-        <p class="setup-label">A kapu kulcsa</p>
+        <p class="setup-label">Böngészői engedély · szükséges</p>
         <h2>Tampermonkey</h2>
         <p>A játékbeli gomb és a teljes panel futtatásához ez a böngészőkiegészítő ad biztonságos helyet a felhasználói szkripteknek.</p>
-        <span class="setup-action setup-action-secondary">Tampermonkey megnyitása <span aria-hidden="true">↗</span></span>
+        <span class="setup-action setup-action-secondary">Tampermonkey beszerzése <span aria-hidden="true">↗</span></span>
       </div>
     </a>
 
@@ -3111,23 +3720,22 @@ html[data-edition="saloon"] .recipe-depot .legend{ color:#c2b5a4; }
       <span class="setup-number">02</span>
       <span class="setup-card-icon" style="--official-icon:url('kepek/carriage.png');--nova-icon:url('kepek_nova/carriage.png')" aria-hidden="true"></span>
       <div class="setup-card-copy">
-        <p class="setup-label">Gyors átjáró</p>
+        <p class="setup-label">Expressz átjáró · egy gomb</p>
         <h2>Játékbeli gomb</h2>
-        <p>Egyetlen gomb jelenik meg a játékban. Kiolvassa a friss raktárkészletet, majd azzal nyitja meg a kalkulátort.</p>
+        <p>Egyetlen gomb jelenik meg a játékban. Kiolvassa a friss raktárkészletet, majd azzal nyitja meg a webes kalkulátort.</p>
         <span class="setup-action">Játékbeli gomb telepítése <span aria-hidden="true">↓</span></span>
       </div>
     </a>
 
     <a class="setup-card setup-card-link setup-card-script setup-card-full" href="the-west-panel.user.js" target="_blank" rel="noopener">
       <span class="setup-card-light" aria-hidden="true"></span>
-      <span class="setup-ribbon">Teljes élmény</span>
+      <span class="setup-ribbon">Ajánlott · teljes élmény</span>
       <span class="setup-number">03</span>
-      <span class="setup-card-icon" style="--official-icon:url('kepek/whiskey.png');--nova-icon:url('kepek_nova/whiskey.png')" aria-hidden="true"></span>
       <div class="setup-card-copy">
-        <p class="setup-label">A hátsó szoba</p>
+        <p class="setup-label">A határvidék raktárműhelye</p>
         <h2>Teljes kalkulátorpanel</h2>
         <p>A teljes műhely a játék saját ablakában nyílik meg, mozgatható panelként. Élő raktárból számol, külön beolvasás nélkül.</p>
-        <span class="setup-action setup-action-primary">Játékbeli panel telepítése <span aria-hidden="true">↓</span></span>
+        <span class="setup-action setup-action-primary">Teljes panel telepítése <span aria-hidden="true">↓</span></span>
       </div>
     </a>
   </div>
@@ -4606,6 +5214,51 @@ const EGYETLEN_TEMA = "saloon";
 let edition = EGYETLEN_TEMA || "town";
 let motionOn = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+/* A világ (Porfészek / Szekérnyom / Egy az útra / Új Vadnyugat) és az
+   esemény két külön réteg. Az Alap mindig az aktuális világ saját képét
+   adja vissza; az esemény csak a világképet írja felül. */
+const EVENT_THEMES = Object.freeze([
+  { id:"base", label:"Alap", image:null },
+  { id:"valentin", label:"Valentin-nap", image:"events/valentin.png" },
+  { id:"husvet", label:"Húsvét", image:"events/husvet.png" },
+  { id:"fuggetlenseg", label:"Függetlenség napja", image:"events/fuggetlenseg-napja.png" },
+  { id:"oktoberfest", label:"Oktoberfest", image:"events/oktoberfest.png" },
+  { id:"halloween", label:"Halloween", image:"events/halloween.png" },
+  { id:"halottak-napja", label:"Halottak napja", image:"events/halottak-napja.png" },
+  { id:"karacsony", label:"Karácsony / Advent", image:"events/karacsony-advent.png" }
+]);
+let eventTheme = "base";
+
+function syncEventThemeUI(){
+  const root = document.documentElement;
+  const selected = EVENT_THEMES.find(item => item.id === eventTheme) || EVENT_THEMES[0];
+  eventTheme = selected.id;
+  root.dataset.eventTheme = selected.id;
+
+  /* Csak a képet állítjuk itt. A keretezést (nagyítás, igazítás) a CSS
+     végzi, mert a --scene-* értékeket a body::before magán deklarálja, és
+     a <html>-re tett érték ott alulmarad - lásd az eseményblokkot a
+     stíluslapon. */
+  if(selected.image){
+    root.style.setProperty("--world-image", `url("${selected.image}")`);
+  }else{
+    root.style.removeProperty("--world-image");
+  }
+
+  document.querySelectorAll("[data-event-theme-choice]").forEach(btn => {
+    const active = btn.dataset.eventThemeChoice === selected.id;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-checked", active ? "true" : "false");
+  });
+
+  const trigger = document.getElementById("theme");
+  if(trigger){
+    trigger.classList.toggle("has-event", selected.id !== "base");
+    trigger.title = `Téma: ${selected.label}`;
+    trigger.setAttribute("aria-label", `Téma: ${selected.label}. Témaválasztó megnyitása`);
+  }
+}
+
 function mountV8Shell(){
   const top = document.querySelector(".top");
   if(!top || top.dataset.v8Mounted) return;
@@ -4657,23 +5310,114 @@ function mountV8Shell(){
   toolRow.className = "header-tools-row";
   const undoButton = document.getElementById("undo");
   const iconsButton = document.getElementById("icons");
+  const themeButton = document.getElementById("theme");
   undoButton.textContent = "↶";
   undoButton.title = "Utolsó művelet visszavonása";
   undoButton.setAttribute("aria-label", "Utolsó művelet visszavonása");
   iconsButton.textContent = "◈";
   iconsButton.title = "Ikonmegjelenítés váltása";
   iconsButton.setAttribute("aria-label", "Ikonmegjelenítés váltása");
+  themeButton.textContent = "⬢";
+  themeButton.classList.add("event-theme-trigger");
+  themeButton.setAttribute("aria-haspopup", "menu");
+  themeButton.setAttribute("aria-expanded", "false");
+  themeButton.setAttribute("aria-controls", "eventThemeMenu");
   /* A mozgás-kapcsoló kikerült. A látványrétegben már alig kapcsolt
      valamit - a fejléc porszemein kívül nincs mit megállítania -, viszont
      egy negyedik gombként helyet foglalt a sorban. A motionOn állapot és
      a html.motion-off osztály megmarad, csak nincs hozzá gomb: aki a
      rendszerében a "csökkentett mozgás" beállítást használja, annál
      továbbra is magától kikapcsol. */
-  [top.querySelector(".masolvalto"), undoButton, iconsButton]
+  [top.querySelector(".masolvalto"), undoButton, iconsButton, themeButton]
     .filter(Boolean).forEach(el => toolRow.append(el));
+
+  const themeMenu = document.createElement("div");
+  themeMenu.id = "eventThemeMenu";
+  themeMenu.className = "event-theme-menu";
+  themeMenu.setAttribute("role", "menu");
+  themeMenu.setAttribute("aria-label", "Háttértéma kiválasztása");
+  themeMenu.hidden = true;
+  themeMenu.innerHTML = EVENT_THEMES.map(item => `
+    <button type="button" class="event-theme-option" role="menuitemradio"
+      data-event-theme-choice="${item.id}" aria-checked="false">
+      <span class="event-theme-shape" aria-hidden="true"></span>
+      <span class="event-theme-name">${item.label}</span>
+      <span class="event-theme-check" aria-hidden="true">✓</span>
+    </button>`).join("");
+
+  const closeThemeMenu = (restoreFocus = false) => {
+    if(themeMenu.hidden) return;
+    themeMenu.hidden = true;
+    themeButton.setAttribute("aria-expanded", "false");
+    if(restoreFocus) themeButton.focus();
+  };
+  const openThemeMenu = () => {
+    themeMenu.hidden = false;
+    themeButton.setAttribute("aria-expanded", "true");
+    igazitMenut();
+    const active = themeMenu.querySelector(".event-theme-option.active") || themeMenu.querySelector(".event-theme-option");
+    active?.focus();
+  };
+
+  /* A menü position:fixed, mert a .top overflow:hidden - abszolút
+     pozícióban a fejléc levágná. A fix pozíciót viszont a képernyő
+     széléhez kötni hiba volt: ultraszéles monitoron a Műveletek doboz a
+     kép közepén áll, a menü meg 700 pixerrel arrébb, a jobb szélen nyílt.
+     Ezért nyitáskor a GOMBHOZ igazítjuk, jobb szélre, és csak akkor
+     tapasztjuk a képernyő pereméhez, ha másképp kilógna. */
+  const igazitMenut = () => {
+    if(themeMenu.hidden) return;
+    const g = themeButton.getBoundingClientRect();
+    const m = themeMenu.getBoundingClientRect();
+    const perem = 8;
+    let bal = g.right - m.width;
+    bal = Math.min(Math.max(bal, perem), innerWidth - m.width - perem);
+    themeMenu.style.left = Math.round(bal) + "px";
+    themeMenu.style.right = "auto";
+    themeMenu.style.top = Math.round(g.bottom + 8) + "px";
+  };
+  addEventListener("resize", igazitMenut);
+  /* Görgetéskor nem követjük a gombot, hanem becsukjuk: a fejléc kigörög a
+     képből, és egy vele együtt eltűnő menü zavaróbb, mint egy bezáruló. */
+  addEventListener("scroll", () => closeThemeMenu(false), { passive: true });
+
+  themeButton.onclick = event => {
+    event.stopPropagation();
+    if(themeMenu.hidden) openThemeMenu();
+    else closeThemeMenu(false);
+  };
+  themeMenu.addEventListener("click", event => {
+    const choice = event.target.closest("[data-event-theme-choice]");
+    if(!choice) return;
+    eventTheme = choice.dataset.eventThemeChoice;
+    syncEventThemeUI();
+    closeThemeMenu(true);
+    save();
+  });
+  themeMenu.addEventListener("keydown", event => {
+    const buttons = [...themeMenu.querySelectorAll(".event-theme-option")];
+    const current = buttons.indexOf(document.activeElement);
+    if(event.key === "Escape"){
+      event.preventDefault();
+      closeThemeMenu(true);
+    }else if(event.key === "ArrowDown" || event.key === "ArrowUp"){
+      event.preventDefault();
+      const step = event.key === "ArrowDown" ? 1 : -1;
+      buttons[(current + step + buttons.length) % buttons.length]?.focus();
+    }else if(event.key === "Home" || event.key === "End"){
+      event.preventDefault();
+      buttons[event.key === "Home" ? 0 : buttons.length - 1]?.focus();
+    }
+  });
+  document.addEventListener("pointerdown", event => {
+    if(!tools.contains(event.target) && !themeMenu.contains(event.target)) closeThemeMenu(false);
+  });
+
   tools.append(top.querySelector(".saved"), toolLabel, toolRow);
   mast.append(brand, tabs, tools);
   top.append(mast);
+  document.body.append(themeMenu);
+  syncEventThemeUI();
 
   if(EGYETLEN_TEMA){
     /* A sáv helye a masthead alsó, 82 pixeles bélésében volt fenntartva.
@@ -4770,6 +5514,7 @@ function syncVisualPrefs(rerender){
   const root = document.documentElement;
   root.dataset.edition = edition;
   root.classList.toggle("motion-off", !motionOn);
+  syncEventThemeUI();
   document.querySelectorAll("[data-edition-choice]").forEach(btn => {
     const active = btn.dataset.editionChoice === edition;
     btn.classList.toggle("active", active);
@@ -4845,8 +5590,8 @@ function save(){
       const custom = {};
       Object.keys(names).forEach(k => { if(names[k] !== BASE_NAMES[k]) custom[k] = names[k]; });
       localStorage.setItem(STORE, JSON.stringify({
-        stock, names:custom, levels, char, learned, avatar, theme:document.documentElement.dataset.theme,
-        edition, motion:motionOn ? "on" : "off",
+        stock, names:custom, levels, char, learned, avatar,
+        edition, eventTheme, motion:motionOn ? "on" : "off",
         icons:document.documentElement.dataset.icons === "0" ? 0 : 1,
         recipe:sel.recipe, prof:sel.prof, qty:sel.qty, mode:sel.mode, targets:sel.targets
       }));
@@ -4863,9 +5608,9 @@ function load(){
     if(p.char) char = p.char;
     if(Array.isArray(p.learned)) learned = p.learned;
     if(typeof p.avatar === "string") avatar = p.avatar;
-    if(p.theme) document.documentElement.dataset.theme = p.theme;
     /* V8: a látványréteg két beállítása. */
     if(p.edition && !EGYETLEN_TEMA) edition = p.edition;
+    if(EVENT_THEMES.some(item => item.id === p.eventTheme)) eventTheme = p.eventTheme;
     if(p.motion) motionOn = p.motion === "on";
     if(p.icons === 0) document.documentElement.dataset.icons = "0";
     if(p.prof) sel.prof = p.prof;
@@ -6481,12 +7226,6 @@ $("icons").onclick = () => {
   save();
 };
 $("undo").onclick = undo;
-$("theme").onclick = () => {
-  const dark = document.documentElement.dataset.theme !== "light";
-  document.documentElement.dataset.theme = dark ? "light" : "dark";
-  $("theme").textContent = dark ? "☀" : "☾";
-  save();
-};
 
 /* --- adatok mentése / visszatöltése --- */
 $("openImp").onclick = () => {
@@ -6867,7 +7606,6 @@ syncVisualPrefs(false);
 
 if(!sel.recipe) sel.recipe = RECIPES.find(r => profIds(r.p).includes(sel.prof)).i;
 if(!sel.targets.length) setTargets([{ i:sel.recipe, q:sel.qty || 1 }]);
-$("theme").textContent = document.documentElement.dataset.theme === "light" ? "☀" : "☾";
 $("icons").style.opacity = document.documentElement.dataset.icons === "0" ? .45 : 1;
 renderChar();
 initUpdateCheck();
