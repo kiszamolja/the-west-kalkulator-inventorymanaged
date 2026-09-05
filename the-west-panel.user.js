@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Crafting Calculator
 // @namespace    the-west-kalkulator-ingame
-// @version      1.2.1
+// @version      1.2.2
 // @description  Crafting calculator inside the game, in a movable window. Reads only data already loaded in the browser.
 // @updateURL    https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/the-west-panel.user.js
 // @downloadURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/the-west-panel.user.js
@@ -29,7 +29,7 @@
 // ==/UserScript==
 
 /* =======================================================================
-   Mesterség-kalkulátor - játékbeli panel, 1.2.1
+   Mesterség-kalkulátor - játékbeli panel, 1.2.2
 
    Mit tud:
      · mozgatható ablak a játék saját ablakkeretében
@@ -1042,6 +1042,7 @@ const SZOVEG = {
   munka_fejlec: ["MUNKÁBÓL TALÁLHATÓ","FOUND IN JOBS","AUS ARBEITEN ERHÄLTLICH","ZNAJDOWANE W PRACACH"],
   munka_labjegyzet: ["a legjobb eséllyel kínálót nyitja meg","opens the one with the best chance","öffnet die Arbeit mit der besten Chance","otwiera pracę z najlepszą szansą"],
   munka_esely_rovid: ["A tárgyat csak eséllyel adja.","This job only drops the item by chance.","Der Gegenstand fällt hier nur mit Glück.","Ta praca daje przedmiot tylko losowo."],
+  munka_nem_elerheto: ["nem elérhető","not available","nicht verfügbar","niedostępna"],
   munka_nincs_ablak: ["A játék nem tudta megnyitni a munkaablakot.","The game could not open the job window.","Das Spiel konnte das Arbeitsfenster nicht öffnen.","Gra nie mogła otworzyć okna pracy."],
   munka_nincs_pont: ["Ehhez a munkához nem találtam helyet a térképen.","No place on the map was found for this job.","Für diese Arbeit wurde kein Ort auf der Karte gefunden.","Nie znaleziono miejsca na mapie dla tej pracy."],
   munka_terkep_hiba: ["A térkép nem érkezett meg, próbáld újra.","The map did not arrive, try again.","Die Karte kam nicht an, versuche es erneut.","Mapa nie dotarła, spróbuj ponownie."],
@@ -1086,7 +1087,7 @@ const SZOVEG = {
 (function () {
     "use strict";
 
-    const VERZIO = "1.2.1";
+    const VERZIO = "1.2.2";
     /* Építésbélyeg. NEM kerül a @version sorba, tehát a frissítésellenőrzést
        nem érinti: az csak a @version sort olvassa. Csak arra való, hogy a
        tesztképernyőképekről egyértelmű legyen, melyik építés látszik.
@@ -1920,6 +1921,17 @@ h1{ font-family:"Rye",Georgia,serif; font-size:19px; font-weight:400; line-heigh
   text-transform:uppercase; color:var(--dim); margin-bottom:6px }
 .mbub .msor{ display:grid; grid-template-columns:18px minmax(0,1fr) auto;
   align-items:center; gap:8px; color:var(--dim) }
+/* t50: az elerhetetlen munka jelzese A SZAZALEK HELYEN all, nem melle - ha a
+   munkat nem tudod elvegezni, a hozama nem informacio, hanem zaj. Igy a racs
+   haromoszlopos marad, a buborek szelessege sem valtozik, es a szazalekok
+   igazitasa sem borul.
+
+   A felirat rezszinu, ugyanaz, mint a Max jelzo feltetetes allapotanal: a
+   jelentes rokon. NEM tiltas - a munkapont oltozessel es buffal is valtozik,
+   tehat ami most zart, perc mulva nyithat. */
+.mbub .msor .zart{ font-size:10.5px; letter-spacing:.04em; color:var(--brass);
+  white-space:nowrap; text-align:right }
+.mbub .msor.zarva{ opacity:.72 }
 .mbub .msor + .msor{ margin-top:2px }
 .mbub .msor img{ width:18px; height:18px; object-fit:contain }
 /* A legjobb sor kiemelve: világosabb név, zöld szám, félkövér. */
@@ -7251,14 +7263,86 @@ li.collapsed > .node > .toggle::before{ content:"+" }
                  : "");
     }
 
+    /* t50: ELERHETO-E A MUNKA.
+
+       MERVE, ot munkan, ket kepzettsegagon es ket oltozeken:
+
+       A munkapontot a jatek sajat fuggvenye szamolja:
+           CharacterSkills.calculateWorkPoints(jobId, kulcsTomb)
+       A tombben a munka `skills` mezojenek kulcsai allnak, ANNYISZOR
+       ISMETELVE, amennyi a sulyuk. A Maglyarakas skills-e {build:2, punch:2,
+       repair:1}: sulyozas nelkul 1837 jott ki, sulyozva 2760 - es a jatek a
+       masodikat mutatta.
+
+       A KUSZOB a Beans[id].workpoints, ami MINDIG malus + 1. Negy munkan
+       kivetel nelkul. Ezert a malus onmagaban egyet tevedne - a jatek
+       buborekja epp ennyivel tert el a szamitasunktol, amig ki nem derult.
+
+       Az isVisible mezot SZANDEKOSAN nem hasznaljuk, pedig kesz valasz lenne.
+       MERVE: oltozes utan a ruhabonusz azonnal valtott (740 -> 540 egy buff
+       lejartakor), a Beans jobpoints es isVisible viszont a REGIT orizte.
+       Egy jel, ami kesik, jelzesre nem alkalmas - es egy buff lejarata
+       masodpercek alatt billenthet at egy munkat.
+
+       A calculateWorkPoints ezzel szemben a WearSet.getWorkPointAddition-on
+       at a ruhat ES a buffokat is azonnal koveti.
+
+       A SZINT NEM SZAMIT. A job.level azt a szintet adja, ahol a munka ruha
+       nelkul megy; a fejleszto 73-as szinten, 225-os kuszob mellett tudta
+       vegezni a Maglyarakast, mert atoltozott. Kizarasra es jelzesre sem jo. */
+    function munkaElerheto(j) {
+        if (!j || j.id == null) return null;
+        try {
+            const W = jatek();
+            const CS = W.CharacterSkills;
+            if (!CS || typeof CS.calculateWorkPoints !== "function") return null;
+            if (!j.skills || typeof j.skills !== "object") return null;
+
+            const kulcsok = [];
+            Object.keys(j.skills).forEach(k => {
+                const suly = Number(j.skills[k]) || 1;
+                for (let i = 0; i < suly; i++) kulcsok.push(k);
+            });
+            if (!kulcsok.length) return null;
+
+            const pont = Number(CS.calculateWorkPoints(j.id, kulcsok));
+            if (!isFinite(pont)) return null;
+
+            /* A kuszob a Beans-bol jon; ha az hianyzik, a malus + 1 ugyanazt
+               adja - ezt negy munkan megmertuk. */
+            let kuszob = null;
+            try {
+                const b = W.JobsModel && W.JobsModel.Beans && W.JobsModel.Beans[j.id];
+                if (b && isFinite(Number(b.workpoints))) kuszob = Number(b.workpoints);
+            } catch (e) { kuszob = null; }
+            if (kuszob === null && isFinite(Number(j.malus))) kuszob = Number(j.malus) + 1;
+            if (kuszob === null) return null;
+
+            return pont >= kuszob;
+        } catch (e) { return null; }
+    }
+
     function munkaBubSor(j, szazalek, jo) {
         const kep = j.shortname
             ? `<img src="${esc(munkaKepUt(j.shortname))}" alt="" loading="lazy"
                  onerror="this.style.visibility='hidden'">`
             : `<i></i>`;
         const db = szazalek == null ? "" : `<span class="db">${szazalek} %</span>`;
-        return `<div class="msor${jo ? " jo" : ""}">${kep}`
-             + `<span>${esc(String(j.name || ""))}</span>${db}</div>`;
+        /* t50: A JELZES A SZAZALEK HELYERE KERUL, nem melle.
+
+           Ha a munkat nem tudod elvegezni, a hozama nem informacio, hanem zaj -
+           hiaba igaz a szam. Egy oszlop marad, tehat a szazalekok igazitasa
+           sem borul, es a buborek szelessege sem valtozik.
+
+           A jelzes CSAK akkor all ki, ha biztosan tudjuk. A null azt jelenti,
+           hogy nem tudtuk megallapitani; olyankor a szazalek marad, mert a
+           hamis "nem elerheto" rosszabb, mint a semmi. */
+        const el = munkaElerheto(j);
+        const jobb = el === false
+            ? `<span class="zart">${esc(T("munka_nem_elerheto"))}</span>`
+            : (szazalek == null ? "" : `<span class="db">${szazalek} %</span>`);
+        return `<div class="msor${jo ? " jo" : ""}${el === false ? " zarva" : ""}">${kep}`
+             + `<span>${esc(String(j.name || ""))}</span>${jobb}</div>`;
     }
 
     /* Megjelenítés az ikon mellett, BALRA nyílva: a jobb oszlop a panel jobb
@@ -7494,6 +7578,22 @@ li.collapsed > .node > .toggle::before{ content:"+" }
             return T("ora_zsakbamacska");
 
         if (elso.szazalek == null) return "";
+
+        /* t50: HA EGYIK MUNKA SEM ELERHETO, azt mondjuk ki, nem az eselyt.
+
+           A "kicsi az esely" a sajat logikaja szerint igaz volt - a fejleszto
+           Nyeregen 18 es 13 szazalek allt, tehat garantalt darab tenyleg nem
+           jott. Csakhogy nem AZERT nem kapott Nyerget, hanem mert egyik
+           munkat sem tudta elvegezni. Igaz mondat, rossz okrol.
+
+           A feltetel SZANDEKOSAN szigoru: csak akkor jelzunk, ha MINDEGYIK
+           munka zart. Ha a legjobb zart, de egy alatta levo nyitott, a
+           "nem elerheto" tul eros lenne - dolgozni tudsz erte, csak lassabban.
+           A null erteku, vagyis meg nem allapithato eseteket nem szamitjuk
+           zartnak. */
+        const mind = f.sorok || [];
+        if (mind.length && mind.every(s => munkaElerheto(s.munka) === false))
+            return T("munka_nem_elerheto");
 
         const garantalt = Math.floor(elso.szazalek / 100);
         if (garantalt < 1) return T("ora_kicsi_esely");
