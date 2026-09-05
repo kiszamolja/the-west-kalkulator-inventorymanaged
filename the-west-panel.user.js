@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Crafting Calculator
 // @namespace    the-west-kalkulator-ingame
-// @version      1.2.0
+// @version      1.2.1
 // @description  Crafting calculator inside the game, in a movable window. Reads only data already loaded in the browser.
 // @updateURL    https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/the-west-panel.user.js
 // @downloadURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/the-west-panel.user.js
@@ -29,7 +29,7 @@
 // ==/UserScript==
 
 /* =======================================================================
-   Mesterség-kalkulátor - játékbeli panel, 1.2.0
+   Mesterség-kalkulátor - játékbeli panel, 1.2.1
 
    Mit tud:
      · mozgatható ablak a játék saját ablakkeretében
@@ -910,13 +910,13 @@ const SZOVEG = {
   fa_gyartas: ["{n}× gyártás","craft {n}×","{n}× herstellen","wytwórz {n}×"],
   fa_korkoros: ["körkörös recept","circular recipe","zyklisches Rezept","receptura cykliczna"],
   fa_meg_kell: ["még {n} kell","{n} still needed","{n} noch nötig","potrzeba jeszcze {n}"],
-  fa_megvan: ["{n} raktárból · megvan","{n} from stock · in stock","{n} aus dem Bestand · vorhanden","{n} z zapasów · dostępne"],
+  fa_megvan: ["{n} raktáron · megvan","{n} in stock · in stock","{n} im Bestand · vorhanden","{n} w zapasach · dostępne"],
   fa_mind_bezar: ["Mind bezár","Collapse all","Alle einklappen","Zwiń wszystkie"],
   fa_mind_kinyit: ["Mind kinyit","Expand all","Alle ausklappen","Rozwiń wszystkie"],
   fa_megvan_rovid: ["megvan","done","vorhanden","gotowe"],
   fa_megrendelve: ["{n} megrendelve","{n} on order","{n} bestellt","{n} zamówione"],
-  fa_raktarbol: ["{n} raktárból","{n} from stock","{n} aus dem Bestand","{n} z zapasów"],
-  fa_raktarbol_fedezve: ["raktárból fedezve","covered from stock","aus dem Bestand gedeckt","pokryto z zapasów"],
+  fa_raktarbol: ["{n} raktáron","{n} in stock","{n} im Bestand","{n} w zapasach"],
+  fa_ugras_cim: ["Ugrás erre a receptre","Jump to this recipe","Zu diesem Rezept springen","Przejdź do tej receptury"],
   frissites_ablak_cim: ["Mesterség-kalkulátor - frissítés","Crafting Calculator - update","Handwerksrechner - Update","Kalkulator rzemiosła - aktualizacja"],
   frissites_bevezeto: ["Új verzió érhető el a mesterség-kalkulátor paneljéből.","A new version of the crafting calculator panel is available.","Eine neue Version des Handwerksrechner-Panels ist verfügbar.","Dostępna jest nowa wersja panelu kalkulatora rzemiosła."],
   frissites_elerheto: ["Elérhető:","Available:","Verfügbar:","Dostępna:"],
@@ -1086,7 +1086,7 @@ const SZOVEG = {
 (function () {
     "use strict";
 
-    const VERZIO = "1.2.0";
+    const VERZIO = "1.2.1";
     /* Építésbélyeg. NEM kerül a @version sorba, tehát a frissítésellenőrzést
        nem érinti: az csak a @version sort olvassa. Csak arra való, hogy a
        tesztképernyőképekről egyértelmű legyen, melyik építés látszik.
@@ -2158,6 +2158,10 @@ h1{ font-family:"Rye",Georgia,serif; font-size:19px; font-weight:400; line-heigh
 
 .maxj{ font-size:11.5px; color:var(--faint); margin-left:12px;
   white-space:nowrap; line-height:16px; cursor:default }
+/* t49: a levego CSAK akkor kell, ha a jelzo az utolso elem. A t48-ban
+   feltetel nelkul kapott jobb margot, es bekapcsolt Gyartas gombnal a
+   ket margo osszeadodott: 14 + 14 = 28 kepont. */
+.maxj:last-child{ margin-right:14px }
 .maxj b{ color:var(--green); font-weight:600; font-size:12.5px }
 .maxj.tehetetlen{ color:var(--dim); opacity:.85 }
 /* t37: HARMADIK allapot. Nem hiany, hanem varakozas: minden megvan hozza,
@@ -2168,6 +2172,26 @@ h1{ font-family:"Rye",Georgia,serif; font-size:19px; font-weight:400; line-heigh
    rendes allapotban (halvany "Max:", zold szam). Eloszor mindkettot rezre
    vettem, az megtorte a bevalt nyelvet. */
 .maxj.varakozik b{ color:var(--brass) }
+
+/* t48: UGRÁS A KÖZTES RECEPTRE.
+
+   A fa gyártott sorainak neve vékony aláhúzást kap, és kattintásra a
+   munkalap arra a receptre vált. A gyökér NEM kap jelölést: az már ott van.
+
+   Az aláhúzás szándékosan halvány és 2 képponttal lejjebb ül, hogy a név
+   olvasható maradjon. Az egérmutató kéz, mert ez tényleg csinál valamit -
+   szemben a Max jelzővel, ami csak kijelzés.
+
+   MÉRVE, hogy nincs ütközés a munkakereséssel: a munkaNyit() a
+   munkaForras()-on bukik, ha a tárgynak nincs munkája, és a 222 receptből
+   EGY SEM szerepel a MUNKA_TABLA-ban. A gyártott terméknél tehát a név ma
+   legfeljebb hatásbuborékot ad, kattintást nem. A kezelő ettől függetlenül
+   kihagyja a [data-munka] elemeket, mert a játék JobList adata felülírhatja
+   a táblát, és azt böngésző nélkül nem tudjuk mérni. */
+.ugro{ text-decoration:underline; text-decoration-thickness:1px;
+  text-underline-offset:2px; text-decoration-color:var(--faint); cursor:pointer }
+.ugro:hover{ text-decoration-color:var(--brass); color:var(--brass) }
+.ugro:focus-visible{ outline:1px solid var(--brass); outline-offset:2px }
 
 /* ---------- másolási formátum váltó ---------- */
 /* A felső sávban áll, a Frissítés gomb előtt. Ott az Istállómester fül és a
@@ -3460,7 +3484,27 @@ li.collapsed > .node > .toggle::before{ content:"+" }
                tudatosan a + gombbal, ezért a kiválasztás vezet: ürítjük.
                Két vagy több célnál békén hagyjuk, azt szándékosan állította
                össze. Ugyanarra a receptre kattintva a darabszám megmarad. */
-            if (tervek.length <= 1 && !tervek.some(t => t.i === b.dataset.id)) tervek = [];
+            /* t48: A KATTINTÁS MINDIG VÁLT.
+
+               Eddig itt egy feltétel állt: két vagy több célnál a terv
+               megmaradt, és a munkalap NEM váltott. Jó szándékú védelem volt
+               a félrekattintás ellen, de rejtett szabály: a felhasználó azt
+               látta, hogy a bal oldali kiemelés elmozdul, a középső mégsem
+               követi, és a tervet egyesével kellett kiiksz-elnie, mire
+               továbbléphetett.
+
+               A mostani szabály kimondható egy mondatban: KATTINTÁS CSERÉL,
+               a + GOMB HOZZÁAD. Aki több elemű tervet akar megtartani, ment.
+
+               Ezzel egyben megoldódik a mentett terv elhagyása is, külön
+               "Terv bezárása" gomb nélkül - azt épp ezért vetettük el.
+
+               EGY KIVÉTEL MARAD, és azt a K/3 próba fogta meg: ha ugyanarra a
+               receptre kattintasz, ami már ki van választva, a tervet NEM
+               ürítjük. Enélkül a beírt darabszám elveszne attól, hogy még
+               egyszer rákattintasz arra, ami már nyitva van - az pedig nem
+               váltás, hanem ugyanaz a hely. */
+            if (valasztott !== b.dataset.id || tervek.length > 1) tervek = [];
             valasztott = b.dataset.id;
             gyoker.querySelector(".frame").dataset.fiok = "";
             rajzolReceptek(); rajzolMunkalap();
@@ -3650,6 +3694,15 @@ li.collapsed > .node > .toggle::before{ content:"+" }
                A kommentbe irt szandek eddig sem ez volt: a rez szam azt
                igeri, hogy A TE OLDALADROL minden megvan. Az igeretet csak
                ugy lehet betartani, ha az agat is vegigjarjuk. */
+            /* t49: A GYOKERT MAGAT NEM KERDOJELEZZUK MEG. A rez szam eppen
+               arra valaszol, hogy MENNYI ANYAGOD VAN HOZZA, ha a recept
+               valamiert nem indithato - akar mert mas mestersege, akar mert
+               nem tanultad meg, akar mert nem ered el szintben. A gyokeren
+               tehat atlepunk, es az alapanyagaiba megyunk.
+
+               A KOZTES lepesekre ez NEM all: ott a meg nem tanult sajat recept
+               valodi akadaly, es a szam nulla marad. */
+            if (ut.length === 0) return r.g.every(([gid, q]) => jar(gid, q * marad, [...ut, mit]));
             if (!sajatMesterseg(r)) return r.g.every(([gid, q]) => jar(gid, q * marad, [...ut, mit]));
             if (!magadGyartod(r)) return false;
             return r.g.every(([gid, q]) => jar(gid, q * marad, [...ut, mit]));
@@ -3658,9 +3711,13 @@ li.collapsed > .node > .toggle::before{ content:"+" }
     }
 
     /* A ket maximumszamitas ugyanaz a felezes, csak mas ellenorzovel. */
-    function maxDbAltalanos(id, ellenoriz, alapKeszlet) {
+    function maxDbAltalanos(id, ellenoriz, alapKeszlet, sajatNelkul) {
         const r = recipeMap.get(id);
-        if (!r || !magadGyartod(r)) return null;
+        /* t49: a REZ ag a sajatGyartod() akadalyat atlepheti. A zold NEM:
+           az kerest kuld, tehat csak akkor allhat ki szam, ha tenyleg
+           elindithato. A rez viszont mar ma is feltételes, es a szam ugyanarra
+           valaszol mind a negy akadalynal: mennyi anyagod van hozza. */
+        if (!r || (!sajatNelkul && !magadGyartod(r))) return null;
         const alap = Object.assign({}, alapKeszlet || raktar);
         delete alap[id];   /* a cel sajat darabjai SOHA nem szamitanak bele */
         if (!ellenoriz(id, 1, Object.assign({}, alap))) return 0;
@@ -3692,7 +3749,7 @@ li.collapsed > .node > .toggle::before{ content:"+" }
 
        A cel sajat darabjait a maxDbAltalanos ezutan is feltetel nelkul kiveszi,
        a kizaras pipa allasatol fuggetlenul. */
-    function maxDbIdegenNelkul(id) { return maxDbAltalanos(id, kijonIdegenNelkul, keszlet(celok())); }
+    function maxDbIdegenNelkul(id) { return maxDbAltalanos(id, kijonIdegenNelkul, keszlet(celok()), true); }
 
     function maxDb(id) {
         /* A cél saját meglévő darabjai SOHA nem számítanak bele, a kizárás
@@ -3705,11 +3762,42 @@ li.collapsed > .node > .toggle::before{ content:"+" }
     }
 
     function maxJelzo(id) {
-        const n = maxDb(id);
-        if (n === null) return "";
         const r = recipeMap.get(id);
+        if (!r) return "";
+        const n = maxDb(id);
         const zarolt = !!(r && r.t);
-        if (n > 0) {
+
+        /* t49: A JELZO HAROM UJ ESETBEN IS KIALL.
+
+           A maxDb() a magadGyartod()-on bukik, ami HAROM kulonbozo okbol ad
+           hamisat: nem a te mesterseged, nincs meg a szinted, vagy nem
+           tanultad meg a receptet. Eddig mind a haromnal null jott vissza, es
+           a jelzo MEG SEM JELENT - se zold, se rez.
+
+           A nativ jatekablak viszont kiirja a szamot, es jo oka van ra: a
+           kerdes mind a harom esetben ugyanaz, es ugyanaz a valasz hasznos.
+           "Sarlatan vagyok, de Fustolot akarok gyartatni a tabori szakaccsal
+           - eloszor megnezem, mennyi alapanyagom van hozza, es utana kerem
+           meg." Ha a jelzo tizet mutat, eldontheto, hogy eleg-e a tiz, vagy
+           gyujteni kell meg.
+
+           BUBOREK EZEKHEZ NEM JAR, es ez szabaly, nem kihagyas: buborek akkor
+           kell, ha az ok NEM LATSZIK a kepernyon. A meglevo rez esetben az
+           akadaly a fa melyen ul - ki kell nyitni a robbantott abrat, hogy
+           lasd, a Kulacson mulik -, ezert ott a mondat potolhatatlan. A harom
+           uj esetben viszont a fejlecben ott all a mesterseg neve es a harom
+           szintkuszob, a meg nem tanult receptnel pedig ott a zold jelzes vagy
+           a Megtanulom gomb. A buborek csak ismetelne oket.
+
+           A ZAROLAS VISZONT SZAMIT AZ UJ AGON IS. Eloszor ugy terveztem, hogy
+           ha a recept nem a tied, a zarolasa sem - ez teves. A zarolas a
+           RECEPT tulajdonsaga, es a leggyakoribb uj eset a meg nem tanult
+           SAJAT recept, ahol tanulas utan rad is vonatkozik. Ilyenkor buborek
+           JAR, mert a jelzo 1-et mutat, az alapanyagod viszont tobbre eleg -
+           ez pontosan az az eset, amikor a valosag elter a kijelzettol. */
+        const masé = !magadGyartod(r);
+        if (n === null && !masé) return "";
+        if (n !== null && n > 0) {
             /* Zárolt receptből egyszerre csak egy indítható, akárhány
                darabra van alapanyagod - a játékban is így működik. A jelzőn
                ezért 1 áll, a tényleges készlet a buborékban marad meg. */
@@ -3719,37 +3807,56 @@ li.collapsed > .node > .toggle::before{ content:"+" }
                 + `${esc(T("max_szam_cimke"))} <b>${esc(String(mutat))}</b></span>`;
         }
 
-        const akadalyKeszlet = Object.assign({}, raktar);
-        delete akadalyKeszlet[id];
-        const akadaly = elsoIdegen(id, akadalyKeszlet);
-        if (!akadaly) return "";
-
         /* t37: EDDIG itt mindig a "nem te gyártod" mondat állt, és elhallgatta,
            hogy minden más megvan hozzá. Ha a más mesterségébe tartozó lépés az
-           EGYETLEN akadály a kért darabszámnál, akkor a szám a hasznosabb: azt
-           mondja meg, mennyit tudnál gyártani, ha az meglenne. A magyarázat a
-           buborékba kerül.
+           EGYETLEN akadály, akkor a szám a hasznosabb: azt mondja meg, mennyit
+           tudnál gyártani, ha az meglenne. A magyarázat a buborékba kerül.
 
-           Ha a kért darabszámnál rajta kívül IS hiányzik valami, a szám
-           félrevezető lenne - azt sugallná, hogy csak várni kell, pedig
-           gyűjteni is. Olyankor marad a régi mondat. */
-        /* t40: A SZAM NEM FUGG A KERT DARABSZAMTOL. Ez a zold Max viselkedese
+           t40: A SZAM NEM FUGG A KERT DARABSZAMTOL. Ez a zold Max viselkedese
            is: ha 9-et kersz es 8 a plafon, a "Max: 8" ott marad - pont az a
            haszna, hogy megmondja, hol a hatar. Egy koron at a rez szamot a
            kert darabszamhoz kotottem, es 3-nal eltunt, pedig az ertek
            valtozatlan volt. Az a kotes hibas volt.
 
-           A KET SZAM NEM UGYANAZT JELENTI:
+           A KET SZIN NEM UGYANAZT JELENTI:
              zold - most azonnal elindithatod
-             rez  - a te oldaladrol minden megvan, de addig nem indul, amig
-                    valaki mas le nem gyartja a koztes lepest
-           Ezert kell ket szin: a szam ugyanaz, a jelentese nem.
+             rez  - a te oldaladrol ennyi telik, de valami mas akadalyozza
 
-           Ha rajta kivul IS hianyzik valami, a szam nulla, es nem irunk ki
-           semmit - olyankor a fa mondja meg soronkent, mi kell. A magyarazo
-           mondat a buborekban el tovabb. */
+           Ha az alapanyagod egyre sem eleg, a szam nulla, es nem irunk ki
+           semmit - olyankor a fa mondja meg soronkent, mi kell. */
         const m = maxDbIdegenNelkul(id);
         if (m === null || m < 1) return "";
+
+        /* t49: HA MAGA A RECEPT NEM A TIED, nincs mit megnevezni a fa melyen -
+           az akadaly a fejlecben all. Buborek nelkul.
+
+           A ZAROLAST VISZONT ITT IS FIGYELEMBE VESSZUK, es ezt az A/15 proba
+           mutatta meg. Eloszor ugy terveztem, hogy "ha a recept nem a tied, a
+           zarolasa sem a tied" - ez teves. A zarolas a RECEPT tulajdonsaga,
+           nem a tied: aki legyartja, az is egyszerre egyet tud. Es a leggyakoribb
+           eset nem is az idegen mesterseg, hanem a meg nem tanult SAJAT recept,
+           ahol a zarolas tanulas utan rad is vonatkozik.
+
+           Ilyenkor a buborek MEGJELENIK, mert a zarolas oka nem latszik a
+           fejlecben, es mert a jelzo mast mutat, mint a valosag: egyet, holott
+           az alapanyagod tobbre eleg. Ugyanaz a szoveg, mint a zold agon. */
+        if (masé) {
+            const mutatM = zarolt ? 1 : m;
+            const cimM = zarolt ? ` title="${esc(T("max_cim_zarolt", { n: m }))}"` : "";
+            return `<span class="maxj varakozik"${cimM}>`
+                + `${esc(T("max_szam_cimke"))} <b>${esc(String(mutatM))}</b></span>`;
+        }
+
+        const akadalyKeszlet = Object.assign({}, raktar);
+        delete akadalyKeszlet[id];
+        /* A SORREND ITT SZAMIT. Az elsoIdegen() csak akkor talal valamit, ha
+           egy KOZTES lepes tartozik mas mesterseghez; ha a sajat mestersegedbe
+           tartozo receptet csak nem tanultad meg vagy nem ered el szintben,
+           null-t ad, a `!magadGyartod(r) return` agan. Ha ez az ellenorzes a
+           mase ag ELOTT allna, ket uj esetet nemitana el. */
+        const akadaly = elsoIdegen(id, akadalyKeszlet);
+        if (!akadaly) return "";
+
         const mutat = zarolt ? 1 : m;
         return `<span class="maxj varakozik" title="${esc(T("max_nincs", { nev: nameOf(akadaly) }))}">`
             + `${esc(T("max_szam_cimke"))} <b>${esc(String(mutat))}</b></span>`;
@@ -3800,6 +3907,51 @@ li.collapsed > .node > .toggle::before{ content:"+" }
         if (db < 1 || db > hatar) return { ok: false, kod: "tul_sok", hatar: hatar };
 
         return { ok: true, rid: rid, hatar: hatar };
+    }
+
+    /* t48: UGRÁS EGY KÖZTES RECEPTRE A FÁBÓL.
+
+       A munkalap átvált a megadott receptre, EGY darabbal - nem azzal a
+       mennyiséggel, ami a fában állt. A natív ablak is így viselkedik, és
+       az egy darab a semleges kiindulás: ha többet akarsz, átírod.
+
+       VISSZAÚT SZÁNDÉKOSAN NINCS. Egy morzsasor vagy vissza-nyíl állandó
+       felület lenne egy alkalmi igényre: ott ülne minden ugrás után akkor is,
+       amikor eszedbe sem jut visszamenni. Aki vissza akar térni, a bal oldali
+       listából választ, vagy mentett tervet nyit.
+
+       A TERV EMIATT ELVÉSZ, és ez tudatos. A szabály cserébe tanulható:
+       kattintás cserél, a + gomb hozzáad. Aki meg akarja tartani, ment.
+
+       MÁS MESTERSÉGRE IS UGRIK. A bal oldali lista mesterségre szűr, ezért a
+       szűrőt is átállítjuk - különben a kiválasztott recept nem is látszana a
+       listában. A szűrő beállítás, tehát mentjük is.
+
+       ZÁROLT ÉS MEG NEM TANULT RECEPTRE IS UGRIK: a munkalap úgyis megmutatja
+       az állapotot, és épp azért nézel oda, hogy lásd. */
+    function ugorj(id) {
+        const r = recipeMap.get(String(id));
+        if (!r) return;
+        tervek = [];
+        valasztott = String(id);
+        const p = profIds(r.p);
+        if (szuroProf !== null && !p.includes(szuroProf)) {
+            szuroProf = p[0];
+            beall.prof = szuroProf; profBeallt = true; ment();
+            rajzolChips();
+        }
+        /* A keresőmezőt ürítjük, különben a cél kimaradhat a bal oldali
+           listából, és a kiemelés sehol nem látszana. A keresoUrit() itt NEM
+           jó: az a mezőre teszi a fókuszt, ami ugrás után elvenné a figyelmet
+           a munkalapról. */
+        const km = $("kereso");
+        if (km && km.value) {
+            km.value = "";
+            const kt = $("ktorol");
+            if (kt) kt.hidden = true;
+        }
+        rajzolReceptek();
+        rajzolMunkalap();
     }
 
     /* A gyártás gomb a léptető sorában, a Max jelző után. Csak az EGYCÉLÚ
@@ -3975,35 +4127,62 @@ li.collapsed > .node > .toggle::before{ content:"+" }
         return { raktarbol: raktarbol, megrendelt: megrendelt };
     }
 
+    /* t47: A NYERS RAKTÁRI KÉSZLET.
+
+       A fa sorai eddig azt írták ki, MENNYIT HASZNÁL EL a terv a raktárból -
+       csakhogy azt a sor bal oldalán álló "3 ×" már megmondja. A böngésző
+       felhasználó azt nem látta sehol, hogy MENNYI VAN a táskájában. A játék
+       natív buborékja kiírja, nálunk nem volt hol megnézni.
+
+       Ez a függvény a nyers készletet adja: annyi, amennyi most a táskádban
+       van. NEM fogy a lánc mentén, tehát ha egy alapanyag két ágban is
+       szerepel, mindkét sorban ugyanaz a szám áll. NEM tartalmazza a
+       megbízásokat - azok külön, csillaggal jelennek meg. És NEM érinti a
+       kizárás pipa sem: attól, hogy a meglévő darabok nem számítanak bele a
+       tervbe, a raktáradban ott vannak. */
+    function faKeszlet(csp) { return Number(raktar[String(csp.id)] || 0); }
+
     function faVanSzoveg(csp) {
-        if (!csp.van) return "";
+        /* t48: A NULLA IS KIÍRÁSRA KERÜL. Eddig itt egy korai kilépés állt,
+           `if (!csp.van) return ""`, ezért az a sor, amiből semmi nincs
+           raktáron, elhallgatta a készletet: a "Sarló 4 raktáron · még 46
+           kell" alatt a "Sastoll még 150 kell" állt, nulla nélkül. A szabály
+           így csak félig állt. Mostantól minden soron ott a szám. */
         const b = faBontas(csp);
-        if (!b) return esc(T("fa_raktarbol", { n: csp.van })) + " · ";
-        const reszek = [];
-        if (b.raktarbol > 0) reszek.push(esc(T("fa_raktarbol", { n: b.raktarbol })));
-        reszek.push(esc(T("fa_megrendelve", { n: b.megrendelt })) + '<span class="csill">*</span>');
-        return reszek.join(", ") + " · ";
+        if (!b) return esc(T("fa_raktarbol", { n: faKeszlet(csp) })) + " · ";
+        /* t47: a nulla is kiírásra kerül. Eddig, ha semmi nem volt raktáron,
+           a sor csak a megrendelt darabot mutatta, és a nullát a felhasználónak
+           kellett kikövetkeztetnie. Egy karakterrel hosszabb, cserébe a szabály
+           feltétel nélküli: minden soron ott a készlet. */
+        return esc(T("fa_raktarbol", { n: faKeszlet(csp) })) + ", "
+             + esc(T("fa_megrendelve", { n: b.megrendelt })) + '<span class="csill">*</span>'
+             + " · ";
     }
 
     function faMegvanSzoveg(csp) {
         const b = faBontas(csp);
-        if (!b) return esc(T("fa_megvan", { n: csp.van }));
-        if (b.raktarbol <= 0)
-            return esc(T("fa_megrendelve", { n: b.megrendelt })) + '<span class="csill">*</span>'
-                 + " · " + esc(T("fa_megvan_rovid"));
-        return esc(T("fa_raktarbol", { n: b.raktarbol })) + ", "
+        if (!b) return esc(T("fa_megvan", { n: faKeszlet(csp) }));
+        return esc(T("fa_raktarbol", { n: faKeszlet(csp) })) + ", "
              + esc(T("fa_megrendelve", { n: b.megrendelt })) + '<span class="csill">*</span>'
              + " · " + esc(T("fa_megvan_rovid"));
     }
 
-    function faFedveSzoveg(csp) {
-        const b = faBontas(csp);
-        if (!b) return T("fa_raktarbol_fedezve");
-        if (b.raktarbol <= 0)
-            return esc(T("fa_megrendelve", { n: b.megrendelt })) + '<span class="csill">*</span>';
-        return esc(T("fa_raktarbol", { n: b.raktarbol })) + ", "
-             + esc(T("fa_megrendelve", { n: b.megrendelt })) + '<span class="csill">*</span>';
-    }
+    /* t48: A faFedveSzoveg MEGSZŰNT.
+
+       A teljesen fedett gyártott csomópontra külön mondat állt, szám nélkül:
+       "raktárból fedezve". A t47 mindenütt átírta a "raktárból" szót
+       "raktáron"-ra és mindenütt kitette a készletszámot, EZ AZ EGY KULCS
+       viszont kimaradt, mert nem volt benne {n} helyőrző. A fában így két
+       nyelv élt egymás mellett.
+
+       A megbízásos ágon a két függvény amúgy is szó szerint egyezett,
+       egyetlen különbséggel: a faMegvanSzoveg a végére teszi a "megvan"
+       szót. Az első ág egységesítésével a kettő teljesen azonossá vált,
+       ezért a faFedveSzoveg és a fa_raktarbol_fedezve kulcs is elhagyható.
+
+       Nem veszítünk vele: a gyártott sor "100× gyártás"-t ír, ha gyártani
+       kell; ha helyette "5 raktáron · megvan" áll, ugyanúgy kiderül, hogy
+       nincs teendő - és még azt is megmondja, mennyi van. */
 
     /* HONNAN VAN, AMI MEGVAN - MINDEN ÁGON.
 
@@ -4019,10 +4198,8 @@ li.collapsed > .node > .toggle::before{ content:"+" }
        "118 raktárból": olyan állítás, aminek nincs valóságtartalma. */
     function faHonnan(csp) {
         const b = faBontas(csp);
-        if (!b) return esc(T("fa_raktarbol", { n: csp.van }));
-        if (b.raktarbol <= 0)
-            return esc(T("fa_megrendelve", { n: b.megrendelt })) + '<span class="csill">*</span>';
-        return esc(T("fa_raktarbol", { n: b.raktarbol })) + ", "
+        if (!b) return esc(T("fa_raktarbol", { n: faKeszlet(csp) }));
+        return esc(T("fa_raktarbol", { n: faKeszlet(csp) })) + ", "
              + esc(T("fa_megrendelve", { n: b.megrendelt })) + '<span class="csill">*</span>';
     }
 
@@ -4048,8 +4225,8 @@ li.collapsed > .node > .toggle::before{ content:"+" }
                            title="${esc(T("tanul_gomb"))}">${esc(T("tanul_gomb"))}</span>` : "")
                 : "")
             + (csp.t ? zarJelzo(csp.id, csp.t) : "")
-            + (fedve ? `<span class="mt ok">${faFedveSzoveg(csp)}</span>`
-                     : `<span class="mt">${csp.van ? faHonnan(csp) + " · " : ""}${esc(T("fa_gyartas", { n: csp.adag }))}</span>`);
+            + (fedve ? `<span class="mt ok">${faMegvanSzoveg(csp)}</span>`
+                     : `<span class="mt">${faHonnan(csp)} · ${esc(T("fa_gyartas", { n: csp.adag }))}</span>`);
         /* A TELJESEN FEDETT ALAPANYAG is szétbontva. Ez az ág maradt ki
            először: a "198 raktárból · megvan" azt állította, hogy mind a 198
            a raktáradban van, pedig 46 megbízásból jött. A hiba csak akkor
@@ -4062,7 +4239,10 @@ li.collapsed > .node > .toggle::before{ content:"+" }
           <div class="${oszt}">${gy ? `<button class="toggle" aria-label="${T("fa_ag_aria")}"></button>`
                                     : `<span class="toggle-hely"></span>`}
             <span class="q">${csp.kell} ×</span>${munkaIkon(csp.id, "sm")}
-            <span class="nm">${munkaNev(csp.id, esc(csp.nev))}</span>${meta}</div>
+            <span class="nm">${csp.gyartott && !gyoker
+                ? `<span class="ugro" data-ugro="${esc(String(csp.id))}" role="button" tabindex="0"
+                     title="${esc(T("fa_ugras_cim"))}">${munkaNev(csp.id, esc(csp.nev))}</span>`
+                : munkaNev(csp.id, esc(csp.nev))}</span>${meta}</div>
           ${gy ? `<ul>${csp.gyerekek.map(x => faHTML(x)).join("")}</ul>` : ""}</li>`;
     }
 
@@ -4590,6 +4770,28 @@ li.collapsed > .node > .toggle::before{ content:"+" }
         /* A tanulás gombjai a receptlistában és a fában is ott lehetnek;
            mindkét helyen ugyanaz a kötés, lásd kotTanul(). */
         kotTanul(fo);
+
+        /* t48: UGRÁS A KÖZTES RECEPTRE.
+
+           A megállás nem alku kérdése: a sor belsejében ülünk, és a sornak
+           saját kezelője lehet, ezért stopPropagation kell - ugyanaz a minta,
+           amit a kotTanul() már megmért.
+
+           A [data-munka] kihagyása biztosíték: ha a játék JobList adata
+           mégis ad munkaforrást egy gyártott termékre, a munkakeresés
+           kezelője az elsőbbség, mert az régebbi és megszokott viselkedés. */
+        fo.querySelectorAll("[data-ugro]").forEach(u => {
+            const ugras = e => {
+                if (e.target.closest && e.target.closest("[data-munka]")) return;
+                e.preventDefault();
+                e.stopPropagation();
+                ugorj(u.dataset.ugro);
+            };
+            u.addEventListener("click", ugras);
+            u.addEventListener("keydown", e => {
+                if (e.key === "Enter" || e.key === " ") ugras(e);
+            });
+        });
 
         fo.querySelectorAll("[data-nezet]").forEach(b =>
             b.addEventListener("click", () => {
