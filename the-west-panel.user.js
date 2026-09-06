@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Crafting Calculator
 // @namespace    the-west-kalkulator-ingame
-// @version      1.2.2
+// @version      1.2.3
 // @description  Crafting calculator inside the game, in a movable window. Reads only data already loaded in the browser.
 // @updateURL    https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/the-west-panel.user.js
 // @downloadURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/the-west-panel.user.js
@@ -29,7 +29,7 @@
 // ==/UserScript==
 
 /* =======================================================================
-   Mesterség-kalkulátor - játékbeli panel, 1.2.2
+   Mesterség-kalkulátor - játékbeli panel, 1.2.3
 
    Mit tud:
      · mozgatható ablak a játék saját ablakkeretében
@@ -1087,7 +1087,7 @@ const SZOVEG = {
 (function () {
     "use strict";
 
-    const VERZIO = "1.2.2";
+    const VERZIO = "1.2.3";
     /* Építésbélyeg. NEM kerül a @version sorba, tehát a frissítésellenőrzést
        nem érinti: az csak a @version sort olvassa. Csak arra való, hogy a
        tesztképernyőképekről egyértelmű legyen, melyik építés látszik.
@@ -7273,62 +7273,42 @@ li.collapsed > .node > .toggle::before{ content:"+" }
                  : "");
     }
 
-    /* t50: ELERHETO-E A MUNKA.
+    /* t52: ELERHETO-E A MUNKA.
 
-       MERVE, ot munkan, ket kepzettsegagon es ket oltozeken:
+       VISSZAVONAS. A t50 feltevese - hogy a munka akkor elerheto, ha a
+       calculateWorkPoints eleri a Beans[id].workpoints kuszobot (ami malus+1)
+       - MERVE HAMISNAK bizonyult. A workpoints NEM elerhetosegi kuszob, hanem
+       a teljes hatekonysaghoz tartozo pont; a munka ez alatt is elvegezheto,
+       csak gyengebb hozammal (a jatek a munkapontbol a tapasztalatot es a
+       talalasi eselyt skalazza, a bronz/ezust/arany csakanyok szerint). A
+       133-as munkan (Zoldfuluek kalauzolasa) a pont 754, a workpoints 831, es
+       a jatek szerint elvegezheto - a regi szabaly tevesen zarta le. 203 munka
+       kozott 15 ilyen fals negativ volt, mind ugyanabban az iranyban.
 
-       A munkapontot a jatek sajat fuggvenye szamolja:
-           CharacterSkills.calculateWorkPoints(jobId, kulcsTomb)
-       A tombben a munka `skills` mezojenek kulcsai allnak, ANNYISZOR
-       ISMETELVE, amennyi a sulyuk. A Maglyarakas skills-e {build:2, punch:2,
-       repair:1}: sulyozas nelkul 1837 jott ki, sulyozva 2760 - es a jatek a
-       masodikat mutatta.
+       A jatek sajat valasza a Beans[id].isVisible: 203-bol 165 igaz, 38 hamis,
+       tehat valodi jel, es a 15 elteres MINDEGYIKENEL az isVisible a helyes
+       (a munka megy). A regi szabaly ennek szigoru reszhalmaza volt: sosem
+       adott fals pozitivot, de 15 fals negativot igen. Ezert a jelzest az
+       isVisible-re allitjuk at.
 
-       A KUSZOB a Beans[id].workpoints, ami MINDIG malus + 1. Negy munkan
-       kivetel nelkul. Ezert a malus onmagaban egyet tevedne - a jatek
-       buborekja epp ennyivel tert el a szamitasunktol, amig ki nem derult.
+       A t50 aggaly (az isVisible kesik oltozeskor) itt vallalhato: a
+       doability-t a szint es a feloldas adja, amit ruha es buff NEM mozgat - a
+       buff a hatekonysagot viszi, nem az elerhetoseget. A maradek res csak egy
+       buff lejarata wear-esemeny nelkul, ami egy gyujtes-tipphez elhanyagolhato;
+       a panel raadasul felszerelescserenel (wear_changed) es ures Beansnel
+       (t51) ugyis frissiti a Beanst masodpercek alatt.
 
-       Az isVisible mezot SZANDEKOSAN nem hasznaljuk, pedig kesz valasz lenne.
-       MERVE: oltozes utan a ruhabonusz azonnal valtott (740 -> 540 egy buff
-       lejartakor), a Beans jobpoints es isVisible viszont a REGIT orizte.
-       Egy jel, ami kesik, jelzesre nem alkalmas - es egy buff lejarata
-       masodpercek alatt billenthet at egy munkat.
-
-       A calculateWorkPoints ezzel szemben a WearSet.getWorkPointAddition-on
-       at a ruhat ES a buffokat is azonnal koveti.
-
-       A SZINT NEM SZAMIT. A job.level azt a szintet adja, ahol a munka ruha
-       nelkul megy; a fejleszto 73-as szinten, 225-os kuszob mellett tudta
-       vegezni a Maglyarakast, mert atoltozott. Kizarasra es jelzesre sem jo. */
+       NULL, ha nem eldontheto (nincs Bean, vagy nem boolean az isVisible):
+       olyankor a szazalek marad, mert a hamis "nem elerheto" rosszabb, mint a
+       semmi. A calculateWorkPoints-ot es a workpoints kuszobot nem hasznaljuk;
+       a szint (job.level) sem szol bele, a doability-t a Bean adja. */
     function munkaElerheto(j) {
         if (!j || j.id == null) return null;
         try {
-            const W = jatek();
-            const CS = W.CharacterSkills;
-            if (!CS || typeof CS.calculateWorkPoints !== "function") return null;
-            if (!j.skills || typeof j.skills !== "object") return null;
-
-            const kulcsok = [];
-            Object.keys(j.skills).forEach(k => {
-                const suly = Number(j.skills[k]) || 1;
-                for (let i = 0; i < suly; i++) kulcsok.push(k);
-            });
-            if (!kulcsok.length) return null;
-
-            const pont = Number(CS.calculateWorkPoints(j.id, kulcsok));
-            if (!isFinite(pont)) return null;
-
-            /* A kuszob a Beans-bol jon; ha az hianyzik, a malus + 1 ugyanazt
-               adja - ezt negy munkan megmertuk. */
-            let kuszob = null;
-            try {
-                const b = W.JobsModel && W.JobsModel.Beans && W.JobsModel.Beans[j.id];
-                if (b && isFinite(Number(b.workpoints))) kuszob = Number(b.workpoints);
-            } catch (e) { kuszob = null; }
-            if (kuszob === null && isFinite(Number(j.malus))) kuszob = Number(j.malus) + 1;
-            if (kuszob === null) return null;
-
-            return pont >= kuszob;
+            const B = jatek().JobsModel && jatek().JobsModel.Beans;
+            const b = B && B[j.id];
+            if (b && typeof b.isVisible === "boolean") return b.isVisible;
+            return null;
         } catch (e) { return null; }
     }
 
