@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Munka gyorsszett
 // @namespace    smcZproject
-// @version      0.5.3
+// @version      0.5.4
 // @description  Tavoli munka betetele gyors szettben, majd visszaoltozes a kiindulasi ruhara. Onallo, kulso script nelkul is fut.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -73,9 +73,13 @@
     'use strict';
 
     var NEV = 'Munka gyorsszett';
-    var VERZIO = '0.5.3';
+    var VERZIO = '0.5.4';
 
     var WEBOLDAL = 'https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/';
+    var FRISS_URL = WEBOLDAL + 'munka-gyorsszett.user.js';
+
+    // Milyen surun nezzuk, van-e uj valtozat, ezredmasodpercben.
+    var FRISS_IDOKOZ = 6 * 60 * 60 * 1000;
 
     var KULCS_BEKAPCSOLVA = 'mgy_bekapcsolva';
     var KULCS_SZETT = 'mgy_szett_nev';
@@ -102,6 +106,7 @@
         szettNev: null,
         szettId: null,
         visszaSzettId: null,
+        ujVerzio: null,
         lista: null,
         frissitve: false,
         figyelmeztetve: false
@@ -1285,6 +1290,59 @@
     }
 
     /* ================================================================== */
+    /* Frissiteskereses                                                    */
+    /*                                                                     */
+    /* A Tampermonkey sajat utemben nez frissitest, es a jelzese a bongeszo */
+    /* eszkoztaraban ul, ami jatek kozben konnyen elkerulhetok. Ezert magunk */
+    /* is megnezzuk: letoltjuk a fajlt, es osszevetjuk a @version sorat.     */
+    /* ================================================================== */
+
+    // Verziok osszevetese. Igaz, ha az elso ujabb a masodiknal.
+    function ujabbE(a, b)
+    {
+        var x = String(a).split('.');
+        var y = String(b).split('.');
+        for (var i = 0; i < Math.max(x.length, y.length); i++)
+        {
+            var xi = parseInt(x[i] || '0', 10);
+            var yi = parseInt(y[i] || '0', 10);
+            if (isNaN(xi) || isNaN(yi)) return false;
+            if (xi > yi) return true;
+            if (xi < yi) return false;
+        }
+        return false;
+    }
+
+    function frissitestKeres()
+    {
+        try
+        {
+            fetch(FRISS_URL + '?v=' + Date.now(),
+            {
+                cache: 'no-store'
+            }).then(function (v)
+            {
+                return v.text();
+            }).then(function (szoveg)
+            {
+                var talalat = szoveg.match(/@version\s+(\S+)/);
+                if (!talalat) return;
+                if (!ujabbE(talalat[1], VERZIO)) return;
+                allapot.ujVerzio = talalat[1];
+                naplo('uj valtozat elerheto: ' + allapot.ujVerzio);
+                ikonFrissites();
+            }).catch(function ()
+            {
+                // Nem baj, ha nem megy. Legkozelebb ujra megnezzuk.
+            });
+        }
+        catch (e)
+        {
+            hiba(e, 'frissitestKeres');
+        }
+    }
+
+    /* ================================================================== */
     /* Munkafeldolgozas                                                    */
     /* ================================================================== */
 
@@ -1575,8 +1633,38 @@
     {
         var ikon = $('#mgy_ikon');
         if (!ikon.length) return;
+
         ikon.css('background', allapot.bekapcsolva ? '#2f6f3e' : '#5a4632');
+
+        // Uj valtozat eseten zold keret es egy pott, mint a panelnal.
+        if (allapot.ujVerzio)
+        {
+            ikon.css(
+            {
+                'position': 'relative',
+                'border': '1px solid #7fb08a'
+            });
+            if (!ikon.find('.mgy-pott').length)
+            {
+                $('<span class="mgy-pott"></span>').text('\u2022').css(
+                {
+                    'position': 'absolute',
+                    'right': '-3px',
+                    'top': '-8px',
+                    'color': '#7fb08a',
+                    'font-size': '20px',
+                    'line-height': '1'
+                }).appendTo(ikon);
+            }
+        }
+        else
+        {
+            ikon.css('border', '');
+            ikon.find('.mgy-pott').remove();
+        }
+
         ikon.attr('title', NEV + ' ' + VERZIO +
+            (allapot.ujVerzio ? '<br><span style="color:#7fb08a">Új változat: ' + allapot.ujVerzio + '</span>' : '') +
             '<br>Kattintás: menü' +
             '<br>Gyors szett: ' + (allapot.szettNev || 'nincs beállítva') +
             '<br>Állapot: ' + (allapot.bekapcsolva ? 'bekapcsolva' : 'kikapcsolva') +
@@ -1709,7 +1797,7 @@
             elem.css(
             {
                 'padding': '7px 10px',
-                'color': '#f0d9a8',
+                'color': t.kiemel ? '#7fb08a' : '#f0d9a8',
                 'font-size': t.szinez ? '11px' : '12px',
                 'cursor': 'pointer',
                 'border-bottom': '1px solid #4a3826',
@@ -1750,7 +1838,23 @@
 
     function menuNyit()
     {
-        menuTartalom([
+        var tetelek = [];
+
+        if (allapot.ujVerzio)
+        {
+            tetelek.push(
+            {
+                cimke: 'Frissítés ' + allapot.ujVerzio + ' verzióra',
+                kiemel: true,
+                hivas: function ()
+                {
+                    menuBezar();
+                    window.open(FRISS_URL, '_blank');
+                }
+            });
+        }
+
+        tetelek.push.apply(tetelek, [
         {
             cimke: allapot.bekapcsolva ? 'Kikapcsolás' : 'Bekapcsolás',
             hivas: function ()
@@ -1776,6 +1880,8 @@
                 window.open(WEBOLDAL, '_blank');
             }
         }]);
+
+        menuTartalom(tetelek);
     }
 
     function feluletBekotes()
@@ -1840,6 +1946,9 @@
 
         elkapasBekotes();
         feluletBekotes();
+
+        frissitestKeres();
+        setInterval(frissitestKeres, FRISS_IDOKOZ);
         naplo(NEV + ' ' + VERZIO + ' elindult, allapot: ' + (allapot.bekapcsolva ? 'be' : 'ki') +
             ', gyors szett: ' + (allapot.szettNev || 'nincs beallitva'));
     }
