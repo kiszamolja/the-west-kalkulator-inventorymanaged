@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Munka gyorsszett
 // @namespace    smcZproject
-// @version      0.5.5
+// @version      0.5.6
 // @description  Tavoli munka betetele gyors szettben, majd visszaoltozes a kiindulasi ruhara. Onallo, kulso script nelkul is fut.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -73,7 +73,7 @@
     'use strict';
 
     var NEV = 'Munka gyorsszett';
-    var VERZIO = '0.5.5';
+    var VERZIO = '0.5.6';
 
     var WEBOLDAL = 'https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/';
     var FRISS_URL = WEBOLDAL + 'munka-gyorsszett.user.js';
@@ -1330,6 +1330,24 @@
                 if (!ujabbE(talalat[1], VERZIO)) return;
                 allapot.ujVerzio = talalat[1];
                 naplo('uj valtozat elerheto: ' + allapot.ujVerzio);
+
+                /* Uj valtozatnal a script KIKAPCSOL. Nincs felugro ablak:
+                   amikor legkozelebb ranyitsz a menure, latod a frissitest,
+                   es ott dontesz, hogy telepited vagy visszakapcsolod.
+                   Igy nem fut tovabb csendben egy elavult valtozat, de nem
+                   is szakitunk felbe semmit. */
+                if (allapot.bekapcsolva)
+                {
+                    allapot.bekapcsolva = false;
+                    try
+                    {
+                        localStorage.setItem(KULCS_BEKAPCSOLVA, '0');
+                    }
+                    catch (e)
+                    {}
+                    naplo('a script kikapcsolt, mert uj valtozat erheto el');
+                }
+
                 ikonFrissites();
             }).catch(function ()
             {
@@ -1668,7 +1686,8 @@
         }
 
         ikon.attr('title', NEV + ' ' + VERZIO +
-            (allapot.ujVerzio ? '<br><span style="color:#7fb08a">Új változat: ' + allapot.ujVerzio + '</span>' : '') +
+            (allapot.ujVerzio ? '<br><span style="color:#7fb08a">Új változat: ' + allapot.ujVerzio +
+                ', a script kikapcsolt</span>' : '') +
             '<br>Kattintás: menü' +
             '<br>Gyors szett: ' + (allapot.szettNev || 'nincs beállítva') +
             '<br>Állapot: ' + (allapot.bekapcsolva ? 'bekapcsolva' : 'kikapcsolva') +
