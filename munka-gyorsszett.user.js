@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Munka gyorsszett
 // @namespace    smcZproject
-// @version      0.5.4
+// @version      0.5.5
 // @description  Tavoli munka betetele gyors szettben, majd visszaoltozes a kiindulasi ruhara. Onallo, kulso script nelkul is fut.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -43,7 +43,7 @@
     - A TaskQueue.add a nativ munkaablakbol tombot kap, mas hivoktol egyedi taskot.
     - A munkaablak szorzoja tobb azonos munkat ad at egyszerre, egyetlen tombben.
     - A varosba, erodbe es kuldetesosztohoz setalas ugyanezen az uton jon, walk
-      tipussal. A setataskban NINCS koordinata, csak unitId es tipus, es a
+      tipussal, a hotel pedig sleep tipussal (post: town_id, room). A setataskban NINCS koordinata, csak unitId es tipus, es a
       kliensben nincs olyan nyilvantartas sem, amibol az azonositobol
       koordinata lenne (GameMap.Data, interactiveImages, Town.prototype
       mind megmerve). Ezert setanal tavolsagot nem szamolunk.
@@ -73,7 +73,7 @@
     'use strict';
 
     var NEV = 'Munka gyorsszett';
-    var VERZIO = '0.5.4';
+    var VERZIO = '0.5.5';
 
     var WEBOLDAL = 'https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/';
     var FRISS_URL = WEBOLDAL + 'munka-gyorsszett.user.js';
@@ -1459,6 +1459,8 @@
 
         // Munkanal a tavolsagot merjuk. Setanal nincs cel, es nem is kell:
         // az utjelzo tabla csak akkor jon fel, ha utazni kell.
+        // A seta es a hotel egyarant cel nelkul jon: mindkettonel a jatek
+        // csak akkor kinalja fel, ha tenylegesen utazni kell.
         var seta = !tetel.cel;
         var ido = seta ? null : setaido(tetel.cel);
 
@@ -1470,7 +1472,7 @@
 
         allapot.pillanatkep = wearPillanatkep();
         allapot.visszaSzettId = null;
-        naplo('gyors szett felvetele, ' + (seta ? 'seta' :
+        naplo('gyors szett felvetele, ' + (seta ? tetel.elso.type :
             'setaido ' + Math.round(ido) + ' mp, munkak: ' + tetel.darab));
 
         // Ha van beallitott mentett szett, egyetlen keressel megy. Ha nincs, darabonkent.
@@ -1586,9 +1588,11 @@
                         y: Number(tomb[0].post.y)
                     };
                 }
-                else if (tomb.length === 1 && tomb[0] && tomb[0].type === 'walk')
+                else if (tomb.length === 1 && tomb[0] &&
+                    (tomb[0].type === 'walk' || tomb[0].type === 'sleep'))
                 {
-                    // SETA varosba, erodbe vagy kuldetesosztohoz.
+                    // SETA varosba, erodbe vagy kuldetesosztohoz, illetve
+                    // HOTEL (sleep tipus, a postjaban town_id all).
                     //
                     // Itt NEM szamolunk tavolsagot, es nincs is ra szukseg:
                     // az utjelzo tabla csak akkor jon fel, ha tenylegesen
