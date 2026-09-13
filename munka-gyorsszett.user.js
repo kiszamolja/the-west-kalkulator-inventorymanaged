@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Munka gyorsszett
 // @namespace    smcZproject
-// @version      0.5.1
+// @version      0.5.3
 // @description  Tavoli munka betetele gyors szettben, majd visszaoltozes a kiindulasi ruhara. Onallo, kulso script nelkul is fut.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -14,9 +14,11 @@
 /*
     MUKODES
 
-    1. Elkapjuk a munkat VAGY a setat a TaskQueue.add-ben, mielott bekerulne a sorba.
-    2. Megnezzuk, van-e tenyleges tavolsag a sor vegetol a munka helyeig.
+    1. Elkapjuk a munkat a TaskQueue.add-ben, mielott bekerulne a sorba, es varosorba tesszuk.
+    2. Munkanal megnezzuk, van-e tenyleges tavolsag a sor vegetol a munka helyeig.
     3. Ha nincs, a munka valtozatlanul bemegy, nem oltozunk.
+    3b. Setanal nem merunk tavolsagot: az utjelzo tabla csak akkor jon fel,
+        ha tenylegesen utazni kell, tehat a tavolsag adott.
     4. Ha van, felvesszuk a gyors szettet, es UTANA tesszuk be a munkat.
        Igy a szerver a rovidebb odauttal szamol.
     5. Tobb munka eseten a gyors szett rajtunk marad, es csak a vegen oltozunk vissza.
@@ -41,13 +43,22 @@
     - A TaskQueue.add a nativ munkaablakbol tombot kap, mas hivoktol egyedi taskot.
     - A munkaablak szorzoja tobb azonos munkat ad at egyszerre, egyetlen tombben.
     - A varosba, erodbe es kuldetesosztohoz setalas ugyanezen az uton jon, walk
-      tipussal. A setataskban NINCS koordinata, csak unitId, ezert a celt a
-      Guidepost.show elso ket szamabol jegyezzuk fel.
+      tipussal. A setataskban NINCS koordinata, csak unitId es tipus, es a
+      kliensben nincs olyan nyilvantartas sem, amibol az azonositobol
+      koordinata lenne (GameMap.Data, interactiveImages, Town.prototype
+      mind megmerve). Ezert setanal tavolsagot nem szamolunk.
     - Egy darab sebesseget a speed mezo adja: minel kisebb, annal gyorsabb.
       A pontszam (100 + lovaglas + ms) * (1 + speed / 100).
     - A szettbonuszok szamitanak, ezert nem eleg slotonkent a legjobb darabot valasztani.
 
     AMI ZSAKUTCANAK BIZONYULT
+
+    - A Guidepost.show rateteles figyelese a setacel megjegyzesehez. Egy masik
+      script a fuggvenyt SZOVEGKENT olvassa ki es eval-lal ujra letrehozza,
+      amivel a mi fuggvenyunk elveszti a sajat kornyezetet: a benne szereplo
+      nevek megszunnek letezni, a hivas kivetellel leall, es az utjelzo tablak
+      hasznalhatatlanna valnak. Ezt az utat nem szabad ujra megnyitni.
+      A seta celjanak koordinatajat mashonnan kell elovenni.
 
     - Onallo TaskWalk tetszoleges koordinatara: a post felepul, de a jatek nem teszi a sorba.
       Ezert a seta es a munka nem valaszthato szet, egyetlen munkataskkal dolgozunk.
@@ -62,7 +73,7 @@
     'use strict';
 
     var NEV = 'Munka gyorsszett';
-    var VERZIO = '0.5.1';
+    var VERZIO = '0.5.3';
 
     var WEBOLDAL = 'https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/';
 
@@ -91,7 +102,6 @@
         szettNev: null,
         szettId: null,
         visszaSzettId: null,
-        utolsoCel: null,
         lista: null,
         frissitve: false,
         figyelmeztetve: false
@@ -1275,46 +1285,6 @@
     }
 
     /* ================================================================== */
-    /* Setacel megjegyzese                                                 */
-    /* ================================================================== */
-
-    // A setataskban NINCS koordinata, csak unitId es tipus. A koordinatat a
-    // Guidepost.show elso ket szama hozza, amikor az utjelzo ablak megnyilik.
-    //
-    // A fuggvenyt NEM csereljuk le, csak rateszunk egy reteget, ami feljegyzi
-    // a celt es tovabbhiv. Igy akkor is mukodik, ha mas is atirta, es akkor
-    // sem torik el semmi, ha azt a masikat leveszed.
-    function setacelFigyelo()
-    {
-        try
-        {
-            if (typeof Guidepost === 'undefined' || typeof Guidepost.show !== 'function') return;
-            var eredeti = Guidepost.show;
-            Guidepost.show = function (id, x, y, tipus)
-            {
-                try
-                {
-                    allapot.utolsoCel = {
-                        id: id,
-                        x: Number(x),
-                        y: Number(y),
-                        tipus: tipus
-                    };
-                }
-                catch (e)
-                {
-                    hiba(e, 'setacelFigyelo');
-                }
-                return eredeti.apply(this, arguments);
-            };
-        }
-        catch (e)
-        {
-            hiba(e, 'setacelFigyelo bekotes');
-        }
-    }
-
-    /* ================================================================== */
     /* Munkafeldolgozas                                                    */
     /* ================================================================== */
 
@@ -1429,9 +1399,12 @@
             return;
         }
 
-        var ido = setaido(tetel.cel);
+        // Munkanal a tavolsagot merjuk. Setanal nincs cel, es nem is kell:
+        // az utjelzo tabla csak akkor jon fel, ha utazni kell.
+        var seta = !tetel.cel;
+        var ido = seta ? null : setaido(tetel.cel);
 
-        if (ido < MIN_SETAIDO || allapot.gyorsbanVagyunk)
+        if ((!seta && ido < MIN_SETAIDO) || allapot.gyorsbanVagyunk)
         {
             folytat(tetel);
             return;
@@ -1439,8 +1412,8 @@
 
         allapot.pillanatkep = wearPillanatkep();
         allapot.visszaSzettId = null;
-        naplo('gyors szett felvetele, setaido ' + Math.round(ido) + ' mp, ' +
-            (tetel.elso.type === 'walk' ? 'seta' : 'munkak: ' + tetel.darab));
+        naplo('gyors szett felvetele, ' + (seta ? 'seta' :
+            'setaido ' + Math.round(ido) + ' mp, munkak: ' + tetel.darab));
 
         // Ha van beallitott mentett szett, egyetlen keressel megy. Ha nincs, darabonkent.
         listaBetolt(false, function (lista)
@@ -1555,27 +1528,24 @@
                         y: Number(tomb[0].post.y)
                     };
                 }
-                else if (tomb.length === 1 && tomb[0] && tomb[0].type === 'walk' && tomb[0].post)
+                else if (tomb.length === 1 && tomb[0] && tomb[0].type === 'walk')
                 {
-                    // A setataskban nincs koordinata, csak unitId. A celt az
-                    // utjelzo ablakbol jegyeztuk fel. Ha nem egyezik, vagy nincs,
-                    // nem talalgatunk: a seta valtozatlanul megy.
-                    var u = allapot.utolsoCel;
-                    if (!u || String(u.id) !== String(tomb[0].post.unitId))
-                    {
-                        return eredetiAdd.apply(this, arguments);
-                    }
-                    cel = {
-                        x: u.x,
-                        y: u.y
-                    };
+                    // SETA varosba, erodbe vagy kuldetesosztohoz.
+                    //
+                    // Itt NEM szamolunk tavolsagot, es nincs is ra szukseg:
+                    // az utjelzo tabla csak akkor jon fel, ha tenylegesen
+                    // utazni kell. Ha mar ott allnal, nincs mire kattintani.
+                    // A setataskban egyebkent sincs koordinata, csak unitId,
+                    // es a kliensben nincs olyan nyilvantartas, amibol az
+                    // azonositobol koordinata lenne. Mind a kettot megmertuk.
+                    cel = null;
                 }
                 else
                 {
                     return eredetiAdd.apply(this, arguments);
                 }
 
-                if (!cel.x || !cel.y) return eredetiAdd.apply(this, arguments);
+                if (cel && (!cel.x || !cel.y)) return eredetiAdd.apply(this, arguments);
 
                 varo.push(
                 {
@@ -1869,7 +1839,6 @@
         {}
 
         elkapasBekotes();
-        setacelFigyelo();
         feluletBekotes();
         naplo(NEV + ' ' + VERZIO + ' elindult, allapot: ' + (allapot.bekapcsolva ? 'be' : 'ki') +
             ', gyors szett: ' + (allapot.szettNev || 'nincs beallitva'));
