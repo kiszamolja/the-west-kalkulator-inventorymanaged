@@ -3478,12 +3478,15 @@ html[data-edition="nova"] #panelView .setup-card-script .setup-card-icon {
 
 #panelView .setup-addon-row {
   max-width: 930px;
-  margin: 22px 0 0 auto;
+  min-height: 154px;
+  margin: 28px 0 0 auto;
   padding: 18px 18px 18px 20px;
   display: grid;
   grid-template-columns: 128px minmax(0, 1fr) auto;
   gap: 20px;
   align-items: center;
+  position: relative;
+  overflow: visible;
   color: #2d1a0d;
   border: 1px solid #8d642e;
   border-right-width: 3px;
@@ -3504,7 +3507,9 @@ html[data-edition="nova"] #panelView .setup-card-script .setup-card-icon {
   width: 128px;
   height: 128px;
   position: relative;
+  z-index: 2;
   overflow: hidden;
+  pointer-events: none;
   border: 1px solid rgba(104,66,25,.55);
   background:
     radial-gradient(circle at 50% 45%, rgba(255,245,200,.92), rgba(171,132,68,.36) 58%, rgba(91,55,20,.13) 72%),
@@ -3517,10 +3522,25 @@ html[data-edition="nova"] #panelView .setup-card-script .setup-card-icon {
 #panelView .setup-addon-icon::after {
   content: "";
   position: absolute;
-  inset: 4px;
-  background: url("munka-gyorsszett-szamar.png") center / contain no-repeat;
+  inset: 7px;
+  background: var(--addon-icon) center / contain no-repeat;
   image-rendering: auto;
   filter: drop-shadow(0 7px 5px rgba(63,34,12,.3));
+}
+
+#panelView .setup-addon-market {
+  max-width: 880px;
+  margin-right: auto;
+  margin-left: 0;
+  border-right-width: 1px;
+  border-left-width: 3px;
+  background:
+    linear-gradient(255deg, rgba(255,238,184,.44), transparent 34%),
+    repeating-linear-gradient(0deg, rgba(86,54,20,.035) 0 1px, transparent 1px 9px),
+    radial-gradient(rgba(73,43,15,.12) .65px, transparent .75px),
+    linear-gradient(145deg, #d7c087, #ad8951);
+  background-size: auto, auto, 7px 7px, auto;
+  transform: rotate(-.1deg);
 }
 
 #panelView .setup-addon-row .setup-label {
@@ -3651,6 +3671,24 @@ html[data-edition="nova"] #panelView .setup-addon-row p:not(.setup-label) { colo
     margin-left: auto;
     transform: none;
   }
+
+  #panelView .setup-addon-row {
+    grid-template-columns: 112px minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  #panelView .setup-addon-row .setup-addon-icon {
+    width: 112px;
+    height: 112px;
+  }
+
+  #panelView .setup-addon-row .setup-addon-action {
+    grid-column: 2;
+  }
+
+  #panelView .setup-addon-action {
+    width: min(100%, 320px);
+  }
 }
 
 @media (max-width: 620px) {
@@ -3690,13 +3728,22 @@ html[data-edition="nova"] #panelView .setup-addon-row p:not(.setup-label) { colo
   #panelView .setup-ribbon strong { font-size: 12px; }
   #panelView .setup-manual { margin-top: 34px; }
   #panelView .setup-addon-row {
+    margin-top: 28px;
     grid-template-columns: 1fr;
     gap: 14px;
     padding: 18px;
     text-align: center;
   }
-  #panelView .setup-addon-icon { margin: 0 auto; }
-  #panelView .setup-addon-action { min-width: 0; }
+  #panelView .setup-addon-row .setup-addon-icon {
+    width: 116px;
+    height: 116px;
+    margin: 0 auto;
+  }
+  #panelView .setup-addon-row .setup-addon-action { grid-column: auto; }
+  #panelView .setup-addon-action {
+    width: 100%;
+    min-width: 0;
+  }
 }
 </style>
 
@@ -3904,8 +3951,8 @@ html[data-edition="nova"] #panelView .setup-addon-row p:not(.setup-label) { colo
     </div>
   </aside>
 
-  <aside class="setup-addon-row" aria-labelledby="quickSetTitle">
-    <span class="setup-addon-icon" aria-hidden="true"></span>
+  <aside class="setup-addon-row setup-addon-quickset" aria-labelledby="quickSetTitle">
+    <span class="setup-addon-icon" style="--addon-icon:url('munka-gyorsszett-szamar.png')" aria-hidden="true"></span>
     <div>
       <p class="setup-label">Műhelyi segédszkript</p>
       <h2 id="quickSetTitle">Munka gyorsszett</h2>
@@ -3913,6 +3960,18 @@ html[data-edition="nova"] #panelView .setup-addon-row p:not(.setup-label) { colo
     </div>
     <a class="setup-action setup-addon-action" href="munka-gyorsszett.user.js" target="_blank" rel="noopener">
       Munka gyorsszett telepítése <span aria-hidden="true">↓</span>
+    </a>
+  </aside>
+
+  <aside class="setup-addon-row setup-addon-market" aria-labelledby="procurementTitle">
+    <span class="setup-addon-icon" style="--addon-icon:url('beszerzoi-lista-piac.png')" aria-hidden="true"></span>
+    <div>
+      <p class="setup-label">Játékon belüli segédszkript · lista és piac</p>
+      <h2 id="procurementTitle">Beszerzői lista és piac</h2>
+      <p>Egy helyen tartja, kinek miből mennyi kell, követi a készletet és a hátralévő munkát, egy kattintással munkára küld. Piaci funkciót is tartalmaz, ehhez városban kell tartózkodnod.</p>
+    </div>
+    <a class="setup-action setup-addon-action" href="the-west-beszerzo.user.js" target="_blank" rel="noopener">
+      Beszerzői lista telepítése <span aria-hidden="true">↓</span>
     </a>
   </aside>
 
