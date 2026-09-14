@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Beszerzés-követő
 // @namespace    the-west-beszerzo-ingame
-// @version      0.7.13
+// @version      0.7.14
 // @description  Termékbeszerzési feladatok követése a játékon belül: kinek, miből mennyit, mennyi van meg, hány munkaóra hátra, egy kattintással munkára küld, és a kész tételt a játék piacán is felajánlja.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -66,7 +66,7 @@
 (function () {
     "use strict";
 
-    const VERZIO = "0.7.13";
+    const VERZIO = "0.7.14";
 
     /* A fajlnev ALLANDO, nem tartalmaz verziot: igy a repoban mindig ugyanaz
        a fajl frissul, es a Tampermonkey kovetni tudja. A verzio csak a
@@ -2135,38 +2135,30 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
 :host([data-tema="pult"]) .bar.automata,
 :host([data-tema="modern"]) .bar.automata,
 :host([data-tema="midnight"]) .bar.automata{
-  background:#a8341c; animation:autoLukt 1.3s ease-in-out infinite }
+  background:#a8341c }
 
-@keyframes autoLukt{
-  0%, 100% { background:#a8341c }
-  50%      { background:#d4482a }
-}
-
-/* Marching ants: negy elre kitett csikos hatter, amit folyamatosan
-   eltolunk. Igy tenyleg korbefut a panel kerulete menten. */
+/* A panel kore nyugodt, luktetó derenges. Korabban csikos "futo keret"
+   volt, de az olcso hatast keltett es a lekerekitett sarkoknal megtort. */
 :host .frame.automata{
-  background-image:
-    linear-gradient(90deg, #ff4b22 52%, transparent 0),
-    linear-gradient(90deg, #ff4b22 52%, transparent 0),
-    linear-gradient(0deg,  #ff4b22 52%, transparent 0),
-    linear-gradient(0deg,  #ff4b22 52%, transparent 0);
-  background-repeat:repeat-x, repeat-x, repeat-y, repeat-y;
-  background-size:20px 4px, 20px 4px, 4px 20px, 4px 20px;
-  background-position:0 0, 0 100%, 0 0, 100% 0;
-  animation:futoKeret .55s linear infinite;
-  box-shadow:0 0 0 2px rgba(255,75,34,.35), 0 0 18px rgba(255,75,34,.30) }
+  animation:autoDereng 2s ease-in-out infinite }
 
-@keyframes futoKeret{
-  100% { background-position:40px 0, -40px 100%, 0 -40px, 100% 40px }
+@keyframes autoDereng{
+  0%, 100% { box-shadow:0 0 0 2px rgba(168,52,28,.55), 0 0 10px rgba(168,52,28,.25) }
+  50%      { box-shadow:0 0 0 4px rgba(168,52,28,.30), 0 0 26px rgba(168,52,28,.45) }
 }
 
-:host .bar.automata .mark, :host .bar.automata .mark span, :host .bar.automata .ver,
-:host .bar.automata .piac-auto > span, :host .bar.automata .tema-gomb,
-:host .bar.automata .mark-jel{ color:#fff }
-:host .bar.automata .tema-gomb{ border-color:rgba(255,255,255,.45); background:transparent }
-:host .bar.automata .tema-gomb[aria-pressed="true"]{ background:rgba(255,255,255,.22) }
-:host .bar.automata .piac-auto-kapcs.on{ background:#fff; color:var(--rust);
+/* Voros alapon MINDEN felirat feher, es a csoportok kapnak egy sotet
+   alatetet, kulonben a vilagos temak sajat szinei belevesznek. */
+:host .bar.automata .mark, :host .bar.automata .mark span, :host .bar.automata .mark-jel,
+:host .bar.automata .ver, :host .bar.automata .piac-auto > span,
+:host .bar.automata .tema-gomb{ color:#fff }
+:host .bar.automata .ver{ opacity:.8 }
+:host .bar.automata .piac-auto{ background:rgba(0,0,0,.22); border-radius:6px; padding:2px 4px 2px 9px }
+:host .bar.automata .tema-gomb{ border-color:rgba(255,255,255,.5); background:transparent }
+:host .bar.automata .tema-gomb[aria-pressed="true"]{ background:rgba(255,255,255,.25); font-weight:700 }
+:host .bar.automata .piac-auto-kapcs.on{ background:#fff; color:#a8341c;
   border-color:#fff; font-weight:800 }
+:host .bar.automata .frissjel{ border-color:#fff }
 
 .piacsor .preszlet{ grid-column:1 / -1; margin:8px 0 2px; padding-top:8px;
   border-top:1px dashed var(--line) }
@@ -3592,7 +3584,10 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         const fj = gyoker.getElementById("frissJel");
         if (!fj || fj.dataset.kotve) return;
         fj.dataset.kotve = "1";
-        fj.addEventListener("click", () => { frissitestMegnyit(); });
+        /* MERT hiba volt: a host-ra kotott pointerdown kezelo (ami a panelt
+           elore hozza) elkapja az esemenyt, ezert a gombig mar nem jut el a
+           click. A pointerdown viszont igen, meressel igazolva. */
+        fj.addEventListener("pointerdown", e => { e.stopPropagation(); frissitestMegnyit(); });
     }
 
     /* A telepito megnyitasa.
