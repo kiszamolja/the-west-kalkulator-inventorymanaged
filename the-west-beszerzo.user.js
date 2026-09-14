@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Beszerzés-követő
 // @namespace    the-west-beszerzo-ingame
-// @version      0.7.9
+// @version      0.7.11
 // @description  Termékbeszerzési feladatok követése a játékon belül: kinek, miből mennyit, mennyi van meg, hány munkaóra hátra, egy kattintással munkára küld, és a kész tételt a játék piacán is felajánlja.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -65,7 +65,7 @@
 (function () {
     "use strict";
 
-    const VERZIO = "0.7.9";
+    const VERZIO = "0.7.11";
 
     /* A fajlnev ALLANDO, nem tartalmaz verziot: igy a repoban mindig ugyanaz
        a fajl frissul, es a Tampermonkey kovetni tudja. A verzio csak a
@@ -1251,8 +1251,20 @@
                 return kesz(false);
             }
 
+            /* Az esemenyt a JATEK sajat ablakabol gyartjuk.
+               MERT hiba volt: a Tampermonkey homokozojaban letrehozott
+               MouseEvent mas osztaly, mint az oldale, ezert a jatek jQuery-je
+               figyelmen kivul hagyta. A legordulo kinyilt, de a valasztas nem
+               hajtodott vegre. Konzolbol ugyanez mukodott, mert ott az oldal
+               sajat MouseEvent-je keszult. */
+            const W = jatek();
+            const EsemenyOsztaly = (W && W.MouseEvent) ? W.MouseEvent : MouseEvent;
+
             ["pointerdown", "mousedown", "mouseup", "click"].forEach(tip => {
-                try { cel.dispatchEvent(new MouseEvent(tip, { bubbles: true, cancelable: true, view: window })); }
+                try {
+                    cel.dispatchEvent(new EsemenyOsztaly(tip,
+                        { bubbles: true, cancelable: true, view: W || window }));
+                }
                 catch (e) { /* megyunk tovabb */ }
             });
 
@@ -2094,11 +2106,29 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
   color:var(--dim); border-radius:5px; width:26px; padding:3px 0; font:inherit; font-size:12px; cursor:pointer }
 .piacnapok .pnap:hover{ border-color:var(--brass); color:var(--ink) }
 .piacnapok .pnap.aktiv{ border-color:var(--green); background:var(--fill); color:var(--green); font-weight:600 }
-.bar .frissjel{ display:none; appearance:none; border:1px solid var(--green); background:var(--fill);
-  color:var(--green); border-radius:5px; padding:2px 8px; margin-left:6px;
-  font:inherit; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap }
+/* FRISSITESJELZES. Nem az egesz ablak luktet, csak a gomb: a figyelem ott
+   marad, ahol a teendo van, es kozben dolgozni is lehet a panelben. */
+.bar .frissjel{ display:none; appearance:none; border:1px solid var(--green);
+  background:var(--green); color:#fff; border-radius:6px; padding:6px 14px; margin-left:6px;
+  font:inherit; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap;
+  animation:frisslukt 1.6s ease-in-out infinite; transform-origin:center }
 .bar .frissjel.lathato{ display:inline-block }
-.bar .frissjel:hover{ background:var(--green); color:#fff }
+.bar .frissjel:hover{ background:#2f6140; animation:none; transform:scale(1.04) }
+@keyframes frisslukt{
+  0%, 100% { transform:scale(1) }
+  50%      { transform:scale(1.06) }
+}
+
+/* AUTOMATA PIACRA RAKAS. Ez kockazatos allapot, mert a script magatol nyomja
+   meg az Igen gombot, ezert az EGESZ fejlec atszinezodik. Nem mozog, tehat
+   nem faraszto, viszont nem lehet elfelejteni. */
+.bar.automata{ background:var(--rust) }
+.bar.automata .mark, .bar.automata .mark span, .bar.automata .ver,
+.bar.automata .piac-auto > span, .bar.automata .tema-gomb{ color:#fff }
+.bar.automata .mark-jel{ color:#fff }
+.bar.automata .tema-gomb{ border-color:rgba(255,255,255,.45) }
+.bar.automata .piac-auto-kapcs.on{ background:#fff; color:var(--rust);
+  border-color:#fff; font-weight:800 }
 
 .piacsor .preszlet{ grid-column:1 / -1; margin:8px 0 2px; padding-top:8px;
   border-top:1px dashed var(--line) }
@@ -3512,7 +3542,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         if (!fj) return;
         if (ujVerzio) {
             fj.classList.add("lathato");
-            fj.textContent = "\u25CF " + ujVerzio;
+            fj.textContent = "\u25CF \u00DAj: " + ujVerzio;
             fj.title = "\u00DAj v\u00E1ltozat: " + ujVerzio + ". Kattints a friss\u00EDt\u00E9shez.";
         } else {
             fj.classList.remove("lathato");
@@ -4008,6 +4038,8 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
                 t.setAttribute("title", beall.automataPiac
                     ? "BE: a Piacra gomb után az Igen kattintást is elküldi."
                     : "KI: csak kitölti az aukciós ablakot; az Igen gombot te nyomod meg.");
+                const sav = t.closest(".bar");
+                if (sav) sav.classList.toggle("automata", beall.automataPiac);
                 allapot(beall.automataPiac ? "piac_auto_be" : "piac_auto_ki");
                 return;
             }
@@ -4249,7 +4281,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         const frame = document.createElement("div");
         frame.className = "frame";
         frame.innerHTML = `
-          <div class="bar">
+          <div class="bar${beall.automataPiac ? " automata" : ""}">
             <span class="mark"><i class="mark-jel">\u2692\uFE0E</i><span>Beszerz\u00E9s-k\u00F6vet\u0151</span></span>
             <span class="ver">${esc(VERZIO)}${EPITES ? " &middot; " + esc(EPITES) : ""}</span>
             <button type="button" class="frissjel" id="frissJel" data-friss
