@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Beszerzés-követő
 // @namespace    the-west-beszerzo-ingame
-// @version      0.7.14
+// @version      0.7.15
 // @description  Termékbeszerzési feladatok követése a játékon belül: kinek, miből mennyit, mennyi van meg, hány munkaóra hátra, egy kattintással munkára küld, és a kész tételt a játék piacán is felajánlja.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -66,7 +66,7 @@
 (function () {
     "use strict";
 
-    const VERZIO = "0.7.14";
+    const VERZIO = "0.7.15";
 
     /* A fajlnev ALLANDO, nem tartalmaz verziot: igy a repoban mindig ugyanaz
        a fajl frissul, es a Tampermonkey kovetni tudja. A verzio csak a
@@ -2137,14 +2137,15 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
 :host([data-tema="midnight"]) .bar.automata{
   background:#a8341c }
 
-/* A panel kore nyugodt, luktetó derenges. Korabban csikos "futo keret"
-   volt, de az olcso hatast keltett es a lekerekitett sarkoknal megtort. */
+/* A panel kore vastag, luktetó voros derenges. Korabban csikos "futo keret"
+   volt, de az olcso hatast keltett; az elso luktetó valtozat viszont tul
+   vekony es halvany volt, ezert a keret vastagabb es a feny erosebb. */
 :host .frame.automata{
-  animation:autoDereng 2s ease-in-out infinite }
+  animation:autoDereng 1.7s ease-in-out infinite }
 
 @keyframes autoDereng{
-  0%, 100% { box-shadow:0 0 0 2px rgba(168,52,28,.55), 0 0 10px rgba(168,52,28,.25) }
-  50%      { box-shadow:0 0 0 4px rgba(168,52,28,.30), 0 0 26px rgba(168,52,28,.45) }
+  0%, 100% { box-shadow:0 0 0 5px rgba(168,52,28,.95), 0 0 22px rgba(200,60,30,.55) }
+  50%      { box-shadow:0 0 0 9px rgba(212,72,42,.70), 0 0 46px rgba(255,90,50,.75) }
 }
 
 /* Voros alapon MINDEN felirat feher, es a csoportok kapnak egy sotet
