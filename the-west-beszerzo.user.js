@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Beszerzés-követő
 // @namespace    the-west-beszerzo-ingame
-// @version      0.7.11
+// @version      0.7.12
 // @description  Termékbeszerzési feladatok követése a játékon belül: kinek, miből mennyit, mennyi van meg, hány munkaóra hátra, egy kattintással munkára küld, és a kész tételt a játék piacán is felajánlja.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -24,6 +24,7 @@
 // @match        https://*.the-west.se/game.php*
 // @grant        GM_setValue
 // @grant        GM_getValue
+// @grant        GM_openInTab
 // @run-at       document-idle
 // ==/UserScript==
 
@@ -65,7 +66,7 @@
 (function () {
     "use strict";
 
-    const VERZIO = "0.7.11";
+    const VERZIO = "0.7.12";
 
     /* A fajlnev ALLANDO, nem tartalmaz verziot: igy a repoban mindig ugyanaz
        a fajl frissul, es a Tampermonkey kovetni tudja. A verzio csak a
@@ -2122,12 +2123,20 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
 /* AUTOMATA PIACRA RAKAS. Ez kockazatos allapot, mert a script magatol nyomja
    meg az Igen gombot, ezert az EGESZ fejlec atszinezodik. Nem mozog, tehat
    nem faraszto, viszont nem lehet elfelejteni. */
-.bar.automata{ background:var(--rust) }
-.bar.automata .mark, .bar.automata .mark span, .bar.automata .ver,
-.bar.automata .piac-auto > span, .bar.automata .tema-gomb{ color:#fff }
-.bar.automata .mark-jel{ color:#fff }
-.bar.automata .tema-gomb{ border-color:rgba(255,255,255,.45) }
-.bar.automata .piac-auto-kapcs.on{ background:#fff; color:var(--rust);
+/* A temak sajat .bar szabalya erosebb volt ennel, ezert a hatter feher
+   maradt, kozben a betuk feherre valtak. Ezert host-szintu valasztoval
+   mondjuk ki mind a harom temara. */
+:host .bar.automata,
+:host([data-tema="pult"]) .bar.automata,
+:host([data-tema="modern"]) .bar.automata,
+:host([data-tema="midnight"]) .bar.automata{ background:var(--rust) }
+
+:host .bar.automata .mark, :host .bar.automata .mark span, :host .bar.automata .ver,
+:host .bar.automata .piac-auto > span, :host .bar.automata .tema-gomb,
+:host .bar.automata .mark-jel{ color:#fff }
+:host .bar.automata .tema-gomb{ border-color:rgba(255,255,255,.45); background:transparent }
+:host .bar.automata .tema-gomb[aria-pressed="true"]{ background:rgba(255,255,255,.22) }
+:host .bar.automata .piac-auto-kapcs.on{ background:#fff; color:var(--rust);
   border-color:#fff; font-weight:800 }
 
 .piacsor .preszlet{ grid-column:1 / -1; margin:8px 0 2px; padding-top:8px;
@@ -3554,7 +3563,30 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         const fj = gyoker.getElementById("frissJel");
         if (!fj || fj.dataset.kotve) return;
         fj.dataset.kotve = "1";
-        fj.addEventListener("click", () => { window.open(FRISS_URL, "_blank"); });
+        fj.addEventListener("click", () => { frissitestMegnyit(); });
+    }
+
+    /* A telepito megnyitasa.
+
+       MERT hiba volt: a homokozobol hivott window.open nem jutott el a
+       Tampermonkey telepitojeig. Ezert eloszor a GM_openInTab megy, ami
+       kifejezetten erre valo, es csak utana esunk vissza a jatek sajat
+       ablakanak window.open hivasara. */
+    function frissitestMegnyit() {
+        try {
+            if (typeof GM_openInTab === "function") {
+                GM_openInTab(FRISS_URL, { active: true });
+                return;
+            }
+        } catch (e) { /* megyunk tovabb */ }
+
+        try {
+            const W = jatek();
+            if (W && typeof W.open === "function") { W.open(FRISS_URL, "_blank"); return; }
+        } catch (e) { /* megyunk tovabb */ }
+
+        try { window.open(FRISS_URL, "_blank"); }
+        catch (e) { /* nem sikerult */ }
     }
 
     function frissitestKeres() {
