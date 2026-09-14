@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Beszerzés-követő
 // @namespace    the-west-beszerzo-ingame
-// @version      0.7.12
+// @version      0.7.13
 // @description  Termékbeszerzési feladatok követése a játékon belül: kinek, miből mennyit, mennyi van meg, hány munkaóra hátra, egy kattintással munkára küld, és a kész tételt a játék piacán is felajánlja.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -66,7 +66,7 @@
 (function () {
     "use strict";
 
-    const VERZIO = "0.7.12";
+    const VERZIO = "0.7.13";
 
     /* A fajlnev ALLANDO, nem tartalmaz verziot: igy a repoban mindig ugyanaz
        a fajl frissul, es a Tampermonkey kovetni tudja. A verzio csak a
@@ -2123,13 +2123,42 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
 /* AUTOMATA PIACRA RAKAS. Ez kockazatos allapot, mert a script magatol nyomja
    meg az Igen gombot, ezert az EGESZ fejlec atszinezodik. Nem mozog, tehat
    nem faraszto, viszont nem lehet elfelejteni. */
-/* A temak sajat .bar szabalya erosebb volt ennel, ezert a hatter feher
-   maradt, kozben a betuk feherre valtak. Ezert host-szintu valasztoval
-   mondjuk ki mind a harom temara. */
+/* AUTOMATA PIACRA RAKAS - eros figyelmeztetes.
+
+   Ez kockazatos allapot: a script magatol nyomja meg az Igen gombot az
+   aukcios ablakban. Ezert nem eleg egy szinezett fejlec, az egesz panel
+   korul FUTO piros keret megy, es a fejlec luktet.
+
+   A temak sajat .bar szabalya erosebb volt az elozo valtozatnal, ezert
+   maradt feher a hatter. Innentol :host szintu valasztoval mondjuk ki. */
 :host .bar.automata,
 :host([data-tema="pult"]) .bar.automata,
 :host([data-tema="modern"]) .bar.automata,
-:host([data-tema="midnight"]) .bar.automata{ background:var(--rust) }
+:host([data-tema="midnight"]) .bar.automata{
+  background:#a8341c; animation:autoLukt 1.3s ease-in-out infinite }
+
+@keyframes autoLukt{
+  0%, 100% { background:#a8341c }
+  50%      { background:#d4482a }
+}
+
+/* Marching ants: negy elre kitett csikos hatter, amit folyamatosan
+   eltolunk. Igy tenyleg korbefut a panel kerulete menten. */
+:host .frame.automata{
+  background-image:
+    linear-gradient(90deg, #ff4b22 52%, transparent 0),
+    linear-gradient(90deg, #ff4b22 52%, transparent 0),
+    linear-gradient(0deg,  #ff4b22 52%, transparent 0),
+    linear-gradient(0deg,  #ff4b22 52%, transparent 0);
+  background-repeat:repeat-x, repeat-x, repeat-y, repeat-y;
+  background-size:20px 4px, 20px 4px, 4px 20px, 4px 20px;
+  background-position:0 0, 0 100%, 0 0, 100% 0;
+  animation:futoKeret .55s linear infinite;
+  box-shadow:0 0 0 2px rgba(255,75,34,.35), 0 0 18px rgba(255,75,34,.30) }
+
+@keyframes futoKeret{
+  100% { background-position:40px 0, -40px 100%, 0 -40px, 100% 40px }
+}
 
 :host .bar.automata .mark, :host .bar.automata .mark span, :host .bar.automata .ver,
 :host .bar.automata .piac-auto > span, :host .bar.automata .tema-gomb,
@@ -4072,6 +4101,8 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
                     : "KI: csak kitölti az aukciós ablakot; az Igen gombot te nyomod meg.");
                 const sav = t.closest(".bar");
                 if (sav) sav.classList.toggle("automata", beall.automataPiac);
+                const keret = gyoker.querySelector(".frame");
+                if (keret) keret.classList.toggle("automata", beall.automataPiac);
                 allapot(beall.automataPiac ? "piac_auto_be" : "piac_auto_ki");
                 return;
             }
@@ -4311,7 +4342,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         gyoker.appendChild(st);
 
         const frame = document.createElement("div");
-        frame.className = "frame";
+        frame.className = "frame" + (beall.automataPiac ? " automata" : "");
         frame.innerHTML = `
           <div class="bar${beall.automataPiac ? " automata" : ""}">
             <span class="mark"><i class="mark-jel">\u2692\uFE0E</i><span>Beszerz\u00E9s-k\u00F6vet\u0151</span></span>
