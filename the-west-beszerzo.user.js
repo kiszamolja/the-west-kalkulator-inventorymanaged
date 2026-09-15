@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Beszerzés-követő
 // @namespace    the-west-beszerzo-ingame
-// @version      0.7.15
+// @version      0.7.25
 // @description  Termékbeszerzési feladatok követése a játékon belül: kinek, miből mennyit, mennyi van meg, hány munkaóra hátra, egy kattintással munkára küld, és a kész tételt a játék piacán is felajánlja.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -66,7 +66,7 @@
 (function () {
     "use strict";
 
-    const VERZIO = "0.7.15";
+    const VERZIO = "0.7.25";
 
     /* A fajlnev ALLANDO, nem tartalmaz verziot: igy a repoban mindig ugyanaz
        a fajl frissul, es a Tampermonkey kovetni tudja. A verzio csak a
@@ -141,7 +141,8 @@
 
     let beall = {
         osszCsukva: false, magas: null, bal: null, fent: null, tema: "pult", csukott: {},
-        szemelySzuro: [], csakHianyzo: false, automataPiac: false, ful: "beszerzok", keszlethezAd: false
+        szemelySzuro: [], csakHianyzo: false, automataPiac: false, ful: "beszerzok", keszlethezAd: false,
+        piacCel: "vilag", piacNapok: 7
     };
     try {
         const b = JSON.parse(GM_getValue(BEALL_KULCS, "null"));
@@ -154,6 +155,8 @@
     if (typeof beall.automataPiac !== "boolean") beall.automataPiac = false;
     if (beall.ful !== "piac") beall.ful = "beszerzok";
     if (typeof beall.keszlethezAd !== "boolean") beall.keszlethezAd = false;
+    if (["vilag", "varos", "szovetseg"].indexOf(beall.piacCel) === -1) beall.piacCel = "vilag";
+    beall.piacNapok = Math.max(1, Math.min(7, Math.floor(Number(beall.piacNapok) || 7)));
     function beallMent() {
         try { GM_setValue(BEALL_KULCS, JSON.stringify(beall)); } catch (e) { /* nem baj */ }
     }
@@ -1549,6 +1552,29 @@
                beallitast. A legordulok csak akkor allnak at, ha a kert
                ertek eltér az alapertelmezestol, igy a szokasos eset
                egyetlen felesleges lepest sem csinal. */
+            /* AZ IDOTARTAM ES A CELKOZONSEG KOZOS. Korabban csak a Piac fulrol
+               inditott feladas allitotta oket, a fooldali gomb nem, ezert
+               ugyanaz a muvelet mas eredmenyt adott attol fuggoen, honnan
+               inditottad (1 nap es Vilag, szemben a 7 nappal). Most mindketto
+               a beall.piacNapok es a beall.piacCel erteket hasznalja. */
+            {
+                const napok = Math.max(1, Math.min(7,
+                    Math.floor(Number(keszletMod ? f.piacraNapok : beall.piacNapok) || 7)));
+                if (napok !== 1) {
+                    await new Promise(resolve => {
+                        piacLegorduloAllit("market_days", [napok + " nap"], () => resolve());
+                    });
+                }
+
+                const kulcs = String((keszletMod ? f.piacraCel : beall.piacCel) || "vilag");
+                const cel = PIAC_CELOK.find(c => c.kulcs === kulcs);
+                if (cel && cel.kulcs !== "vilag") {
+                    await new Promise(resolve => {
+                        piacLegorduloAllit("market_rights", [cel.minta], () => resolve());
+                    });
+                }
+            }
+
             if (keszletMod) {
                 /* Kulon megadott legkisebb licit. Ha nincs, a lenti kozos ag
                    dont: ugyanazon az aron kint a licit ures marad. */
@@ -1562,19 +1588,6 @@
                     if (amezo && piacMezoBiztosE(keret, amezo)) piacMezoErtek(amezo, aukciok);
                 }
 
-                const napok = Math.max(1, Math.min(7, Math.floor(Number(f.piacraNapok) || 7)));
-                if (napok !== 1) {
-                    await new Promise(resolve => {
-                        piacLegorduloAllit("market_days", [napok + " nap"], () => resolve());
-                    });
-                }
-
-                const cel = PIAC_CELOK.find(c => c.kulcs === String(f.piacraCel || "vilag"));
-                if (cel && cel.kulcs !== "vilag") {
-                    await new Promise(resolve => {
-                        piacLegorduloAllit("market_rights", [cel.minta], () => resolve());
-                    });
-                }
             }
             /* A kliens egyes változatai csak a mennyiség után írják ki az
                egységárat az aukciós ablakba. */
@@ -2087,10 +2100,12 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
 .ujform .keszkapcs:hover{ border-color:var(--brass); color:var(--ink) }
 .ujform .keszkapcs.aktiv{ border-color:var(--green); background:var(--fill); color:var(--green); font-weight:600 }
 
-.bfej-eszkoz .btorol{ appearance:none; border:1px solid var(--line); background:var(--raised);
-  color:var(--dim); border-radius:5px; cursor:pointer; font:inherit; font-size:11px;
-  line-height:1; padding:3px 6px; margin-left:2px }
-.bfej-eszkoz .btorol:hover{ border-color:var(--rust); color:var(--rust) }
+/* A torlo es a prioritast allito nyilak korabban egybeolvadtak. A torlo
+   MINDIG voroses, sajat alattettel; a nyilak semlegesek maradnak. */
+.bfej-eszkoz .btorol{ appearance:none; border:1px solid var(--rust); background:rgba(168,58,32,.10);
+  color:var(--rust); border-radius:5px; cursor:pointer; font:inherit; font-size:11px;
+  line-height:1; padding:3px 7px; margin-left:8px; font-weight:700 }
+.bfej-eszkoz .btorol:hover{ background:var(--rust); color:#fff; border-color:var(--rust) }
 
 .piacfej{ display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,0.9fr) auto; gap:8px; margin:0 0 6px }
 .piaccel{ display:flex; border:1px solid var(--line); border-radius:5px; overflow:hidden }
@@ -2107,6 +2122,15 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
   color:var(--dim); border-radius:5px; width:26px; padding:3px 0; font:inherit; font-size:12px; cursor:pointer }
 .piacnapok .pnap:hover{ border-color:var(--brass); color:var(--ink) }
 .piacnapok .pnap.aktiv{ border-color:var(--green); background:var(--fill); color:var(--green); font-weight:600 }
+.pkatvalaszto{ margin-left:auto; display:inline-flex; border:1px solid var(--line);
+  border-radius:5px; overflow:hidden }
+.pkatvalaszto .pkat{ appearance:none; border:0; border-left:1px solid var(--line);
+  background:var(--panel); color:var(--dim); font:inherit; font-size:12px;
+  padding:3px 10px; cursor:pointer; white-space:nowrap }
+.pkatvalaszto .pkat:first-child{ border-left:0 }
+.pkatvalaszto .pkat:hover{ color:var(--ink) }
+.pkatvalaszto .pkat.aktiv{ background:var(--fill); color:var(--green); font-weight:600 }
+.piacnapok{ flex-wrap:wrap }
 /* FRISSITESJELZES. Nem az egesz ablak luktet, csak a gomb: a figyelem ott
    marad, ahol a teendo van, es kozben dolgozni is lehet a panelben. */
 .bar .frissjel{ display:none; appearance:none; border:1px solid var(--green);
@@ -2200,13 +2224,20 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
 .piacsor .parjel{ position:absolute; right:-11px; top:50%; transform:translateY(-50%);
   color:var(--rust); font-weight:700; font-size:13px; line-height:1 }
 .piacfejlec{ padding:0 10px 6px; font-size:11px; color:var(--faint); text-transform:none }
+.parnullaz{ letter-spacing:.02em }
 .piacfejlec .jobb, .piacsor .jobb{ text-align:right }
-.piaclista{ border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--panel) }
+/* Csak a LISTA gorgul, a keresok, a napok es az oszlopnevek a helyukon
+   maradnak. A magassagot futasidoben szamoljuk a panel meretebol. */
+.piaclista{ border:1px solid var(--line); border-radius:8px; background:var(--panel);
+  overflow-y:auto; overflow-x:hidden }
 .piacsor{ padding:6px 10px; border-bottom:1px solid var(--line) }
 .piacsor:last-child{ border-bottom:0 }
 .piacsor img{ width:30px; height:30px; object-fit:contain; display:block }
 .piacsor .pnev{ font-size:13px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
 .piacsor .pkeszlet{ font-size:12px; color:var(--dim) }
+/* A szamok kijelolesekor a bongeszo athuzhatova tenne oket, es a szam
+   atcsuszna a szomszedos mezobe. Ezert a huzast kikapcsoljuk. */
+.piacsor input, .preszlet input{ -webkit-user-drag:none; user-drag:none }
 .piacsor input{ width:100%; box-sizing:border-box; text-align:right; font:inherit; font-size:12px;
   padding:4px 6px; border:1px solid var(--line); border-radius:6px; background:var(--panel); color:var(--ink) }
 .piacsor input.atirt{ border-color:var(--brass) }
@@ -2577,6 +2608,182 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
   65%{ box-shadow:0 0 0 6px rgba(89,196,147,0) } 100%{ box-shadow:0 0 0 0 rgba(89,196,147,0) } }
 @media (prefers-reduced-motion:reduce){
   .live-dot,.hero-track i,.psor .track i,.hsor .track i,.statusz .sav>div,.csik i,.bsor.keszlet-friss{ animation:none }
+}
+
+/* Pult téma, a designer 0.7.15a jelű átdolgozásából átvéve.
+   Kizárólag megjelenés: a tárolás, események és ablakkezelés változatlan.
+   A saját fakeret csak a nem natív ablakot érinti. */
+:host([data-tema="pult"]){
+  --bg:#ead7af; --panel:#f4e5c4; --raised:#dfc99c; --line:#b29665;
+  --ink:#352719; --dim:#624b30; --faint:#765c3a;
+  --brass:#80551e; --green:#355f36; --rust:#923b29;
+  --fa:#58391e; --fa2:#302013; --fill:rgba(128,85,30,.12);
+}
+:host([data-tema="pult"]) .frame{
+  font-family:Tahoma,Arial,sans-serif; font-weight:400; text-rendering:auto;
+}
+:host([data-tema="pult"]:not([data-nativ])) .frame{
+  border:3px solid #493019; border-radius:3px;
+  box-shadow:0 0 0 1px #ae8350,0 6px 18px #20130866;
+}
+:host([data-tema="pult"]) .bar:not(.automata){
+  background:linear-gradient(180deg,#654325 0%,#4b301b 48%,#392414 100%);
+  border-bottom:3px solid #ac8249; box-shadow:inset 0 1px 0 #a47b49;
+}
+:host([data-tema="pult"]) .bar{
+  gap:7px; padding:7px 7px 7px 9px;
+}
+:host([data-tema="pult"]) .bar::after{
+  display:none;
+}
+:host([data-tema="pult"]) .mark{
+  font-family:Georgia,serif; font-weight:700; font-size:13px;
+}
+:host([data-tema="pult"]) .bar:not(.automata) .mark{
+  padding:4px 6px; background:linear-gradient(#d5b375,#b28b4d);
+  color:#352414; border:1px solid #24170d; border-radius:1px;
+  box-shadow:inset 0 1px 0 #efdab1; text-shadow:0 1px #ead1a1;
+}
+:host([data-tema="pult"]) .mark-jel{
+  width:18px; height:18px; border:0; border-radius:0;
+  box-shadow:none; color:inherit;
+}
+:host([data-tema="pult"]) .bar:not(.automata) .ver{
+  color:#e0c79a;
+}
+:host([data-tema="pult"]) :is(
+  .tema-gomb,.piac-auto,.piac-auto-kapcs,.mini,.zar
+){
+  border-radius:2px;
+}
+:host([data-tema="pult"]) .tema-gomb[aria-pressed="true"]{
+  box-shadow:inset 0 1px 0 #f3dfb3;
+}
+:host([data-tema="pult"]) .live-dot{
+  animation:none; box-shadow:none;
+}
+:host([data-tema="pult"]:not([data-nativ])) .stage{
+  background:radial-gradient(ellipse at 40% 10%,#fff8df70,transparent 75%),
+    linear-gradient(90deg,#b9955224,transparent 3%,transparent 97%,#b9955224),
+    var(--bg);
+  padding:12px 14px;
+}
+:host([data-tema="pult"]) .fulsor{
+  gap:4px; border-bottom:2px solid var(--line);
+}
+:host([data-tema="pult"]) .fulsor .ful{
+  border:1px solid var(--line); border-bottom:0;
+  border-radius:2px 2px 0 0;
+  background:var(--raised); font-family:Georgia,serif; font-weight:700;
+}
+:host([data-tema="pult"]) .fulsor .ful.aktiv{
+  background:var(--panel); color:var(--rust);
+  box-shadow:inset 0 2px var(--brass);
+}
+:host([data-tema="pult"]) .dash{
+  border:0; border-top:3px double var(--line);
+  border-bottom:3px double var(--line);
+  border-radius:0; background:transparent; box-shadow:none;
+  padding:10px 0 12px;
+}
+:host([data-tema="pult"]) .dash-fej .cim{
+  font-family:Georgia,serif; font-weight:700;
+}
+:host([data-tema="pult"]) .hero-main{
+  border:0; border-right:1px solid var(--line); border-radius:0;
+  background:transparent; box-shadow:none; padding:8px 12px 8px 0;
+}
+:host([data-tema="pult"]) .hero-percent{
+  font-family:Georgia,serif; color:var(--ink);
+}
+:host([data-tema="pult"]) .kpi{
+  border:0; border-bottom:1px solid var(--line); border-radius:0;
+  background:transparent; box-shadow:none; padding:6px 5px;
+}
+:host([data-tema="pult"]) :is(
+  .hero-track,.hero-track i,.track,.track i,.csik,.csik i
+){
+  border-radius:0;
+}
+:host([data-tema="pult"]) .hero-track{
+  border:2px solid #8f7042; background:#d4bd8d; height:13px;
+}
+:host([data-tema="pult"]) .hero-track i{
+  background:linear-gradient(#b3985c,#947239);
+}
+:host([data-tema="pult"]) .hsor .track i{
+  background:#9a7946;
+}
+:host([data-tema="pult"]) .csik{
+  background:#e5d5b1; border-color:#b29a6b;
+}
+:host([data-tema="pult"]) .csik i{
+  background:linear-gradient(#ceb87f,#bea46b);
+}
+:host([data-tema="pult"]) .csik i.kesz{
+  background:linear-gradient(#b6c39a,#9fb17e);
+}
+:host([data-tema="pult"]) .bfej{
+  border-bottom:2px solid var(--line);
+  background:linear-gradient(90deg,#cbb17b55,transparent);
+  padding-left:6px;
+}
+:host([data-tema="pult"]) .bsor{
+  margin-top:0; border:0; border-bottom:1px solid var(--line);
+  border-radius:0; background:transparent; box-shadow:none;
+  padding-top:10px; padding-bottom:10px;
+}
+:host([data-tema="pult"]) .bsor::before{
+  width:2px; border-radius:0; top:12px; bottom:12px;
+}
+:host([data-tema="pult"]) .bsor:hover{
+  background:var(--fill);
+}
+:host([data-tema="pult"]) .bsor .kep{
+  border-radius:1px; border-color:#b39764; background:#eddbb5;
+}
+:host([data-tema="pult"]) :is(
+  input,.gomb,.add,.bujOk,.bplusz,.pgomb,.parnullaz,
+  .szuro-hiany,.szuro-menu summary,.szuro-panel,.jlista,
+  .piaclista,.mbub,.pbub,.csoport-eszkozok button,.preszlet .plicit
+){
+  border-radius:2px;
+}
+:host([data-tema="pult"]) :is(
+  .ujform input,.bujsor input,.piacmezo input,.piacsor input
+){
+  background:#f8edcf; border-color:#a58a59;
+  box-shadow:inset 0 1px 2px #72522e22;
+}
+:host([data-tema="pult"]) :is(.gomb,.pgomb,.bplusz){
+  background:linear-gradient(#eee0bd,#d2b780);
+  border-color:#9f7c43; color:#43301c;
+  box-shadow:inset 0 1px 0 #fff2d5;
+}
+:host([data-tema="pult"]) :is(.gomb.munkab,.ujform .add,.bujOk){
+  background:linear-gradient(#916d3c,#674522);
+  border-color:#4b321b; color:#fff3d8;
+  box-shadow:inset 0 1px 0 #b89561;
+}
+:host([data-tema="pult"]) :is(.gomb.keszpill,.gomb.piacpill){
+  background:#d8dfbc; border-color:var(--green);
+  color:var(--green); box-shadow:none;
+}
+:host([data-tema="pult"]) .gomb.gyart{
+  background:transparent; color:var(--dim);
+  border-style:dashed; box-shadow:none;
+}
+:host([data-tema="pult"]) :is(
+  .gomb,.pgomb,.bplusz,.ujform .add,.bujOk
+):hover:not(:disabled){
+  filter:brightness(1.09);
+}
+:host([data-tema="pult"]) .grip{
+  background:linear-gradient(#644426,#412a17);
+  border-top:2px solid #a17b45;
+}
+:host([data-tema="pult"]) .grip span{
+  background:#c3a06a;
 }
 
 
@@ -3082,8 +3289,28 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         { kulcs: "szovetseg", cimke: "Sz\u00F6vets\u00E9g", minta: "eladas csak a szovetseg" }
     ];
 
+    /* KATEGORIAK. MERT teny: a jatek tizenegy tipust hasznal. A "yield" a
+       termek es alapanyag, a "recipe" a tekercs, a maradek kilenc a viselet
+       (animal, belt, body, foot, head, left_arm, neck, pants, right_arm). */
+    const PIAC_VISELET = ["animal", "belt", "body", "foot", "head",
+                          "left_arm", "neck", "pants", "right_arm"];
+
+    const PIAC_KATEGORIAK = [
+        { kulcs: "mind", cimke: "Mind" },
+        { kulcs: "termek", cimke: "Term\u00E9k" },
+        { kulcs: "viselet", cimke: "Viselet" },
+        { kulcs: "recept", cimke: "Recept" }
+    ];
+
+    function piacKategoria(tipus) {
+        if (tipus === "yield") return "termek";
+        if (tipus === "recipe") return "recept";
+        if (PIAC_VISELET.indexOf(tipus) !== -1) return "viselet";
+        return "egyeb";
+    }
+
     const piacFul = { kereses: "", megjegyzes: "", db: {}, ar: {}, aukcio: {}, licit: {},
-                      cel: "vilag", napok: 7, valasztott: null };
+                      valasztott: null, kategoria: "mind" };
 
     /* A taska tartalma alapazonosito szerint, egy sor egy fajta targy. */
     function piacKeszlet() {
@@ -3104,12 +3331,23 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
                     ikon: targyIkon(id),
                     keszlet: Number(keszlet(id)) || 0,
                     ar: piacArak(id, null, targyNev(id), false).minimum,
-                    adhato: it.auctionable !== false
+                    adhato: it.auctionable !== false,
+                    kat: piacKategoria(it.getType ? it.getType() : it.type)
                 });
             });
         } catch (e) { /* ures lista */ }
         ki.sort((a, b) => String(a.nev).localeCompare(String(b.nev), "hu"));
         return ki;
+    }
+
+    /* A talalatok rendezese kereseskor: eloszor amik a keresett szoval
+       KEZDODNEK, utana amik csak tartalmazzak. Kulonben a "bor" keresesre
+       az abc miatt sok mas targy elozi meg magat a Bort. */
+    function piacRendezoKulcs(sor, q) {
+        const nev = sor.getAttribute("data-pnev") || "";
+        if (!q) return 1;
+        if (nev.indexOf(q) === 0) return 0;
+        return 1;
     }
 
     /* A targyIkon nullt is adhat. Ures src helyett helykitolto negyzet,
@@ -3144,7 +3382,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
 
         if (!t.adhato) {
             return `
-              <div class="piacsor tiltott" data-pnev="${esc(piacNormal(t.nev))}">
+              <div class="piacsor tiltott" data-pnev="${esc(piacNormal(t.nev))}" data-pkat="${esc(t.kat)}">
                 ${piacIkonHTML(t)}
                 <div class="pnev" title="${esc(t.nev)}">${esc(t.nev)}</div>
                 <div class="pkeszlet jobb">${t.keszlet}</div>
@@ -3153,7 +3391,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         }
 
         return `
-          <div class="piacsor" data-pid="${esc(azon)}" data-pnev="${esc(piacNormal(t.nev))}"
+          <div class="piacsor" data-pid="${esc(azon)}" data-pnev="${esc(piacNormal(t.nev))}" data-pkat="${esc(t.kat)}"
                data-pmin="${esc(String(t.ar || 0))}" data-pkeszlet="${esc(String(t.keszlet || 0))}">
             ${piacIkonHTML(t)}
             <div class="pnev" title="${esc(t.nev)}">${esc(t.nev)}</div>
@@ -3233,15 +3471,19 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
                 aria-label="Megjegyz\u00E9s t\u00F6rl\u00E9se"${piacFul.megjegyzes ? "" : " hidden"}>\u2715</button>
             </div>
             <div class="piaccel" role="group" aria-label="Kinek hirdetj\u00FCk meg">
-              ${PIAC_CELOK.map(c => `<button type="button" class="pcel${piacFul.cel === c.kulcs ? " aktiv" : ""}"
-                data-pcel="${c.kulcs}" aria-pressed="${piacFul.cel === c.kulcs ? "true" : "false"}">${c.cimke}</button>`).join("")}
+              ${PIAC_CELOK.map(c => `<button type="button" class="pcel${beall.piacCel === c.kulcs ? " aktiv" : ""}"
+                data-pcel="${c.kulcs}" aria-pressed="${beall.piacCel === c.kulcs ? "true" : "false"}">${c.cimke}</button>`).join("")}
             </div>
           </div>
           <div class="piacnapok">
             <span class="pcimke">Az \u00E1rver\u00E9s id\u0151tartama</span>
-            ${[1, 2, 3, 4, 5, 6, 7].map(n => `<button type="button" class="pnap${piacFul.napok === n ? " aktiv" : ""}"
-              data-pnap="${n}" aria-pressed="${piacFul.napok === n ? "true" : "false"}">${n}</button>`).join("")}
+            ${[1, 2, 3, 4, 5, 6, 7].map(n => `<button type="button" class="pnap${beall.piacNapok === n ? " aktiv" : ""}"
+              data-pnap="${n}" aria-pressed="${beall.piacNapok === n ? "true" : "false"}">${n}</button>`).join("")}
             <span class="pmagy">nap</span>
+            <span class="pkatvalaszto" role="group" aria-label="Kateg\u00F3ria">
+              ${PIAC_KATEGORIAK.map(k => `<button type="button" class="pkat${piacFul.kategoria === k.kulcs ? " aktiv" : ""}"
+                data-pkatv="${k.kulcs}" aria-pressed="${piacFul.kategoria === k.kulcs ? "true" : "false"}">${k.cimke}</button>`).join("")}
+            </span>
           </div>
           <p class="labj piaccel-sug">V\u00E1ros \u00E9s Sz\u00F6vets\u00E9g csak akkor v\u00E1laszthat\u00F3,
             ha a j\u00E1t\u00E9k felaj\u00E1nlja; ha nincs, a Vil\u00E1g marad.</p>
@@ -3251,7 +3493,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             <div class="jobb">Darab</div><div class="jobb">Elad\u00E1si \u00E1r</div>
             <div class="jobb">V\u00E9tel\u00E1r</div>
             <div><button type="button" id="pArNullaz" class="parnullaz${piacVanElteres() ? " elter" : ""}"
-              title="Minden saj\u00E1t \u00E1r, k\u00F6teg \u00E9s licit t\u00F6rl\u00E9se">vissza</button></div>
+              title="Minden saj\u00E1t \u00E1r, k\u00F6teg \u00E9s licit t\u00F6rl\u00E9se">alap</button></div>
           </div>
 
           <div class="piaclista">${sorok}<div class="piacures" id="pUres"${sorok ? " hidden" : ""}>Nincs tal\u00E1lat a k\u00E9szletedben.</div></div>
@@ -3295,8 +3537,8 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
                 const v = Math.round(Number(l.ar));
                 return v > 0 ? v : 0;
             })(),
-            piacraNapok: piacFul.napok,
-            piacraCel: piacFul.cel
+            piacraNapok: beall.piacNapok,
+            piacraCel: beall.piacCel
         }, elem, true);
     }
 
@@ -3326,12 +3568,26 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         const q = piacNormal(piacFul.kereses);
         let talalt = 0;
         let egyetlen = null;
-        gyoker.querySelectorAll(".piaclista .piacsor").forEach(sor => {
+        const lista = gyoker.querySelector(".piaclista");
+        const sorok = [...gyoker.querySelectorAll(".piaclista .piacsor")];
+
+        const kat = piacFul.kategoria;
+        sorok.forEach(sor => {
             const nev = sor.getAttribute("data-pnev") || "";
-            const jo = !q || nev.includes(q);
+            const jo = (!q || nev.includes(q)) &&
+                (kat === "mind" || (sor.getAttribute("data-pkat") || "") === kat);
             sor.hidden = !jo;
             if (jo) { talalt++; if (sor.getAttribute("data-pid")) egyetlen = sor; }
         });
+
+        /* Ujrarendezes: a kezdodo talalatok kerulnek elore. */
+        if (lista && q) {
+            const ures = gyoker.getElementById("pUres");
+            sorok
+                .slice()
+                .sort((a, b) => (piacRendezoKulcs(a, q) - piacRendezoKulcs(b, q)))
+                .forEach(sor => lista.insertBefore(sor, ures || null));
+        }
 
         /* Ha a kereses EGYETLEN feladhato sorra szukitett, azt magatol
            kivalasztjuk, hogy ne kelljen kulon rakattintani. */
@@ -3343,6 +3599,143 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
 
         const ures = gyoker.getElementById("pUres");
         if (ures) ures.hidden = talalt > 0;
+    }
+
+    /* A lista magassaga a panel meretebol jon, hogy a kereso, a napok es az
+       oszlopnevek allva maradjanak, es csak a tetelek gorogjenek.
+
+       KET hiba volt az elso valtozatban. Egyszer csak rajzolaskor szamolt,
+       ezert a panel nyujtasa nem valtoztatta a listat. Masreszt rajzolas
+       kozben a magassag meg nem allt be, ezert tul kicsire sikerult.
+       Mindkettot a ResizeObserver oldja meg: a stage minden meretvaltozasara
+       ujraszamolunk. */
+    let piacMeretFigyelo = null;
+
+    function piacListaMagassag() {
+        try {
+            const stage = gyoker.getElementById("stage");
+            const lista = gyoker.querySelector(".piaclista");
+            if (!stage || !lista) return;
+
+            /* A lista alatt allo labjegyzet es alairas helye. */
+            const also = 74;
+            const h = stage.clientHeight - (lista.offsetTop - stage.offsetTop) - also;
+            lista.style.maxHeight = Math.max(120, h) + "px";
+        } catch (e) { /* marad a sajat magassaga */ }
+    }
+
+    function piacMeretFigyeloLeallit() {
+        try { if (piacMeretFigyelo) piacMeretFigyelo.disconnect(); }
+        catch (e) { /* nem baj */ }
+        piacMeretFigyelo = null;
+    }
+
+    function piacMeretFigyeloIndit() {
+        piacMeretFigyeloLeallit();
+        try {
+            const stage = gyoker.getElementById("stage");
+            if (!stage || typeof ResizeObserver !== "function") return;
+            piacMeretFigyelo = new ResizeObserver(() => {
+                if (beall.ful !== "piac") { piacMeretFigyeloLeallit(); return; }
+                piacListaMagassag();
+            });
+            piacMeretFigyelo.observe(stage);
+        } catch (e) { /* enelkul is mukodik, csak nem koveti a nyujtast */ }
+    }
+
+    /* KESZLETFIGYELES A PIAC FULON.
+
+       MERT teny (a mestersegkalkulatorbol atveve): nincs olyan jatekbeli
+       esemeny, amire fel lehetne iratkozni. Az inventory_changed a
+       bag_updated jelek ELOTT erkezik, tehat arra rajzolva elavult
+       darabszamokat irnank ki. Ezert idoszakos ellenorzes megy.
+
+       Ket utem van. Alapbol harom masodperc. Feladas utan viszont SURITUNK
+       300 ezredmasodpercre, es amint a keszlet mozdul, frissitunk es
+       visszaallunk. Igy nem kell varni a kovetkezo korre.
+
+       Csak a szamot irjuk at, nem rajzolunk ujra, hogy a beirt ertekeid
+       megmaradjanak. */
+    const PIAC_ALAP_UTEM = 3000;
+    const PIAC_SURU_UTEM = 300;
+    const PIAC_SURU_KOR = 20;         /* 20 x 300 ms = 6 masodperc, ahogy a panelben */
+
+    let piacKeszletOra = null;
+    let piacSuritOra = null;
+
+    function piacKeszletFigyeloLeallit() {
+        if (piacKeszletOra != null) clearInterval(piacKeszletOra);
+        piacKeszletOra = null;
+        if (piacSuritOra != null) clearInterval(piacSuritOra);
+        piacSuritOra = null;
+    }
+
+    /* A lathato sorok keszletebol kepzett ujjlenyomat. Ha nem valtozik,
+       nem nyulunk semmihez. */
+    function piacUjjlenyomat() {
+        const ki = [];
+        gyoker.querySelectorAll(".piaclista .piacsor[data-pid]").forEach(sor => {
+            const azon = sor.getAttribute("data-pid");
+            let db = null;
+            try { db = keszlet(azon); } catch (e) { db = null; }
+            ki.push(azon + ":" + String(db));
+        });
+        return ki.join("|");
+    }
+
+    function piacKeszletKiir() {
+        gyoker.querySelectorAll(".piaclista .piacsor[data-pid]").forEach(sor => {
+            const azon = sor.getAttribute("data-pid");
+            const cella = sor.querySelector(".pkeszlet");
+            if (!cella) return;
+            let db = null;
+            try { db = keszlet(azon); } catch (e) { db = null; }
+            if (db == null) return;
+            if (String(db) !== cella.textContent.trim()) {
+                cella.textContent = String(db);
+                sor.setAttribute("data-pkeszlet", String(db));
+            }
+        });
+    }
+
+    let piacVoltUjj = "";
+
+    function piacKeszletFigyelo() {
+        piacKeszletFigyeloLeallit();
+        piacVoltUjj = piacUjjlenyomat();
+        piacKeszletOra = setInterval(() => {
+            if (!gyoker || beall.ful !== "piac") { piacKeszletFigyeloLeallit(); return; }
+            const most = piacUjjlenyomat();
+            if (most === piacVoltUjj) return;
+            piacVoltUjj = most;
+            piacKeszletKiir();
+        }, PIAC_ALAP_UTEM);
+    }
+
+    /* Feladas utan suritunk. A dontest az ujjlenyomat hozza, nem egy
+       kitalalt varakozas: ha a keszlet nem mozdul, nem irunk at semmit. */
+    function piacKeszletSurit() {
+        if (piacSuritOra != null) clearInterval(piacSuritOra);
+        let hatra = PIAC_SURU_KOR;
+        piacSuritOra = setInterval(() => {
+            if (!gyoker || beall.ful !== "piac") {
+                clearInterval(piacSuritOra);
+                piacSuritOra = null;
+                return;
+            }
+            const most = piacUjjlenyomat();
+            if (most !== piacVoltUjj) {
+                piacVoltUjj = most;
+                piacKeszletKiir();
+                clearInterval(piacSuritOra);
+                piacSuritOra = null;
+                return;
+            }
+            if (--hatra <= 0) {
+                clearInterval(piacSuritOra);
+                piacSuritOra = null;
+            }
+        }, PIAC_SURU_UTEM);
     }
 
     function piacKotes() {
@@ -3394,11 +3787,24 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             });
         });
 
+        gyoker.querySelectorAll("[data-pkatv]").forEach(g => {
+            g.addEventListener("click", () => {
+                piacFul.kategoria = g.getAttribute("data-pkatv") || "mind";
+                gyoker.querySelectorAll("[data-pkatv]").forEach(x => {
+                    const be = x.getAttribute("data-pkatv") === piacFul.kategoria;
+                    x.classList.toggle("aktiv", be);
+                    x.setAttribute("aria-pressed", be ? "true" : "false");
+                });
+                piacSzur();
+            });
+        });
+
         gyoker.querySelectorAll("[data-pnap]").forEach(g => {
             g.addEventListener("click", () => {
-                piacFul.napok = Math.max(1, Math.min(7, Number(g.getAttribute("data-pnap")) || 7));
+                beall.piacNapok = Math.max(1, Math.min(7, Number(g.getAttribute("data-pnap")) || 7));
+                beallMent();
                 gyoker.querySelectorAll("[data-pnap]").forEach(x => {
-                    const be = Number(x.getAttribute("data-pnap")) === piacFul.napok;
+                    const be = Number(x.getAttribute("data-pnap")) === beall.piacNapok;
                     x.classList.toggle("aktiv", be);
                     x.setAttribute("aria-pressed", be ? "true" : "false");
                 });
@@ -3407,7 +3813,8 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
 
         gyoker.querySelectorAll("[data-pcel]").forEach(g => {
             g.addEventListener("click", () => {
-                piacFul.cel = g.getAttribute("data-pcel");
+                beall.piacCel = g.getAttribute("data-pcel");
+                beallMent();
                 rajzol();
             });
         });
@@ -3536,6 +3943,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
                 frissit();
                 const t = piacKeszlet().filter(x => String(x.id) === azon)[0];
                 if (t) piacFulFeladas(t, gomb);
+                piacKeszletSurit();
             });
         });
     }
@@ -3639,6 +4047,12 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             fulKotes();
             piacKotes();
             piacSzur();
+            piacListaMagassag();
+            piacMeretFigyeloIndit();
+            piacKeszletFigyelo();
+            /* A rajzolas pillanataban a magassag meg nem biztos, hogy vegleges,
+               ezert a kovetkezo kepkockan ujraszamolunk. */
+            requestAnimationFrame(piacListaMagassag);
             alkalmazMagassag();
             if (host && host.hasAttribute("data-nativ")) nativMeret();
             felszinVissza(stage, felszin);
@@ -3690,7 +4104,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
                 <span class="bfej-eszkoz">
                   <button class="bmozgat" data-bmozgat="${esc(nev)}" data-irany="-1" title="Prioritás növelése; feljebb kerül" aria-label="Prioritás növelése"${teljesIndex <= 0 ? " disabled" : ""}>&#9650;</button>
                   <button class="bmozgat" data-bmozgat="${esc(nev)}" data-irany="1" title="Prioritás csökkentése; lejjebb kerül" aria-label="Prioritás csökkentése"${teljesIndex < 0 || teljesIndex === teljesCsoportSorrend.length - 1 ? " disabled" : ""}>&#9660;</button>
-                  <button class="btorol" data-btorol="${esc(nev)}" data-bdb="${tetelek.length}"
+                  <button class="btorol" data-bszemely="${esc(nev)}"
                     title="A teljes beszerz\u00E9s t\u00F6rl\u00E9se" aria-label="Beszerz\u00E9s t\u00F6rl\u00E9se">&#10005;</button>
                   ${utolso ? `<span class="datum">${esc(utolso)}</span>` : ""}
                 </span>
@@ -3999,16 +4413,14 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             rajzol();
         });
 
-        gyoker.querySelectorAll("[data-btorol]").forEach(g => {
+        /* A teljes beszerzes torlese.
+
+           A jelzo NEM data-btorol, mert azt a sorok sajat X gombja hasznalja.
+           Az utkozes miatt egyetlen tetel torlese is kerdezett, pedig nem
+           kellett volna. Megerosites sincs: a felesleges kerdes csak utban van. */
+        gyoker.querySelectorAll("[data-bszemely]").forEach(g => {
             g.addEventListener("click", () => {
-                const nev = g.getAttribute("data-btorol") || "";
-                const db = Number(g.getAttribute("data-bdb") || 0);
-                const kijelzo = kijelzoSzoveg(nev || "(nincs n\u00E9v)");
-                const kerdes = "T\u00F6rl\u00F6d " + kijelzo + " teljes beszerz\u00E9s\u00E9t? "
-                    + db + " t\u00E9tel v\u00E9glegesen elt\u0171nik.";
-                let ok = false;
-                try { ok = window.confirm(kerdes); } catch (e) { ok = false; }
-                if (!ok) return;
+                const nev = g.getAttribute("data-bszemely") || "";
                 beszerzok = beszerzok.filter(x => String(x.nev || "") !== String(nev));
                 ment();
                 rajzol();
@@ -4377,12 +4789,48 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         /* Barhol rakattintva a legfelso ablak fole jovunk. */
         host.addEventListener("pointerdown", elore, true);
 
-        /* Ha mashova (nem rank) kattintasz, visszaesunk az alap retegre. */
+        /* Ha JATEKABLAKRA kattintasz, visszaesunk az alap retegre, hogy az
+           az ablak tenylegesen elenk kerulhessen.
+
+           A jatek TERKEPERE vagy hatterere kattintva viszont NEM esunk
+           hatra: ott nincs mi ele kerulne, es korabban emiatt csuszott a
+           panel az osszes nyitott nativ ablak moge egyetlen terkepkattintastol.
+
+           MERT ertekek: a nativ ablakok z-indexe 101-tol indul es felfele
+           no, az elore() ezert a legmagasabb fole all be. */
         document.addEventListener("pointerdown", e => {
             if (!host || host.hidden) return;
             const ut = e.composedPath ? e.composedPath() : [];
-            if (ut.indexOf(host) === -1) hatra();
+            if (ut.indexOf(host) !== -1) return;
+
+            let nativAblakra = false;
+            try {
+                const cel = e.target;
+                nativAblakra = !!(cel && cel.closest &&
+                    cel.closest('.tw2gui_window, [class*="tw2gui_window"]'));
+            } catch (err) { nativAblakra = false; }
+
+            /* A jatek a kattintott ablakot csak a sajat kezelese utan emeli
+               a tetejere, ezert egy pillanattal kesobb szamolunk. */
+            if (nativAblakra) setTimeout(hatra, 60);
         }, true);
+
+        /* UJ nativ ablak nyitasakor is hatra kell lepnunk, kulonben a frissen
+           nyitott ablak mogottunk jelenne meg.
+
+           MERT teny: a jatek nem mindig ujonnan teszi be az ablakot a DOM-ba,
+           ezert nem eleg az addedNodes figyelese. A nativ ablakok DARABSZAMAT
+           nezzuk: ha nott, uj ablak nyilt. */
+        let nativDb = document.querySelectorAll(".tw2gui_window").length;
+        try {
+            const figyelo = new MutationObserver(() => {
+                if (!host || host.hidden) return;
+                const most = document.querySelectorAll(".tw2gui_window").length;
+                if (most > nativDb) setTimeout(hatra, 60);
+                nativDb = most;
+            });
+            figyelo.observe(document.body, { childList: true, subtree: true });
+        } catch (e) { /* enelkul is mukodik, csak kezzel kell elorehozni */ }
 
         huzas(frame.querySelector(".bar"));
         magassagFogo(frame.querySelector("#grip"));
@@ -4402,7 +4850,9 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
     /* ELORETER: alap retegszam alacsony, igy a jatek ablakai elenk
        kerulhetnek. Ha rank kattintanak, a legfelso ablak fole jovunk.
        (A panel elore()-jenek mintaja.) */
-    function elore() {
+    /* A nativ ablakok legmagasabb retege. MERT ertekek: 101-tol indulnak es
+       felfele nonek, a jatek a kattintott ablakot emeli a tetejere. */
+    function nativMaxReteg() {
         let max = 100;
         try {
             document.querySelectorAll('[class*="window"],[class*="Window"]').forEach(el => {
@@ -4410,17 +4860,33 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
                 const z = parseInt(getComputedStyle(el).zIndex);
                 if (!isNaN(z) && z > max) max = z;
             });
-        } catch (e) { /* nem baj */ }
-        host.style.zIndex = String(Math.min(max + 1, 2000000));
+        } catch (e) { /* marad a 100 */ }
+        return max;
+    }
+
+    function elore() {
+        host.style.zIndex = String(Math.min(nativMaxReteg() + 1, 2000000));
     }
 
     /* Amikor mashova kattintasz (nem rank), visszaesunk az alap retegre,
        hogy ne uralkodjunk a jatek ablakai felett. Ez a lebego mod
        fokuszkezelese; a teljes, jatekba agyazott megoldas kesobb jon. */
+    /* Hatrallepes: MINDEN nativ ablak ala.
+
+       Ket megoldast probaltunk. Az elso az 1-es retegre allt, a masodik
+       egyetlen reteggel a legfelso ala. A masodik MERVE rossznak bizonyult:
+       ha harom ablak allt 101, 102 es 103 retegen, a panel a 102-re kerult,
+       tehat a ket also ablak ala szorult, es ahol a panel takarta oket, mar
+       rakattintani sem lehetett, igy elorehozni sem.
+
+       Ezert a panel minden nativ ablak ala megy, es egyetlen rakattintassal
+       jon elore. Ez a szokasos ablakkezeles, es kiszamithato marad.
+
+       A terkepre vagy a hatterre kattintva viszont NEM lepunk hatra: ott
+       nincs mi ele kerulne. */
     function hatra() {
-        /* A saját ablak csak akkor legyen kiemelve, amikor ténylegesen
-           használjuk. Másik játékablakra kattintva kerüljön mögé. */
-        if (host) host.style.zIndex = "1";
+        if (!host) return;
+        host.style.zIndex = "1";
     }
 
     /* POZICIO: nyitaskor a MENTETT helyre all vissza; ha meg nincs mentve
