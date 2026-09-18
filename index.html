@@ -3791,6 +3791,10 @@ html:not([data-edition="nova"]) .rbub .rb-megt{ color:#2f6747 }
 .rlist .tk.van{ color:#6fd08c }
 .rlist .tk.nincs{ color:#ff7b61 }
 .rlist .tk.ismeretlen{ color:#a2917a }
+.rlist .tk.nemmasolhato{ color:#a2917a; cursor:help }
+.rlist .tk.nemmasolhato svg{ opacity:.45 }   /* csak a rajz halvány, a villanás nem */
+.rbub .rb-negy{ margin-top:6px; padding-top:5px; border-top:1px solid var(--world-line, var(--line));
+  font-size:12.5px; color:var(--world-muted, var(--dim)) }
 .rlist .tk:hover{ background:rgba(255,236,184,.14) }
 .rlist .tk:focus-visible{ outline:1px solid #f1d28c; outline-offset:1px }
 .rlist .tk .masolt{ position:absolute; left:18px; top:-4px; z-index:2; background:#241b12; color:#f2e9d8;
@@ -8303,33 +8307,43 @@ $("tervNyit").onclick = () => {
      - a megtanultság és a karakter a beolvasásból,
      - a "Neked" szint a beírt vagy beolvasott szintből.
    Amit nem tudunk, az nem jelenik meg - hamis sort nem írunk ki. */
+/* A buborék névhez és árhoz használt tekercse: a választott, vagy ha nincs
+   választás ("Mind" egy közös terméken), az első. A négy közös tekercs neve
+   és ára MÉRVE azonos, tehát ez a név és az ár mindegyikre igaz. */
 function receptTekercs(r){
-  const t = RECEPT_TEKERCS[String(r.i)];
-  return Array.isArray(t) ? t[0] : t;
+  return valasztottTekercs(r.i) || termekTekercsei(r.i)[0];
 }
 function receptBuborek(r){
   if(!r) return "";
   const ta = TEKERCS_ADAT[String(receptTekercs(r))];
   const ps = profIds(r.p), min = minLvl(r);
   const adott = x => levels[x] !== undefined && levels[x] !== "";
+  /* Közös terméken, szűrt listán a szűrő mestersége számít: az "Igényel" és a
+     "Neked" sor is azé. "Mind" állásban nincs választott mesterség. */
+  const kozosP = kozosTermek(r.i) && sel.prof !== MIND_PROF ? sel.prof : null;
   /* Melyik mesterség szintjét mutassuk "Neked"-ként: a beolvasott karakterét,
      ha a recept az övé, különben az elsőt, amihez szint van beírva. */
-  const sajatP = (char && char.prof && ps.includes(char.prof)) ? char.prof : ps.find(adott);
+  const sajatP = kozosP !== null ? kozosP
+    : (char && char.prof && ps.includes(char.prof)) ? char.prof : ps.find(adott);
   const sajatSzint = sajatP !== undefined && adott(sajatP) ? Number(levels[sajatP]) : null;
   const keves = sajatSzint !== null && sajatSzint < min;
 
   let h = `<div class="rb-nev">${mesc(r.n)}</div>`;
-  /* A tekercsnév 23 esetben maga is "Recept"-tel kezdődik ("Recept: Torta
-     sütés"), ott a címke megduplázná: "Recept: Recept: ...". MÉRVE a
-     valódi böngészőben, a Halászlén. */
-  if(ta) h += `<div class="rb-recept">${/^Recept/.test(ta[0]) ? "" : "Recept: "}<b>${mesc(ta[0])}</b></div>`;
+  /* A "Recept:" címke MINDIG ott áll, akkor is, ha a játék tekercsneve maga
+     is "Recept"-tel kezdődik (23 tekercs, ebből 22 kettősponttal folytatódik,
+     egy szóközzel: "Recept a rágódohány keveréséhez"). A név mutatja meg,
+     melyik receptet kell keresni, mert a játékban tényleg ez a neve.
+     A korábbi elhagyás VISSZAVONVA, a panel 1.2.5-tel egyezően. */
+  if(ta) h += `<div class="rb-recept">Recept: <b>${mesc(ta[0])}</b></div>`;
   if(learned && learned.includes(r.i)) h += `<div class="hsor rb-megt">Megtanulva</div>`;
-  h += `<div class="hsor${keves ? " rb-hiany" : ""}">Igényel: ${mesc(profLabel(r.p))} ${min}</div>`;
+  h += `<div class="hsor${keves ? " rb-hiany" : ""}">Igényel: ${mesc(kozosP !== null ? profOf(kozosP) : profLabel(r.p))} ${min}</div>`;
   if(sajatSzint !== null){
     const meg = min - sajatSzint;
     h += `<div class="hsor">Neked: ${mesc(profOf(sajatP))} ${sajatSzint}`
        + (meg > 0 ? ` <span class="rb-hiany">· még ${meg} szint</span>` : "") + `</div>`;
   }
+  if(kozosTermek(r.i) && sel.prof === MIND_PROF)
+    h += `<div class="hsor rb-negy">Mind a négy mesterségnek saját tekercse van, más azonosítóval, ezért itt nem másolható. Válassz mesterséget a listában.</div>`;
   const tdb = tekercsDb(r.i);
   if(tdb !== null)
     h += `<div class="hsor rb-tk ${tdb > 0 ? "rb-van" : "rb-nincs"}">Táskádban ${tdb} darab</div>`;
@@ -8407,17 +8421,38 @@ function termekTekercsei(id){
   const t = RECEPT_TEKERCS[String(id)];
   return t === undefined ? [] : [].concat(t).map(String);
 }
+/* KÖZÖS TERMÉKEK (panel 1.2.5, weboldali döntéssel). A Pohárdesszertnek és a
+   15. születésnapi tortának mind a négy mesterségnél saját tekercse van,
+   azonos névvel, de más azonosítóval. EGY tekercs dönt mindenről - a
+   másolásról, az ikon színéről és a buborék darabszámáról -, és ez a
+   mesterségszűrőé. A táska tartalma a választásba NEM számít bele: az ikon
+   csak akkor zöld, ha az a tekercs van nálad, amit kattintásra kapsz.
+   "Mind" állásban a weboldal NEM választ (a panellel ellentétben, ami ott a
+   karakter mesterségét veszi): a weboldalon a karakter sokszor nem ismert,
+   és egy csendben választott tekercs csak összezavarná a felhasználót.
+   A RECEPT_TEKERCS a négy tekercset mesterség szerinti sorrendben tartja
+   (1 Tábori szakács, 2 Sarlatán, 3 Kovács, 4 Istállómester), ezt a
+   panel 1.2.5 mérése igazolja, és a próba is ehhez köti. */
+function kozosTermek(id){ return termekTekercsei(id).length > 1; }
+function valasztottTekercs(id){
+  const l = termekTekercsei(id);
+  if(l.length < 2) return l[0] || null;
+  if(sel.prof === MIND_PROF) return null;
+  return l[sel.prof - 1] || null;
+}
 function tekercsDb(id){
   if(tekercsek === null) return null;
-  return termekTekercsei(id).reduce((a, x) => a + (Number(tekercsek[x]) || 0), 0);
+  const tk = valasztottTekercs(id);
+  if(!tk) return null;
+  return Number(tekercsek[tk]) || 0;
 }
-/* Melyiket másoljuk: a birtokoltat, ha van, különben az elsőt. */
-function masolandoTekercs(id){
-  const l = termekTekercsei(id);
-  return l.find(x => tekercsek && tekercsek[x] > 0) || l[0];
-}
+function masolandoTekercs(id){ return valasztottTekercs(id); }
 const TEKERCS_SVG = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/></svg>';
 function tekercsIkon(r){
+  if(kozosTermek(r.i) && sel.prof === MIND_PROF){
+    const nem = "Nem másolható: mind a négy mesterségnek saját tekercse van, más azonosítóval. Válassz mesterséget a listában.";
+    return `<span class="tk nemmasolhato" data-tknem="1" role="button" tabindex="0" title="${nem}" aria-label="${nem}">${TEKERCS_SVG}</span>`;
+  }
   const tk = masolandoTekercs(r.i);
   if(!tk) return "";
   const db = tekercsDb(r.i);
@@ -8442,20 +8477,32 @@ async function tekercsMasol(ikon){
   ikon.appendChild(v);
   setTimeout(() => v.remove(), 1200);
 }
+/* A nem másolható ikon (közös termék, "Mind" állás) semmit nem tesz a
+   vágólapra, csak villanásban megmondja, mi a teendő. */
+function tekercsNemMasolhato(ikon){
+  const regi = ikon.querySelector(".masolt");
+  if(regi) regi.remove();
+  const v = document.createElement("span");
+  v.className = "masolt";
+  v.textContent = "Válassz mesterséget";
+  ikon.appendChild(v);
+  setTimeout(() => v.remove(), 1600);
+}
+const tekercsKattint = ikon => ikon.dataset.tknem ? tekercsNemMasolhato(ikon) : tekercsMasol(ikon);
 $("rlist").addEventListener("click", e => {
-  const ikon = e.target.closest && e.target.closest("[data-tk]");
+  const ikon = e.target.closest && e.target.closest("[data-tk],[data-tknem]");
   if(!ikon) return;
   e.preventDefault();
   e.stopPropagation();
-  tekercsMasol(ikon);
+  tekercsKattint(ikon);
 }, true);
 $("rlist").addEventListener("keydown", e => {
   if(e.key !== "Enter" && e.key !== " ") return;
-  const ikon = e.target.closest && e.target.closest("[data-tk]");
+  const ikon = e.target.closest && e.target.closest("[data-tk],[data-tknem]");
   if(!ikon) return;
   e.preventDefault();
   e.stopPropagation();
-  tekercsMasol(ikon);
+  tekercsKattint(ikon);
 }, true);
 
 /* Az ugrók kötése DELEGÁLVA, egyszer: a fa és a tervsor minden rajzoláskor
