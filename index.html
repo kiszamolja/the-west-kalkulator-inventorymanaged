@@ -543,6 +543,21 @@ footer{ display:flex; align-items:center; gap:6px; flex-wrap:wrap }
   background:var(--panel); color:var(--ink) }
 .bujTargy{ flex:1 1 160px; min-width:0 }
 .bujDb{ width:64px; text-align:right }
+
+/* HELYBEN SZERKESZTÉS: se ceruza, se külön nyíló sor, a név és a szám maga
+   válik mezővé. Ráhúzás mutatja meg, hogy van mit kattintani. A mező színét
+   pergamenen a közös mezőszabály adja, itt csak a méret és a betű. */
+.bnev,.bdb{ cursor:text; border-radius:3px; padding:0 3px;
+  border-bottom:1px dashed transparent }
+.bnev:hover,.bdb:hover{ border-bottom-color:var(--brass); background:rgba(0,0,0,.06) }
+.bnev:focus-visible,.bdb:focus-visible{ outline:2px solid var(--brass); outline-offset:1px }
+.nevcella{ display:inline-flex; align-items:baseline; min-width:0 }
+.bsor .dbcella{ overflow:visible; text-align:right; white-space:nowrap }
+.bnevm,.bdbm{ font:inherit; font-weight:700; padding:2px 6px;
+  border:1px solid var(--brass); border-radius:0;
+  background:var(--panel); color:var(--ink) }
+.bnevm{ width:200px; max-width:100% }
+.bdbm{ width:76px; text-align:right; font-variant-numeric:tabular-nums }
 .bujOk{ font:inherit; font-size:12.5px; padding:0 14px; min-height:38px;
   cursor:pointer; border:1px solid var(--brass); color:var(--brass);
   background:transparent; border-radius:4px }
@@ -2390,7 +2405,7 @@ html.motion-off .header-dust i { opacity: 0 !important; }
 }
 
 /* ========================================================================== */
-/* V22 — V17 ALAP, MEGTARTOTT VILÁGKARAKTER ÉS ÉLŐ PANEL                     */
+/* V22 - V17 ALAP, MEGTARTOTT VILÁGKARAKTER ÉS ÉLŐ PANEL                     */
 /* ========================================================================== */
 
 /* A márkajel nem ülhet a navigáció közepére. A szóvédjegy marad a fejlécben. */
@@ -2579,7 +2594,7 @@ html.motion-off .setup-card-link:hover { transform:none; }
   .setup-card-full { grid-column:auto; }
 }
 
-/* V23 — kizárólag a műveleti sor és a klasszikus többcélos munkalap javítása. */
+/* V23 - kizárólag a műveleti sor és a klasszikus többcélos munkalap javítása. */
 @media (min-width:1181px) {
   .masthead {
     grid-template-columns:minmax(340px,1.15fr) minmax(340px,.8fr) minmax(390px,.72fr);
@@ -3745,6 +3760,74 @@ html[data-edition="nova"] #panelView .setup-addon-row p:not(.setup-label) { colo
     min-width: 0;
   }
 }
+
+/* ---- Recept-buborék (weboldal, 4. lépés) ---- */
+.hbub.rbub{ max-width:300px }
+.rbub .rb-nev{ font-weight:700; font-size:15px; line-height:1.25; margin-bottom:3px }
+.rbub .rb-recept{ font-size:12.5px; color:var(--world-muted, var(--dim)); margin-bottom:4px }
+.rbub .rb-recept b{ font-weight:600; color:var(--world-ink, var(--ink)) }
+.rbub .rb-megt{ color:var(--green); font-weight:600 }
+html:not([data-edition="nova"]) .rbub .rb-megt{ color:#2f6747 }
+.rbub .rb-hiany{ color:var(--rust) }
+.rbub .rb-extra{ margin-top:6px; padding-top:5px; border-top:1px solid var(--world-line, var(--line));
+  font-size:12px; color:var(--world-muted, var(--dim)) }
+
+/* ---- Tekercs-ikon (weboldal, 5. lépés) ----
+   A halványítás a sor RÉSZEIRE kerül, nem az egész gombra: így a halvány
+   (túl magas szintű vagy meg nem tanult) sorokon az ikon élénk marad - épp
+   ott ér a legtöbbet. A sor ettől ugyanúgy néz ki, mint eddig.
+   A színek a sötét receptlistára számolva, mindhárom háttéren (sima,
+   ráhúzott, kijelölt) legalább 4.4:1. A szín az ikon SAJÁT osztályából jön,
+   a sor színezése nem fut rá - a panel 1.2.4 kijelölt sorában ez sötétült el. */
+.rlist button.locked, .rlist button.unlearned{ opacity:1 }
+.rlist button.locked .dot, .rlist button.locked .ico,
+.rlist button.locked .rn, .rlist button.locked .szt{ opacity:.42 }
+.rlist button.unlearned .dot, .rlist button.unlearned .ico,
+.rlist button.unlearned .rn, .rlist button.unlearned .szt{ opacity:.55 }
+.rname small{ display:flex; align-items:center; gap:6px }
+.rlist .tk{ display:inline-flex; align-items:center; padding:1px 2px; border-radius:3px;
+  cursor:pointer; line-height:0; position:relative }
+.rlist .tk svg{ width:12px; height:12px }
+.rlist .tk.van{ color:#6fd08c }
+.rlist .tk.nincs{ color:#ff7b61 }
+.rlist .tk.ismeretlen{ color:#a2917a }
+.rlist .tk:hover{ background:rgba(255,236,184,.14) }
+.rlist .tk:focus-visible{ outline:1px solid #f1d28c; outline-offset:1px }
+.rlist .tk .masolt{ position:absolute; left:18px; top:-4px; z-index:2; background:#241b12; color:#f2e9d8;
+  font:11px/1.3 "Alegreya Sans","Segoe UI",sans-serif; font-style:normal; padding:2px 6px;
+  border-radius:3px; white-space:nowrap; pointer-events:none }
+.rbub .rb-tk{ margin-top:6px; padding-top:5px; border-top:1px solid var(--world-line, var(--line)); font-weight:600 }
+.rbub .rb-van{ color:var(--green) }
+html:not([data-edition="nova"]) .rbub .rb-van{ color:#2f6747 }
+.rbub .rb-nincs{ color:var(--rust) }
+
+/* ---- Max jelző (weboldal, 3. lépés) ----
+   A felirat halvány, a szám színes: ZÖLD, ha most magad legyárthatod, RÉZ,
+   ha a te oldaladról ennyi telik, de valami más akadályoz. Az Alegreya Sans
+   alapból régies (kis) számjegyeket rajzol, ezért kell a lining-nums. */
+.lepsor{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:14px }
+.lepsor .stepper{ margin-top:0 }
+.maxj{ font-family:"Space Mono",monospace; font-size:11px; letter-spacing:.06em;
+  color:var(--world-muted, var(--dim)); white-space:nowrap; cursor:default }
+#orderSingle .maxj b{ font-family:"Alegreya Sans","Segoe UI",system-ui,sans-serif;
+  font-size:20px; font-weight:700; letter-spacing:0; margin-left:4px;
+  font-variant-numeric:lining-nums tabular-nums; color:var(--green) }
+html:not([data-edition="nova"]) #orderSingle .maxj b{ color:#2f6747 }
+#orderSingle .maxj.varakozik b,
+html:not([data-edition="nova"]) #orderSingle .maxj.varakozik b{ color:var(--brass) }
+
+/* ---- Ugrás és visszaút (weboldal, 2. lépés) ---- */
+.ugro{ text-decoration:underline; text-decoration-thickness:1px;
+  text-underline-offset:2px; text-decoration-color:var(--faint); cursor:pointer }
+.ugro:hover{ text-decoration-color:var(--brass); color:var(--brass) }
+.ugro:focus-visible{ outline:1px solid var(--brass); outline-offset:2px }
+#munkalapFej{ flex-wrap:wrap; row-gap:8px }
+#visszaSav{ margin-left:14px; margin-right:auto }
+/* Keskeny kijelzőn a három gomb nem fér egy sorba (390 képponton mérve a
+   Terv mentése kilógott), ezért a visszavezető külön sorba törik. */
+@media (max-width:600px){
+  #visszaSav{ order:3; flex-basis:100%; margin-left:0 }
+}
 </style>
 
 </head>
@@ -3801,7 +3884,8 @@ html[data-edition="nova"] #panelView .setup-addon-row p:not(.setup-label) { colo
   </aside>
 
   <main class="col">
-    <p class="eyebrow">Munkalap
+    <p class="eyebrow" id="munkalapFej">Munkalap
+      <span class="tervgombok" id="visszaSav" hidden><button id="visszaGomb" type="button"></button></span>
       <span class="tervgombok" id="tervGombok" hidden>
         <button id="tervMent" type="button">Terv mentése</button>
         <button id="tervNyit" type="button">Tervek (0)</button>
@@ -3814,10 +3898,13 @@ html[data-edition="nova"] #panelView .setup-addon-row p:not(.setup-label) { colo
             <h1 id="orderName">-</h1>
           </div>
           <p class="meta" id="orderMeta"></p>
+          <div class="lepsor">
           <div class="stepper">
             <button id="qtyMinus" aria-label="Kevesebb">−</button>
             <input id="qty" value="1" inputmode="numeric" aria-label="Darabszám">
             <button id="qtyPlus" aria-label="Több">+</button>
+          </div>
+          <span id="maxJel"></span>
           </div>
           <label class="excl"><input type="checkbox" id="excl" checked><span id="exclTxt"></span></label>
         </div>
@@ -3860,13 +3947,6 @@ html[data-edition="nova"] #panelView .setup-addon-row p:not(.setup-label) { colo
 </div>
 
 <section id="stockView" hidden>
-  <p class="eyebrow">Mentett tervek</p>
-  <p style="color:var(--dim);font-size:13.5px;margin:0 0 10px">Az összeállított terv
-  elmenthető, és bármikor visszahozható. A terv a célokat és a darabszámokat őrzi, a
-  raktárt nem - visszatéréskor a mostani készlettel számol.</p>
-  <label class="lvl" style="margin-bottom:26px"><input type="checkbox" id="tervKapcs" style="width:auto">
-    mentett tervek használata</label>
-
   <p class="eyebrow">Termékbeszerzők <span id="beszCim"></span></p>
   <p style="color:var(--dim);font-size:13.5px;margin:0 0 10px">Ha valaki megrendelésre
   gyűjt neked, itt tarthatod nyilván. A megbízás úgy számít, mintha már megvolna -
@@ -4595,6 +4675,7 @@ function hbubNyit(hoz, id){
   const t = hatasTartalom(id);
   if(!t) return;
   const b = hbubDoboz();
+  b.className = "hbub";   /* közös elem a recept-buborékkal: az osztályt ki kell mondani */
   b.innerHTML = t;
   b.style.visibility = "hidden";
   b.classList.add("mutat");
@@ -5411,6 +5492,288 @@ const RECIPES = [
 {i:"54479000",n:"Mobil sátor",p:4,l:"950/975/999",g:[["52962000",5],["52966000",4],["52942000",3],["1917000",2],["2730000",2]]}
 ];
 
+/* t54: TERMEK -> RECEPT-TEKERCS (item_id) leképezés, MERVE es ellenorizve.
+   Forras: a jatek ItemManager.get(tekercs).craftitem-je, mind a 228 tekercsre
+   lekerve (a nem birtokoltra is mukodik, TW-Calc nelkul is). Mind a 222
+   termekunk le van fedve. A 2 kozos termek (52518000, 53340000) mind a negy
+   mesterségi tekercset kapja - a birtoklas barmelyikbol igaz lehet, es a
+   masolashoz barmelyik ervenyes recept item_id. */
+const RECEPT_TEKERCS = {
+  "1855000":20000000,"1856000":20002000,"1857000":20060000,"1858000":20042000,"1859000":20040000,"1860000":20062000,
+  "1861000":20020000,"1862000":20001000,"1863000":20003000,"1864000":20004000,"1865000":20005000,"1866000":20006000,
+  "1867000":20007000,"1868000":20008000,"1869000":20009000,"1870000":20010000,"1871000":20011000,"1872000":20012000,
+  "1873000":20013000,"1874000":20014000,"1875000":20015000,"1876000":20016000,"1877000":20017000,"1878000":20018000,
+  "1879000":20019000,"1880000":20022000,"1881000":20021000,"1882000":20023000,"1883000":20024000,"1884000":20025000,
+  "1885000":20026000,"1886000":20027000,"1887000":20028000,"1888000":20029000,"1889000":20030000,"1890000":20031000,
+  "1891000":20032000,"1892000":20033000,"1893000":20034000,"1894000":20035000,"1895000":20036000,"1896000":20037000,
+  "1897000":20038000,"1898000":20039000,"1899000":20041000,"1900000":20043000,"1901000":20044000,"1902000":20045000,
+  "1903000":20046000,"1904000":20047000,"1905000":20048000,"1906000":20049000,"1907000":20050000,"1908000":20051000,
+  "1909000":20052000,"1910000":20053000,"1911000":20054000,"1912000":20055000,"1913000":20056000,"1914000":20057000,
+  "1915000":20058000,"1916000":20059000,"1917000":20061000,"1918000":20063000,"1919000":20064000,"1920000":20065000,
+  "1921000":20066000,"1922000":20067000,"1923000":20068000,"1924000":20069000,"1925000":20070000,"1926000":20071000,
+  "1927000":20072000,"1928000":20073000,"1929000":20074000,"1930000":20075000,"1931000":20076000,"1932000":20077000,
+  "1933000":20078000,"1934000":20079000,"1937000":20080000,"1938000":20082000,"1939000":20081000,"1940000":20083000,
+  "1941000":20084000,"1942000":20085000,"1943000":20086000,"1944000":20087000,"1945000":20088000,"1946000":20089000,
+  "1947000":20090000,"1948000":20091000,"1949000":20092000,"1950000":20093000,"1951000":20094000,"1952000":20095000,
+  "1980000":20096000,"1981000":20097000,"1982000":20098000,"1983000":20101000,"1984000":20102000,"1985000":20103000,
+  "1986000":20106000,"1987000":20107000,"1988000":20108000,"1989000":20111000,"1990000":20112000,"1991000":20113000,
+  "1999000":20099000,"2001000":20100000,"2002000":20104000,"2004000":20105000,"2005000":20109000,"2007000":20110000,
+  "2008000":20114000,"2010000":20115000,"2516000":20116000,"2517000":20120000,"2518000":20124000,"2519000":20117000,
+  "2520000":20121000,"2521000":20125000,"2522000":20118000,"2523000":20122000,"2524000":20126000,"2525000":20119000,
+  "2526000":20123000,"2527000":20127000,"2730000":20128000,"2731000":20129000,"2732000":20130000,"2733000":20131000,
+  "2734000":20133000,"2735000":20132000,"2736000":20134000,"2737000":20135000,"2738000":20136000,"2739000":20137000,
+  "2740000":20138000,"2741000":20139000,"51576000":51617000,"51577000":51618000,"51578000":51619000,"51579000":51620000,
+  "51580000":51621000,"51581000":51622000,"51582000":51623000,"51583000":51624000,"51584000":51625000,"51585000":51626000,
+  "51586000":51627000,"51587000":51628000,"51588000":51629000,"51589000":51630000,"51590000":51631000,"51591000":51632000,
+  "51592000":51633000,"51593000":51634000,"51594000":51635000,"51595000":51636000,"51596000":51637000,"51597000":51638000,
+  "51598000":51639000,"51599000":51640000,"52027000":52034000,"52028000":52032000,"52029000":52031000,"52030000":52033000,
+  "52497000":52526000,"52500000":52517000,"52501000":52516000,"52502000":52525000,"52503000":52524000,"52504000":52515000,
+  "52505000":52514000,"52506000":52523000,"52518000":[52522000,52521000,52519000,52520000],"52868000":52875000,"52869000":52876000,"52870000":52877000,
+  "52871000":52878000,"53336000":53342000,"53337000":53343000,"53338000":53344000,"53339000":53345000,"53340000":[53346000,53347000,53348000,53349000],
+  "53938000":53942000,"53939000":53943000,"53940000":53944000,"53941000":53945000,"54379000":54383000,"54380000":54384000,
+  "54381000":54385000,"54382000":54386000,"54471000":54515000,"54472000":54512000,"54473000":54513000,"54474000":54520000,
+  "54475000":54517000,"54476000":54518000,"54477000":54522000,"54478000":54523000,"54479000":54525000,"54480000":54527000,
+  "54481000":54530000,"54482000":54528000,"54487000":54511000,"54488000":54516000,"54489000":54521000,"54490000":54526000,
+  "54531000":54514000,"54532000":54519000,"54533000":54524000,"54534000":54529000,"54598000":54622000,"54599000":54623000,
+  "54600000":54624000,"54601000":54625000,"54824000":54830000,"54825000":54831000,"54826000":54832000,"54827000":54833000
+};
+
+/* TEKERCS-ADAT: recept-tekercs -> [név, vételi ár, eladási ár, árverezhető, fejleszthető].
+   MÉRVE a játékban (ItemManager.get), 2026-09-18, mind a 228 tekercsre, két
+   részletben. A mért craftitem mind a 228-nál egyezett a RECEPT_TEKERCS
+   térképpel, ezért itt nem tároljuk. Egy név végéről (51623000) a mért
+   szóközt levágtuk. A fejleszthető mező mind a 228-nál hamis volt. */
+const TEKERCS_ADAT = {
+  "20000000":["Útmutató a faszén elkészítéséhez",250,125,0,0],
+  "20001000":["Útmutató a kukoricaliszt elkészítéséhez",250,125,0,0],
+  "20002000":["Leírás a kancsó megtöltéséhez",250,125,0,0],
+  "20003000":["Recept: Szalonnás bab elkészítése",500,250,1,0],
+  "20004000":["Recept: Lekvárfőzés",500,250,1,0],
+  "20005000":["Útmutató a maláta készítéséhez",500,250,1,0],
+  "20006000":["Útmutató a tészta elkészítéséhez",500,250,1,0],
+  "20007000":["Recept: Steak pácolása",500,250,1,0],
+  "20008000":["Recept: Likőr elkészítése",750,375,1,0],
+  "20009000":["Recept: Torta sütés",750,375,1,0],
+  "20010000":["Útmutató a hal alaplé elkészítéséhez",1750,875,1,0],
+  "20011000":["Recept: Sült pulyka",2250,1125,1,0],
+  "20012000":["Recept: Halászlé elkészítése",2250,1125,1,0],
+  "20013000":["Recept: Zöldséges táska",2250,1125,1,0],
+  "20014000":["Útmutató a hús darálásához",2500,1250,1,0],
+  "20015000":["Útmutató a tőkehal szárításához",2500,1250,1,0],
+  "20016000":["Útmutató a füstölő elkészítéséhez",2500,1250,1,0],
+  "20017000":["Recept: Szósz elkészítése",2500,1250,1,0],
+  "20018000":["Útmutató a hal újságpapírba csomagolásához",3500,1750,1,0],
+  "20019000":["Recept: Úri vacsora elkészítése",3500,1750,1,0],
+  "20020000":["Útmutató a tűzgyújtó szett elkészítéséhez",250,125,0,0],
+  "20021000":["Útmutató a kén tisztításához",250,125,0,0],
+  "20022000":["Útmutató a gyanta összegyűjtéséhez",250,125,0,0],
+  "20023000":["Útmutató a kefe elkészítéséhez",500,250,1,0],
+  "20024000":["Recept: Fájdalomcsillapító elkészítése",500,250,1,0],
+  "20025000":["Útmutató a kénsav előállításához",500,250,1,0],
+  "20026000":["Útmutató tinta készítéshez",500,250,1,0],
+  "20027000":["Leírás a petróleum elkészítéséről",500,250,1,0],
+  "20028000":["Útmutató a bálvány elkészítéséhez",750,375,1,0],
+  "20029000":["Útmutató különböző párlatok elkészítéséhez",750,375,1,0],
+  "20030000":["Útmutató a házipálinka főzéshez",1750,875,1,0],
+  "20031000":["Recept: Teakeverék",2250,1125,1,0],
+  "20032000":["Recept a rágódohány keveréséhez",2250,1125,1,0],
+  "20033000":["Útmutató a gyümölcslikőr főzéséhez",2250,1125,1,0],
+  "20034000":["Útmutató az elem elkészítéséhez",2500,1250,1,0],
+  "20035000":["Útmutató lúg készítéséhez",2500,1250,1,0],
+  "20036000":["Útmutató a gyógynövénylikőr főzéshez",2500,1250,1,0],
+  "20037000":["Útmutató a papír újrahasznosításához",2500,1250,1,0],
+  "20038000":["Útmutató a körző elkészítéséhez",3500,1750,1,0],
+  "20039000":["Leírás a rózsavíz előállításához",3500,1750,1,0],
+  "20040000":["Útmutató a serpenyő elkészítéséhez",250,125,0,0],
+  "20041000":["Útmutató az olvasztott vas elkészítéséhez",250,125,0,0],
+  "20042000":["Útmutató a kés elkészítéséhez",250,125,0,0],
+  "20043000":["Útmutató a bajonett elkészítéséhez",500,250,1,0],
+  "20044000":["Leírás a kősúly elkészítéséről",500,250,1,0],
+  "20045000":["Útmutató az acél elkészítéséhez",500,250,1,0],
+  "20046000":["Útmutató az olvasztott ólom elkészítéséhez",500,250,1,0],
+  "20047000":["Leírás az üllő elkészítéséről",500,250,1,0],
+  "20048000":["Útmutató az ólomfigura elkészítéséhez",750,375,1,0],
+  "20049000":["Útmutató a márvány elkészítéséhez",750,375,1,0],
+  "20050000":["Leírás a szegecsek elkészítéséről",1750,875,1,0],
+  "20051000":["Leírás a kardmarkolat készítéséhez",2250,1125,1,0],
+  "20052000":["Útmutató a vizes rongydarab elkészítéséhez",2250,1125,1,0],
+  "20053000":["Útmutató a fegyverlánc elkészítéséhez",2250,1125,1,0],
+  "20054000":["Útmutató a markolat elkészítéséhez",2500,1250,1,0],
+  "20055000":["Leírás a revolver öntőforma elkészítéséhez",2500,1250,1,0],
+  "20056000":["Útmutató az acélpenge elkészítéséhez",2500,1250,1,0],
+  "20057000":["Útmutató a díszítés elkészítéséhez",2500,1250,1,0],
+  "20058000":["Útmutató a geoda kibontásához",3500,1750,1,0],
+  "20059000":["Leírás a polírozó kő elkészítéséről",3500,1750,1,0],
+  "20060000":["Útmutató a kulacs elkészítéséhez",250,125,0,0],
+  "20061000":["Útmutató a bőrszíj elkészítéséhez",250,125,0,0],
+  "20062000":["Útmutató a vágódeszka elkészítéséhez",250,125,0,0],
+  "20063000":["Útmutató a pata patkolásához",500,250,1,0],
+  "20064000":["Útmutató a takarmány elkészítéséhez",500,250,1,0],
+  "20065000":["Útmutató a nyereg bőrborításának leszedéséhez",500,250,1,0],
+  "20066000":["Útmutató a töltőanyag elkészítéséhez",500,250,1,0],
+  "20067000":["Leírás a bőrborítás elkészítéséről",500,250,1,0],
+  "20068000":["Útmutató a billogvas elkészítéséhez",750,375,1,0],
+  "20069000":["Útmutató a beállítatlan iránytű elkészítéséhez",750,375,1,0],
+  "20070000":["Leírás a kengyel elkészítéséről",1750,875,1,0],
+  "20071000":["Útmutató a sarkantyú elkészítéséhez",2250,1125,1,0],
+  "20072000":["Útmutató a kantár elkészítéséhez",2250,1125,1,0],
+  "20073000":["Útmutató hálózsák varrásához",2250,1125,1,0],
+  "20074000":["Útmutató lótakaró varrásához",2500,1250,1,0],
+  "20075000":["Leírás bőrtermékek díszítéséhez",2500,1250,1,0],
+  "20076000":["Útmutató a postakocsi egy darabjának elkészítéséhez",2500,1250,1,0],
+  "20077000":["Útmutató a szekérkerék készítéséhez",2500,1250,1,0],
+  "20078000":["Útmutató célzóvíz főzéséhez",3500,1750,1,0],
+  "20079000":["Leírás a drágaköves nyeregkápa elkészítéséről",3500,1750,1,0],
+  "20080000":["Útmutató útitáska varrásához",250,125,0,0],
+  "20081000":["Útmutató cigaretta sodráshoz",250,125,0,0],
+  "20082000":["Útmutató penge élesítéséhez",250,125,0,0],
+  "20083000":["Útmutató egy szelet torta elkészítéséhez",250,125,0,0],
+  "20084000":["Útmutató a paradicsompüré elkészítéséhez",250,125,0,0],
+  "20085000":["Útmutató a paradicsomszósz elkészítéséhez",250,125,0,0],
+  "20086000":["Útmutató a sült bab elkészítéséhez",250,125,0,0],
+  "20087000":["Útmutató a nyers pirit bányászásához",250,125,0,0],
+  "20088000":["Útmutató a pirit lemez vágásához",250,125,0,0],
+  "20089000":["Útmutató az amulett elkészítéséhez",250,125,0,0],
+  "20090000":["Útmutató a grafit kinyeréséhez",250,125,0,0],
+  "20091000":["Útmutató a grafitpor készítéshez",250,125,0,0],
+  "20092000":["Leírás a grafit kenőanyag elkészítéséhez",250,125,0,0],
+  "20093000":["Útmutató a bőr cserzéséhez",250,125,0,0],
+  "20094000":["Útmutató a bőrtarisznya varrásához",250,125,0,0],
+  "20095000":["Útmutató az abrakos tarisznya elkészítéséhez",250,125,0,0],
+  "20096000":["Útmutató a hús szárításához",250,125,1,0],
+  "20097000":["Útmutató a gulyás elkészítéséhez",2500,1250,1,0],
+  "20098000":["Útmutató az oldalas elkészítéséhez",5000,2500,1,0],
+  "20099000":["Útmutató a babkonzerv elkészítéséhez",5000,2500,1,0],
+  "20100000":["Útmutató a legerősebb vadnyugati chili elkészítéséhez",10000,5000,1,0],
+  "20101000":["Útmutató a kígyóolaj kikeveréséhez",250,125,1,0],
+  "20102000":["Útmutató a hajnövesztő szer elkészítéséhez",2500,1250,1,0],
+  "20103000":["Útmutató a minőségi likőr elkészítéséhez",5000,2500,1,0],
+  "20104000":["Útmutató az izzó keverék elkészítéséhez",5000,2500,1,0],
+  "20105000":["Útmutató a legendás ellenszer elkészítéséhez",10000,5000,1,0],
+  "20106000":["Útmutató a finom bőrzsír elkészítéséhez",250,125,1,0],
+  "20107000":["Útmutató az erős gyeplő elkészítéshez",2500,1250,1,0],
+  "20108000":["Útmutató a tartós pisztolytáska elkészítéséhez",5000,2500,1,0],
+  "20109000":["Útmutató a pehelykönnyű bőr elkészítéséhez",5000,2500,1,0],
+  "20110000":["Útmutató a Pony Express lószerszámok elkészítéséhez",10000,5000,1,0],
+  "20111000":["Útmutató a rozsdamentes csavarok öntéséhez",250,125,1,0],
+  "20112000":["Útmutató a laposüveg elkészítéséhez",2500,1250,1,0],
+  "20113000":["Útmutató a modern páncélzat elkészítéséhez",5000,2500,1,0],
+  "20114000":["Útmutató az órásmester szerszámainak elkészítéséhez",5000,2500,1,0],
+  "20115000":["Útmutató az arany zenedoboz elkészítéséhez",10000,5000,1,0],
+  "20116000":["Útmutató a kukoricaropogós sütéséhez",120,60,1,0],
+  "20117000":["Útmutató a versenykocsi készítéséhez",120,60,1,0],
+  "20118000":["Útmutató a híres \"Nyugati\" colt gyártásához",120,60,1,0],
+  "20119000":["Útmutató az eltűnő tinta készítéséhez",120,60,1,0],
+  "20120000":["Útmutató a fűszeres rágógumi készítéséhez",150,75,1,0],
+  "20121000":["Útmutató a nyereg javításához",150,75,1,0],
+  "20122000":["Útmutató a bicska készítéséhez",150,75,1,0],
+  "20123000":["Útmutató világító muníció gyártásához",150,75,1,0],
+  "20124000":["Útmutató a grog készítéséhez",200,100,1,0],
+  "20125000":["Útmutató a kárpit készítéséhez",200,100,1,0],
+  "20126000":["Útmutató a Wells Fargo felszerelés készítéséhez",200,100,1,0],
+  "20127000":["Útmutató a potencianövelő készítéséhez",200,100,1,0],
+  "20128000":["Útmutató a lenrost készítéséhez",350,175,1,0],
+  "20129000":["Útmutató a gyógyító bábu foltozásához",700,350,1,0],
+  "20130000":["Útmutató a szellemzene írásához",9500,4750,1,0],
+  "20131000":["Útmutató az üveg készítéséhez",350,175,1,0],
+  "20132000":["Útmutató a mézprés készítéséhez",700,350,1,0],
+  "20133000":["Útmutató a lámpás kovácsolásához",9500,4750,1,0],
+  "20134000":["Útmutató a kaktuszlé keveréséhez",350,175,1,0],
+  "20135000":["Útmutató a méz keveréséhez",700,350,1,0],
+  "20136000":["Útmutató a mézbor főzéséhez",9500,4750,1,0],
+  "20137000":["Útmutató a jegyzettömb kötéséhez",350,175,1,0],
+  "20138000":["Útmutató az utazókocsi készítéséhez",700,350,1,0],
+  "20139000":["Útmutató a lőszeröv készítéséhez",9500,4750,1,0],
+  "51617000":["Útmutató a koktélok keveréséhez",1500,750,1,0],
+  "51618000":["Útmutató az ízesített rágógumi készítéséhez",700,350,1,0],
+  "51619000":["Útmutató a bányász burger sütéséhez",4000,2000,1,0],
+  "51620000":["Útmutató a gyümölcskoktél készítéséhez",12000,6000,1,0],
+  "51621000":["Útmutató a komposztáláshoz",5000,2500,1,0],
+  "51622000":["Útmutató a Castello sajt készítéséhez",11500,5750,1,0],
+  "51623000":["Útmutató Maria Roalstad postakocsijának építéséhez",1500,750,1,0],
+  "51624000":["Útmutató a The West egy hangjának megírásához",700,350,1,0],
+  "51625000":["Útmutató a szövetdoboz elkészítéséhez",4000,2000,1,0],
+  "51626000":["Útmutató az öv szíjakkal készítéséhez",12000,6000,1,0],
+  "51627000":["Útmutató a hátas páncéljának gyártásához",5000,2500,1,0],
+  "51628000":["Útmutató a bőrkabát készítéséhez",11500,5750,1,0],
+  "51629000":["Útmutató a rejtett bomba készítéséhez",1500,750,1,0],
+  "51630000":["Útmutató a próbabábú gyártásához",700,350,1,0],
+  "51631000":["Útmutató a fejlesztett szerszámkészlet összerakásához",4000,2000,1,0],
+  "51632000":["Útmutató az acél edzéséhez",12000,6000,1,0],
+  "51633000":["Útmutató a kereső készítéséhez",5000,2500,1,0],
+  "51634000":["Útmutató a lovassági szablya kovácsolásához",11500,5750,1,0],
+  "51635000":["Útmutató a csodaszer főzéséhez",1500,750,1,0],
+  "51636000":["Útmutató a fémkoponya elkészítéséhez",700,350,1,0],
+  "51637000":["Útmutató az erős sav és lúg készítéséhez",4000,2000,1,0],
+  "51638000":["Útmutató a kínok elleni orvosság készítéséhez",12000,6000,1,0],
+  "51639000":["Útmutató az adóigazolás nyomtatásához",11500,5750,1,0],
+  "51640000":["Útmutató az álomcsapda készítéséhez",5000,2500,1,0],
+  "52031000":["Útmutató vaj elkészítéséhez",150,75,1,0],
+  "52032000":["Útmutató a citrus kivonat elkészítéséhez",150,75,1,0],
+  "52033000":["Útmutató a fa habverő elkészítéséhez",150,75,1,0],
+  "52034000":["Útmutató a sütőforma elkészítéséhez",150,75,1,0],
+  "52514000":["Útmutató a piros gyümölcslé elkészítéséhez",150,75,0,0],
+  "52515000":["Útmutató a desszert dekoráció elkészítéséhez",150,75,0,0],
+  "52516000":["Útmutató a fából készült tortaállvány elkészítéséhez",150,75,0,0],
+  "52517000":["Útmutató a szívószál és a desszertes kanál elkészítéséhez",150,75,0,0],
+  "52519000":["Útmutató a pohárdesszert elkészítéséhez",150,75,0,0],
+  "52520000":["Útmutató a pohárdesszert elkészítéséhez",150,75,0,0],
+  "52521000":["Útmutató a pohárdesszert elkészítéséhez",150,75,0,0],
+  "52522000":["Útmutató a pohárdesszert elkészítéséhez",150,75,0,0],
+  "52523000":["Útmutató a lázcsillapító elkészítéséhez",150,75,0,0],
+  "52524000":["Útmutató a francia reggeli elkészítéséhez",150,75,0,0],
+  "52525000":["Útmutató a bőr nyeregtáska elkészítéséhez",150,75,0,0],
+  "52526000":["Útmutató a mesteri sarkantyúk elkészítéséhez",150,75,0,0],
+  "52875000":["Útmutató: Az édesítőszer előállításához",350,175,0,0],
+  "52876000":["Útmutató: A gyümölcslé előállításához",350,175,0,0],
+  "52877000":["Útmutató: A palackfedél elkészítéséhez",350,175,0,0],
+  "52878000":["Útmutató: A palackdugó elkészítéséhez",350,175,0,0],
+  "53342000":["Recept: Tortalap sütés",350,0,0,0],
+  "53343000":["Útmutató az ételfesték elkészítéséhez",350,0,0,0],
+  "53344000":["Útmutató a 15. Születésnapi torta beszúró elkészítéséhez",350,0,0,0],
+  "53345000":["Útmutató a torta dekorációk elkészítéséhez",350,0,0,0],
+  "53346000":["Recept: 15. születésnapi torta sütés",350,0,0,0],
+  "53347000":["Recept: 15. születésnapi torta sütés",350,0,0,0],
+  "53348000":["Recept: 15. születésnapi torta sütés",350,0,0,0],
+  "53349000":["Recept: 15. születésnapi torta sütés",350,0,0,0],
+  "53942000":["Útmutató a Cowboy pörkölt főzéséhez",500,0,0,0],
+  "53943000":["Útmutató: Fém bögre készítése",500,0,0,0],
+  "53944000":["Útmutató: Kézműves nyeregülés",500,0,0,0],
+  "53945000":["Útmutató: A modern orvosság elkészítése",500,0,0,0],
+  "54383000":["Tüzes víz lepárlása",250,0,0,0],
+  "54384000":["Dekor kaktusz készítése",500,0,0,0],
+  "54385000":["Bőrláda varrása",500,0,0,0],
+  "54386000":["Hadi orvosság készítése",500,0,0,0],
+  "54511000":["Útmutató a kovács üllőjének elkészítéséhez",6000,3000,1,0],
+  "54512000":["Útmutató az állatok nagy atlaszának kötéséhez",8500,4250,1,0],
+  "54513000":["Útmutató a játék pisztoly készítéshez",11000,5500,1,0],
+  "54514000":["Útmutató a vödör kovácsolásához",13000,6500,1,0],
+  "54515000":["Útmutató a pótalkatrészek összekészítéséhez",15000,7500,1,0],
+  "54516000":["Útmutató a fehér tál díszítéséhez",6000,3000,1,0],
+  "54517000":["Útmutató a téli befőzéshez",8500,4250,1,0],
+  "54518000":["Recept: Fűszeres kenyér sütés",11000,5500,1,0],
+  "54519000":["Recept: Tea koktél",13000,6500,1,0],
+  "54520000":["Recept: Szarvasgombás saláta",15000,7500,1,0],
+  "54521000":["Útmutató a vászonképek csomagolásához",6000,3000,1,0],
+  "54522000":["Útmutató a lófelszerelés elkészítéséhez",8500,4250,1,0],
+  "54523000":["Útmutató a kengyelbőr készítéséhez",11000,5500,1,0],
+  "54524000":["Útmutató a fonáshoz",13000,6500,1,0],
+  "54525000":["Útmutató a hordozható sátor állításhoz",15000,7500,1,0],
+  "54526000":["Útmutató az itallap írásához",6000,3000,1,0],
+  "54527000":["Útmutató a méhviasz gyertya mártásához",8500,4250,1,0],
+  "54528000":["Útmutató a tűzszerész készlet készítéséhez",11000,5500,1,0],
+  "54529000":["Recept: Fűszerkeverék",13000,6500,1,0],
+  "54530000":["Útmutató a gyógyászati paróka ragasztáshoz",15000,7500,1,0],
+  "54622000":["Útmutató: A kovács emlékeinek felidézéséhez",8000,4000,1,0],
+  "54623000":["Útmutató: A tábori szakács emlékeinek felidézéséhez",8000,4000,1,0],
+  "54624000":["Útmutató: Az istállómester emlékeinek felidézéséhez",8000,4000,1,0],
+  "54625000":["Útmutató: A sarlatán emlékeinek felidézéséhez",8000,4000,1,0],
+  "54830000":["Recept: Lapos kenyér sütése",1000,500,0,0],
+  "54831000":["Útmutató a horgászhorog elkészítéséhez",1000,500,0,0],
+  "54832000":["Útmutató a késvédő tok varrásához",1000,500,0,0],
+  "54833000":["Útmutató a gyógyszeres üveg elkészítéséhez",1000,500,0,0]
+};
+
 /* ======================= állapot ======================= */
 /* ================= V8 LÁTVÁNYRÉTEG =================
    Az alábbi három függvény a v8 vizuális burkolatát építi rá a meglévő
@@ -5800,7 +6163,7 @@ function save(){
       const custom = {};
       Object.keys(names).forEach(k => { if(names[k] !== BASE_NAMES[k]) custom[k] = names[k]; });
       localStorage.setItem(STORE, JSON.stringify({
-        stock, names:custom, levels, char, learned, avatar,
+        stock, names:custom, levels, char, learned, avatar, tekercsek,
         edition, eventTheme, motion:motionOn ? "on" : "off",
         icons:document.documentElement.dataset.icons === "0" ? 0 : 1,
         recipe:sel.recipe, prof:sel.prof, qty:sel.qty, mode:sel.mode, targets:sel.targets
@@ -5818,6 +6181,7 @@ function load(){
     if(p.char) char = p.char;
     if(Array.isArray(p.learned)) learned = p.learned;
     if(typeof p.avatar === "string") avatar = p.avatar;
+    if(p.tekercsek && typeof p.tekercsek === "object") tekercsek = p.tekercsek;
     /* V8: a látványréteg két beállítása. */
     if(p.edition && !EGYETLEN_TEMA) edition = p.edition;
     if(EVENT_THEMES.some(item => item.id === p.eventTheme)) eventTheme = p.eventTheme;
@@ -5904,7 +6268,9 @@ function chain(rootIds){
    Tízet tartunk, a legrégebbi esik ki. Tárolás géphez kötve. */
 const TERV_KULCS = "mk-tervek";
 const TERV_MAX = 10;
-let tervBe = localStorage.getItem("mk-terv-be") === "1";
+/* A MENTÉS MINDIG ELÉRHETŐ, kapcsoló nélkül, a panel 1.2.4-hez igazodva.
+   A régi "mk-terv-be" kulcsot senki nem olvassa többé; a mentett tervek a
+   TERV_KULCS alatt vannak, azokhoz ez nem nyúl. */
 let mentettTervek = [];
 try {
   const t = JSON.parse(localStorage.getItem(TERV_KULCS) || "null");
@@ -6077,7 +6443,54 @@ function targets(){
   if(!sel.targets.length && sel.recipe) return [{ i:sel.recipe, q:sel.qty }];
   return sel.targets;
 }
+/* UGRÁS ÉS VISSZAÚT (a panel t59-t61 szabályai).
+
+   Az ugrás ugyanaz, mint a bal oldali listakattintás: a munkalap arra a
+   receptre vált, egy darabbal, és ha kell, a mesterségszűrő is átáll, hogy a
+   recept látsszon a listában. A keresőt is ürítjük, különben a cél kimaradhat
+   a listából - de a fókuszt NEM tesszük rá, az elvenné a figyelmet a
+   munkalapról. Zárolt és meg nem tanult receptre is ugrik: épp azért nézel
+   oda, hogy lásd az állapotát.
+
+   A VISSZAÚT: ha az ugrás LEGALÁBB KÉTTÉTELES tervből indul, megjegyezzük a
+   tervet (célok, darabszámok, kizárás pipái) és a mesterségszűrőt. Az
+   egyeleműt nem, az ugyanaz, mint az egycélú nézet. A második ugrás már nem
+   tervből indul, tehát nem írja felül. Egy visszaút van, nem előzménylánc.
+   ELTŰNIK: visszakattintásra, listakattintásra, a + gombra és mentett terv
+   megnyitására. Tárolóba nem megy, újratöltés után már nem ígéret. */
+let visszaTerv = null;
+function ugorj(id){
+  const r = recipeMap.get(String(id));
+  if(!r) return;
+  if(targets().length > 1)
+    visszaTerv = { c: targets().map(t => ({ i:t.i, q:t.q, x:t.x !== false })), r: sel.recipe, p: sel.prof };
+  sel.recipe = String(id);
+  setTargets([{ i:sel.recipe, q:1 }]);
+  const ps = profIds(r.p);
+  if(sel.prof !== MIND_PROF && !ps.includes(sel.prof)) sel.prof = ps[0];
+  if($("search").value){ $("search").value = ""; searchClearSync(); }
+  renderChips(); syncLevel(); renderRecipes(); renderPlan(); save();
+}
+function visszaATervhez(){
+  if(!visszaTerv) return;
+  const v = visszaTerv;
+  visszaTerv = null;
+  setTargets(v.c);
+  sel.recipe = v.r;
+  /* A szűrőt is visszaállítjuk: az ugrás átírhatta, és egy több mesterséget
+     kevert tervnél különben beragadna. */
+  sel.prof = v.p;
+  renderChips(); syncLevel(); renderRecipes(); renderPlan(); save();
+}
+function renderVissza(){
+  const sav = $("visszaSav");
+  if(!sav) return;
+  sav.hidden = !visszaTerv;
+  if(visszaTerv) $("visszaGomb").textContent = "← Vissza a tervhez (" + visszaTerv.c.length + ")";
+}
+
 function addTarget(id){
+  visszaTerv = null;   /* új tervet kezdesz, a régi visszaút érvényét veszti */
   const t = sel.targets.find(x => x.i === id);
   if(t) t.q++;
   else sel.targets.push({ i:id, q:1, x:true });
@@ -6106,6 +6519,143 @@ const unlearned = r => !!learned && !!char
   && !learned.includes(r.i);
 
 const canCraftNow = r => r.g.every(([id, q]) => (stock[id] || 0) >= q);
+
+/* MAX JELZŐ (a panel 1.0.1-1.2.1 szabályai, t37-t49).
+
+   Két szám, két jelentés:
+     ZÖLD - ennyit tudsz MOST, magad legyártani: a te mesterséged, elég a
+            szinted, megtanultad, és a lánc minden gyártott lépése is ilyen.
+            Csak a valódi raktárból számol, a megbízásból nem.
+     RÉZ  - a te oldaladról ennyire elég az anyagod, de valami más akadályoz:
+            a recept vagy egy köztes lépése nem a te mesterséged, nem érted el
+            a szintet, vagy nem tanultad meg. A megbízásokat is beszámítja, ha
+            a "beszámít" kapcsoló be van kapcsolva, ugyanúgy, mint a fa.
+   A cél saját meglévő darabjai SOHA nem számítanak bele: a Max arra
+   válaszol, hány darabot tudsz GYÁRTANI.
+
+   A WEBOLDAL SAJÁTJA: a "te mesterséged" csak a játékból beolvasott
+   karakterből ismert (char). Beolvasás nélkül nincs zöld szám, csak réz: az
+   azt mondja meg, mennyire elég az anyagod, ha minden lépést legyártanak. */
+function maxSajat(r){
+  return !!(char && char.prof) && profIds(r.p).includes(char.prof);
+}
+function maxTulSzint(r){
+  if(!maxSajat(r)) return false;
+  const v = levels[char.prof];
+  if(v === undefined || v === "") return false;
+  return minLvl(r) > Number(v);
+}
+function maxNemTanult(r){
+  if(!learned || !learned.length || !maxSajat(r)) return false;
+  return !learned.includes(r.i);
+}
+function maxMagad(r){ return maxSajat(r) && !maxTulSzint(r) && !maxNemTanult(r); }
+
+/* Kijön-e n darab? A készletet másolatban fogyasztjuk, mert a köztes
+   termékek is a közös raktárból élnek. */
+function maxKijon(id, n, k){
+  const jar = (mit, mennyi, ut) => {
+    if(mennyi <= 0) return true;
+    const van = Math.min(k[mit] || 0, mennyi);
+    k[mit] = (k[mit] || 0) - van;
+    const marad = mennyi - van;
+    if(marad === 0) return true;
+    const r = recipeMap.get(mit);
+    if(!r || !maxMagad(r) || ut.includes(mit)) return false;
+    return r.g.every(([gid, q]) => jar(gid, q * marad, [...ut, mit]));
+  };
+  return jar(id, n, []);
+}
+/* Ugyanez a réz számhoz: a más mesterségébe tartozó lépés tárgyát nem
+   követeljük meg, de az ALAPANYAGÁT igen (azt a fa is tőled kéri). A
+   gyökeret magát nem kérdőjelezzük meg; köztes lépésnél a saját, de meg nem
+   tanult vagy túl magas szintű recept valódi akadály. */
+function maxKijonReszben(id, n, k){
+  const jar = (mit, mennyi, ut) => {
+    if(mennyi <= 0) return true;
+    const van = Math.min(k[mit] || 0, mennyi);
+    k[mit] = (k[mit] || 0) - van;
+    const marad = mennyi - van;
+    if(marad === 0) return true;
+    const r = recipeMap.get(mit);
+    if(!r) return false;
+    if(ut.includes(mit)) return false;
+    const tovabb = () => r.g.every(([gid, q]) => jar(gid, q * marad, [...ut, mit]));
+    if(ut.length === 0 || !maxSajat(r)) return tovabb();
+    if(!maxMagad(r)) return false;
+    return tovabb();
+  };
+  return jar(id, n, []);
+}
+/* A legnagyobb kijövő darabszám kettős kereséssel, 9999-ig. */
+function maxFelez(id, ellenoriz, alap){
+  const a = Object.assign({}, alap);
+  delete a[id];
+  if(!ellenoriz(id, 1, Object.assign({}, a))) return 0;
+  let also = 1, felso = 2;
+  while(felso <= 9999 && ellenoriz(id, felso, Object.assign({}, a))){ also = felso; felso *= 2; }
+  felso = Math.min(felso, 9999);
+  while(also < felso){
+    const kozep = Math.ceil((also + felso) / 2);
+    if(ellenoriz(id, kozep, Object.assign({}, a))) also = kozep; else felso = kozep - 1;
+  }
+  return also;
+}
+/* Az első köztes lépés, ami más mesterségé - ezt nevezi meg a buborék. */
+function maxElsoIdegen(id, k){
+  let talalt = null;
+  const jar = (mit, mennyi, ut) => {
+    if(talalt || mennyi <= 0) return;
+    const van = Math.min(k[mit] || 0, mennyi);
+    k[mit] = (k[mit] || 0) - van;
+    const marad = mennyi - van;
+    if(marad === 0) return;
+    const r = recipeMap.get(mit);
+    if(!r) return;
+    if(ut.length && !maxSajat(r)){ talalt = mit; return; }
+    if(ut.length && !maxMagad(r)) return;
+    if(ut.includes(mit)) return;
+    r.g.forEach(([gid, q]) => jar(gid, q * marad, [...ut, mit]));
+  };
+  jar(id, 1, []);
+  return talalt;
+}
+function maxJelzo(id){
+  const r = recipeMap.get(id);
+  if(!r) return "";
+  const zarolt = !!r.t;
+  const cimke = (osztaly, szam, cim) =>
+    `<span class="maxj${osztaly}"${cim ? ` title="${mesc(cim)}"` : ""}>Max: <b>${szam}</b></span>`;
+  const zarCim = n => `Alapanyagod ${n} darabra van, de a zárolás miatt egyszerre egyet gyárthatsz.`;
+
+  /* ZÖLD: csak valódi raktár, és csak ha magad gyártod. */
+  if(maxMagad(r)){
+    const n = maxFelez(id, maxKijon, stock);
+    if(n > 0) return cimke("", zarolt ? 1 : n,
+      zarolt ? zarCim(n) : "Ennyit tudsz most legyártani a készletedből.");
+  }
+
+  /* RÉZ: a megbízással együtt, ahogy a fa is számol. */
+  const k = Object.assign({}, stock);
+  const v = beszVarhato();
+  Object.keys(v).forEach(x => { k[x] = (Number(k[x]) || 0) + v[x]; });
+  targets().forEach(t => { if(t.x !== false) delete k[t.i]; });
+  const m = maxFelez(id, maxKijonReszben, k);
+  if(m < 1) return "";
+  const mutat = zarolt ? 1 : m;
+
+  /* Beolvasott karakter nélkül nem tudjuk, ki gyártja - ezt mondja a buborék. */
+  if(!(char && char.prof))
+    return cimke(" varakozik", mutat, (zarolt ? zarCim(m) + " " : "")
+      + "Ennyire elég az anyagod, ha minden lépést legyártanak. Hogy te magad le tudod-e gyártani, azt a játékból beolvasott karakterrel mutatjuk meg.");
+  /* A recept maga nem a tiéd, vagy nincs meg a szinted, vagy nem tanultad
+     meg: az ok a fejlécben látszik, buborék csak a zároláshoz jár. */
+  if(!maxMagad(r)) return cimke(" varakozik", mutat, zarolt ? zarCim(m) : "");
+  /* A recept a tiéd, egy köztes lépése nem: azt nevezzük meg. */
+  const akadaly = maxElsoIdegen(id, Object.assign({}, stock, { [id]: 0 }));
+  if(!akadaly) return "";
+  return cimke(" varakozik", mutat, nameOf(akadaly) + " kell hozzá, azt nem te gyártod");
+}
 
 /* ======================= receptlista ======================= */
 /* EKEZET NELKULI KERESES.
@@ -6156,6 +6706,7 @@ function lancTargyai(id, ut){
 }
 
 function renderRecipes(){
+  receptBubZar();
   /* A legördülő számai a mostani szűréstől függenek, tehát vele együtt
      frissülnek. Nincs körkörös hívás: a renderHatasSzuro csak az onchange
      kezelőjéből hívja vissza a renderRecipes-t, futás közben nem. */
@@ -6228,11 +6779,10 @@ function renderRecipes(){
     const inPlan = sel.targets.some(t => t.i === r.i);
     return `<li style="display:grid;grid-template-columns:1fr auto;align-items:stretch">
       <button data-pick="${r.i}" class="${locked ? "locked" : nolearn ? "unlearned" : ""}"
-        title="${locked ? "Magasabb mesterségszint kell hozzá" : nolearn ? "Nincs meg a recepted" : ""}"
         ${r.i === sel.recipe ? 'aria-current="true"' : ""}>
         <i class="dot ${state}"></i>
-        <span class="nmwrap">${ico(r.i)}<span class="rname">${r.n}<small>${
-          q ? profLabel(r.p) + " · " : ""}${minLvl(r)}. szint</small></span></span></button>
+        <span class="nmwrap">${ico(r.i)}<span class="rname"><span class="rn">${r.n}</span><small><span class="szt">${
+          q ? profLabel(r.p) + " · " : ""}${minLvl(r)}. szint</span>${tekercsIkon(r)}</small></span></span></button>
       <button class="addbtn" data-add="${r.i}"
         title="${inPlan ? "Még egy darab a tervbe" : "Hozzáadás a tervhez"}"
         style="${inPlan ? "color:var(--brass)" : ""}">+</button>
@@ -6250,6 +6800,7 @@ function renderRecipes(){
   });
   $("rlist").querySelectorAll("[data-pick]").forEach(b => {
     b.onclick = () => { sel.recipe = b.dataset.pick;
+          visszaTerv = null;   /* tudatos váltás, a visszaút elvész */
           setTargets([{ i:sel.recipe, q:1 }]);
       /* MIND allasban maradunk Mind-en: a felhasznalo szandekosan nezi az
          osszeset, nem akarjuk visszaugrasztani egyetlen mestersegre. */
@@ -6388,6 +6939,7 @@ function renderPlan(){
     if(ITEM_IMG[r.i]){ oi.src = iconBase() + ITEM_IMG[r.i]; oi.hidden = false; } else oi.hidden = true;
     /* 1.0.2: a hatásbuborék adata a kiválasztott recepthez igazodik. */
     orderIcoHatas(r.i);
+    $("maxJel").innerHTML = maxJelzo(r.i);
     $("orderMeta").innerHTML = `${profLabel(r.p)} · ${lepcso(r.l)}` +
       (r.t ? ` · <span style="color:var(--brass)">${lockLabel(r.t)}</span>` : "");
     /* Gépelés közben NEM írjuk felül a mezőt, különben a törlés pillanatában
@@ -6406,7 +6958,8 @@ function renderPlan(){
       const r = recipeMap.get(t.i);
       const have = stock[t.i] || 0;
       return `<div class="trow">${ico(t.i,"lg")}
-        <div class="tname">${r.n}<small>${profLabel(r.p)} · ${lepcso(r.l)}</small>
+        <div class="tname"><span class="ugro" data-ugro="${t.i}" role="button" tabindex="0"
+          title="Ugrás erre a receptre">${r.n}</span><small>${profLabel(r.p)} · ${lepcso(r.l)}</small>
           <label class="texcl"><input type="checkbox" data-tx="${t.i}" ${t.x !== false ? "checked" : ""}>
             meglévő ${have} db nem számít</label></div>
         <div class="miniset"><button data-tdec="${t.i}">−</button>
@@ -6470,47 +7023,64 @@ function buildTree(id, need, path, pool){
   node.kids = r.g.map(([gid, q]) => buildTree(gid, q * rest, [...path, id], pool));
   return node;
 }
+/* A renderTree állítja be rajzolás előtt: több célú-e a terv. */
+let faTobbCel = false;
 function treeHTML(node, root){
   const covered = node.rest === 0;
   const short = !node.craft && node.rest > 0;
   const cls = ["node", root ? "root" : node.craft ? "craft" : "base",
                (covered && !root) ? "covered" : "", short ? "short" : ""].filter(Boolean).join(" ");
   let meta = "";
-  /* A FÁBAN IS SZÉTBONTVA. A node.have már tartalmazza a megbízást, tehát a
-     "99 raktárból" azt állítaná, hogy a raktáradban van - pedig egy darab
-     sincs ott. A csillag ugyanaz a jel, amit a Mit gyűjts oszlopban a
-     felhasználó már megtanult.
+  /* A NYERS RAKTÁRI KÉSZLET MINDEN SORON (a panel t47-t48 szabálya).
 
-     ELŐBB A RAKTÁR, UTÁNA A MEGBÍZÁS: a valódi készlet fogy elsőként, a
-     megbízás csak a maradékot fedezi. Fordítva olyan szám jönne ki, ami se
-     nem készlet, se nem megbízás. */
-  const honnan = (have) => {
-    const valos = Math.min(Number(stock[node.id]) || 0, have);
-    const rendelt = Math.max(0, have - valos);
-    if(!rendelt) return have + " raktárból";
-    if(!valos) return rendelt + " megrendelve<span class=\"csill\">*</span>";
-    return valos + " raktárból, " + rendelt + " megrendelve<span class=\"csill\">*</span>";
-  };
+     A fa eddig azt írta ki, MENNYIT HASZNÁL EL a terv a raktárból ("6
+     raktárból") - azt viszont a sor elején álló "6 ×" úgyis megmondja. Hogy
+     MENNYI VAN a táskádban, azt sehol nem lehetett látni. Mostantól a sor a
+     nyers készletet mondja: "30 raktáron". A szám NEM fogy a lánc mentén,
+     és NEM érinti a kizárás pipa: attól, hogy a meglévő darab nem számít bele
+     a tervbe, a raktáradban ott van. A nulla is kiírásra kerül, így a szabály
+     feltétel nélküli.
+
+     A megbízás külön, csillaggal áll, és ELŐBB A RAKTÁR fogy, utána a
+     megbízás: a csillagos szám azt mondja meg, mennyi múlik a beszerzőn. Ha
+     a cél saját készletét kizártad, a raktár ott nem fedez semmit. */
+  const keszlet = Number(stock[node.id]) || 0;
+  const megrendelt = (() => {
+    const v = Number(beszVarhato()[String(node.id)] || 0);
+    if(v <= 0) return 0;
+    const kizart = targets().some(t => String(t.i) === String(node.id) && t.x !== false);
+    const raktarbol = Math.min(kizart ? 0 : keszlet, node.have);
+    return Math.max(0, node.have - raktarbol);
+  })();
+  const van = keszlet + " raktáron"
+    + (megrendelt ? ", " + megrendelt + " megrendelve<span class=\"csill\">*</span>" : "");
 
   if(node.cycle) meta = `<span class="mt">körkörös recept</span>`;
   else if(node.craft) meta = `<span class="mt">${profLabel(node.p)} · ${node.lvl}</span>` +
     (node.t ? `<span class="lock">${lockLabel(node.t)}</span>` : "") +
-    (covered ? `<span class="mt ok">${honnan(node.have)} · megvan</span>`
-             : `<span class="mt">${node.have ? honnan(node.have) + " · " : ""}${node.batches}× gyártás</span>`);
+    (covered ? `<span class="mt ok">${van} · megvan</span>`
+             : `<span class="mt">${van} · ${node.batches}× gyártás</span>`);
   else meta = node.rest === 0
-    ? `<span class="mt ok">${honnan(node.have)} · megvan</span>`
-    : `<span class="mt">${node.have ? honnan(node.have) + " · " : ""}még ${node.rest} kell</span>`;
+    ? `<span class="mt ok">${van} · megvan</span>`
+    : `<span class="mt">${van} · még ${node.rest} kell</span>`;
+  /* UGRÁS: a gyártott tétel neve kattintható, és a munkalap arra vált.
+     A GYÖKÉR csak több célú tervben ugró - egycélú nézetben ugyanarra a
+     receptre vinne, amit már nézel, tehát nem ígérünk kattintást. */
+  const ugro = node.craft && (!root || faTobbCel);
   const kids = node.kids.length;
   return `<li class="${kids ? "has-kids" : ""}">
     <div class="${cls}">${kids ? `<button class="toggle" aria-label="Ág nyitása és zárása"></button>`
                                 : `<span style="width:18px;display:inline-block"></span>`}
-      <span class="q">${node.need} ×</span>${ico(node.id,"sm")}<span class="nm">${node.name}</span>${meta}</div>
+      <span class="q">${node.need} ×</span>${ico(node.id,"sm")}<span class="nm">${ugro
+        ? `<span class="ugro" data-ugro="${node.id}" role="button" tabindex="0" title="Ugrás erre a receptre">${node.name}</span>`
+        : node.name}</span>${meta}</div>
     ${kids ? `<ul>${node.kids.map(k => treeHTML(k)).join("")}</ul>` : ""}</li>`;
 }
 function renderTree(){
   const ts = targets();
   const pool = planPool(ts);
   const forest = ts.map(t => buildTree(t.i, t.q, [], pool));
+  faTobbCel = ts.length > 1;
   $("steps").className = "tree";
   $("steps").innerHTML = `<div class="treebar">
       <button data-tb="open">Mind kinyit</button><button data-tb="close">Mind bezár</button></div>` +
@@ -7014,13 +7584,13 @@ function parseShort(str){
   return out;
 }
 function buildBookmarklet(){
-  const ids = [...baseIds, ...RECIPES.map(r => r.i)].map(i => Number(i) / 1000);
+  const ids = [...baseIds, ...RECIPES.map(r => r.i), ...Object.keys(TEKERCS_ADAT)].map(i => Number(i) / 1000);
   const target = location.origin + location.pathname;
   const code =
     "javascript:(function(){var W=window;if(!W.Bag){for(var i=0;i<W.frames.length;i++){try{if(W.frames[i].Bag){W=W.frames[i];break}}catch(e){}}}" +
     "var B=W.Bag;if(!B||!B.getItemCount){alert('Ezt a gombot a futo The West jatekablakban kell megnyomni.');return}" +
     "var I=[" + ids.join(",") + "],o=[];for(var j=0;j<I.length;j++){var c=0;try{c=B.getItemCount(I[j]*1000)||0}catch(e){}if(c>0)o.push(I[j]+':'+c)}" +
-    "var q='imp='+o.join(',');" +
+    "var q='imp='+o.join(',')+'&tk=1';" +
     "try{var C=W.Character;if(C&&C.name)q+='&k='+encodeURIComponent(C.name+'|'+(C.professionId||0)+'|'+(C.professionSkill||0))}catch(e){}" +
     "try{var R=W.Crafting&&W.Crafting.recipes;if(R){var t=[],all=0;for(var k in R){var r=R[k];if(!r)continue;all++;" +
     "if(Object.prototype.hasOwnProperty.call(r,'last_craft')&&r.craftitem)t.push(r.craftitem/1000)}" +
@@ -7056,8 +7626,11 @@ function rovidRaktar(){
 
 function hivatkozasKeszit(){
   const reszek = [];
-  const imp = rovidRaktar();
+  const tkResz = tekercsek === null ? "" : Object.keys(tekercsek).filter(id => tekercsek[id] > 0)
+    .map(id => id.slice(0, -3) + "-" + tekercsek[id]).join(".");
+  const imp = [rovidRaktar(), tkResz].filter(Boolean).join(".");
   if(imp) reszek.push("imp=" + encodeURIComponent(imp));
+  if(tekercsek !== null) reszek.push("tk=1");
   /* A karakteradatnál marad a függőleges vonal: a névben bármi lehet, és a
      pont vagy a kötőjel ott ütközne. A név úgyis kódolást igényel. */
   if(char) reszek.push("k=" + encodeURIComponent(
@@ -7127,13 +7700,22 @@ function renderBesz(){
 
   const lista = [...csop.entries()].map(([nev, sorok]) => {
     const utolso = sorok.map(t => t.mikor || "").sort().pop() || "";
-    return `<div class="bcsop"><div class="bfej"><b>${mesc(nev)}</b>`
+    return `<div class="bcsop"><div class="bfej"><span class="nevcella">`
+      + `<b class="bnev" data-bnev="${mesc(nev)}" tabindex="0" role="button"
+           title="Kattints a beszerző átnevezéséhez - az egész rendelés átkerül"
+           aria-label="${mesc(nev)} - kattints az átnevezéshez">${mesc(nev)}</b>`
+      + `<input class="bnevm" data-bnevm="${mesc(nev)}" value="${mesc(nev)}" hidden
+           autocomplete="off" spellcheck="false" aria-label="Beszerző neve"></span>`
       + `<button class="bplusz" type="button" data-bplusz="${mesc(nev)}"
            title="Új tétel ehhez a beszerzőhöz" aria-label="Új tétel ehhez a beszerzőhöz">+</button>`
       + (utolso ? `<span class="mono">${mesc(utolso)}</span>` : "")
       + `</div>` + sorok.map(t =>
         `<div class="bsor">${ico(t.id, "sm") || ""}<span>${mesc(dispName(t.id))}</span>`
-        + `<b>${Number(t.db)}</b>`
+        + `<span class="dbcella"><b class="bdb" data-bdb="${mesc(t.kulcs)}" tabindex="0" role="button"
+             title="Kattints a darabszám átírásához"
+             aria-label="${Number(t.db)} darab - kattints az átíráshoz">${Number(t.db)}</b>`
+        + `<input class="bdbm" data-bdbm="${mesc(t.kulcs)}" inputmode="numeric"
+             value="${Number(t.db)}" hidden aria-label="Darabszám"></span>`
         + `<button class="btorol" data-btorol="${mesc(t.kulcs)}" type="button"
              title="Levétel a listáról" aria-label="Levétel a listáról">&#10005;</button></div>`
       ).join("")
@@ -7252,6 +7834,95 @@ function renderBesz(){
       beszMent(); renderBesz(); renderRecipes(); renderPlan();
     };
   });
+
+  /* HELYBEN SZERKESZTÉS, a panel t58-as szabályával betű szerint egyezően:
+       kattintás (vagy Enter, szóköz a címkén) -> mező nyílik, tartalom kijelölve
+       Enter vagy ELKATTINTÁS                 -> ment
+       Esc                                    -> visszaáll a régi érték
+       érvénytelen vagy változatlan érték     -> visszaáll, nem ment
+
+     Az elkattintás azért MENT, hogy egy hosszan beírt szám ne vesszen el egy
+     melléütéstől; aki meggondolja magát, annak ott az Esc.
+
+     A "lezarva" őr kettős mentés ellen van: a mentés újrarajzol, és ha a
+     böngésző a fókuszban lévő mező eltávolításakor újabb blur-t küld, az már
+     nem ment még egyszer. */
+  const helybenSzerk = (cimke, mezo, ment) => {
+    if(!cimke || !mezo) return;
+    const eredeti = mezo.value;
+    let lezarva = false;
+    const zar = () => { mezo.hidden = true; cimke.hidden = false; };
+    const nyit = () => {
+      lezarva = false;
+      cimke.hidden = true;
+      mezo.hidden = false;
+      mezo.focus();
+      mezo.select();
+    };
+    cimke.addEventListener("click", nyit);
+    cimke.addEventListener("keydown", e => {
+      if(e.key === "Enter" || e.key === " "){ e.preventDefault(); nyit(); }
+    });
+    mezo.addEventListener("keydown", e => {
+      if(e.key === "Escape"){
+        /* Az Esc MAGA zár és állít vissza, nem bízza a blur-re. */
+        e.preventDefault();
+        lezarva = true;
+        mezo.value = eredeti;
+        zar();
+        cimke.focus();
+      }else if(e.key === "Enter"){
+        e.preventDefault();
+        mezo.blur();
+      }
+    });
+    mezo.addEventListener("blur", () => {
+      if(mezo.hidden || lezarva) return;
+      lezarva = true;
+      if(!ment(mezo.value)){ mezo.value = eredeti; zar(); }
+    });
+  };
+
+  /* ÁTNEVEZÉS: az EGÉSZ rendelést átviszi. Ha a beírt név egy MÁSIK, már
+     létező beszerzőt jelöl - akár másképp írva, ékezet és nagybetű nélkül -,
+     annak az írásmódja nyer, és a két csoport összeolvad. Ha nincs ilyen, a
+     beírt szöveg megy, tehát a puszta nagybetű-javítás is működik.
+     A mikor mezőhöz nem nyúlunk: az a felvitel napja. */
+  const atnevez = (regiNev, beirt) => {
+    const uj = String(beirt || "").trim();
+    if(!uj) return false;
+    const masik = [...new Set(beszerzok.map(x => String(x.nev)))]
+      .filter(n => n !== regiNev)
+      .find(n => ekNelkul(n) === ekNelkul(uj));
+    const vegso = masik || uj;
+    if(vegso === regiNev) return false;
+    beszerzok.forEach(x => { if(String(x.nev) === regiNev) x.nev = vegso; });
+    beszMent(); renderBesz(); renderRecipes(); renderPlan();
+    return true;
+  };
+
+  /* DARABSZÁM: csak pozitív egész számot fogadunk el. A nulla nem törlés -
+     a törlés külön művelet marad, az ✕. */
+  const ujDarab = (kulcs, beirt) => {
+    const t = beszerzok.find(x => String(x.kulcs) === String(kulcs));
+    if(!t) return false;
+    const db = Math.floor(Number(String(beirt).trim()));
+    if(!(db > 0) || db === Number(t.db)) return false;
+    t.db = db;
+    beszMent(); renderBesz(); renderRecipes(); renderPlan();
+    return true;
+  };
+
+  doboz.querySelectorAll("[data-bnev]").forEach(cimke => {
+    const nev = cimke.dataset.bnev;
+    const mezo = [...doboz.querySelectorAll("[data-bnevm]")].find(x => x.dataset.bnevm === nev);
+    helybenSzerk(cimke, mezo, ertek => atnevez(nev, ertek));
+  });
+  doboz.querySelectorAll("[data-bdb]").forEach(cimke => {
+    const kulcs = cimke.dataset.bdb;
+    const mezo = [...doboz.querySelectorAll("[data-bdbm]")].find(x => x.dataset.bdbm === kulcs);
+    helybenSzerk(cimke, mezo, ertek => ujDarab(kulcs, ertek));
+  });
 }
 
 function importFromHash(){
@@ -7275,6 +7946,13 @@ function importFromHash(){
     const found = parseShort(parts.imp);
     const n = Object.keys(found).length;
     if(n){ stock = found; msg.push(`${n} tétel`); }
+    /* A tekercs külön: ha a beolvasás nem mondja meg, ismeretlen lesz, nem
+       a régi marad - az elavult szám rosszabb, mint a semmi. */
+    tekercsek = tekercsBeolvas(parts.imp, parts.tk === "1");
+    if(tekercsek){
+      const tn = Object.values(tekercsek).filter(x => x > 0).length;
+      if(tn) msg.push(`${tn} recept-tekercs`);
+    }
   }
   if(parts.k){
     const bits = parts.k.split("|");
@@ -7565,12 +8243,10 @@ $("openData").onclick = () => {
    alatt vannak - telefonon könnyű mellényúlni, és a terv nem hozható vissza. */
 let tervTorlesre = null;
 function renderTervek(){
+  renderVissza();
   const gombok = $("tervGombok"), lista = $("tervLista"), nyit = $("tervNyit");
   if(!gombok || !lista || !nyit) return;
-  $("tervKapcs").checked = tervBe;
-  gombok.hidden = !tervBe;
-  /* A kikapcsolás csak a felületet rejti el, ADATOT NEM TÖRÖL. */
-  if(!tervBe){ lista.hidden = true; return; }
+  gombok.hidden = false;
 
   nyit.textContent = "Tervek (" + mentettTervek.length + ")";
   $("tervMent").disabled = !targets().length;
@@ -7586,13 +8262,6 @@ function renderTervek(){
         </div>`).join("")
     : `<p class="ures">Még nincs mentett terved.</p>`;
 }
-
-$("tervKapcs").onchange = () => {
-  tervBe = $("tervKapcs").checked;
-  localStorage.setItem("mk-terv-be", tervBe ? "1" : "0");
-  tervTorlesre = null;
-  renderTervek();
-};
 
 $("tervMent").onclick = () => {
   const cel = targets();
@@ -7619,6 +8288,190 @@ $("tervNyit").onclick = () => {
   $("tervLista").hidden = !$("tervLista").hidden;
 };
 
+/* RECEPT-BUBORÉK (a panel t55-t56 buborékja, a weboldal adataival).
+
+   A receptsorra húzott egérre nyílik, ugyanabban a dobozban és ugyanazzal az
+   elhelyezéssel, mint a munkalap ikonjának hatásbuboréka. A KÉT BUBORÉK
+   UGYANAZT AZ ELEMET HASZNÁLJA, ezért az osztályt minden megjelenítéskor ki
+   kell mondani (a hbubNyit is kimondja).
+
+   Érintőképernyőn nem nyílik: ott a koppintás a receptet választja, és a
+   munkalap ugyanezt megmutatja. Ezért figyeljük a pointerType-ot.
+
+   Minden sor mért vagy a felhasználótól kapott adatból jön:
+     - a tekercs neve és az árak a TEKERCS_ADAT-ból (a játékban mérve),
+     - a megtanultság és a karakter a beolvasásból,
+     - a "Neked" szint a beírt vagy beolvasott szintből.
+   Amit nem tudunk, az nem jelenik meg - hamis sort nem írunk ki. */
+function receptTekercs(r){
+  const t = RECEPT_TEKERCS[String(r.i)];
+  return Array.isArray(t) ? t[0] : t;
+}
+function receptBuborek(r){
+  if(!r) return "";
+  const ta = TEKERCS_ADAT[String(receptTekercs(r))];
+  const ps = profIds(r.p), min = minLvl(r);
+  const adott = x => levels[x] !== undefined && levels[x] !== "";
+  /* Melyik mesterség szintjét mutassuk "Neked"-ként: a beolvasott karakterét,
+     ha a recept az övé, különben az elsőt, amihez szint van beírva. */
+  const sajatP = (char && char.prof && ps.includes(char.prof)) ? char.prof : ps.find(adott);
+  const sajatSzint = sajatP !== undefined && adott(sajatP) ? Number(levels[sajatP]) : null;
+  const keves = sajatSzint !== null && sajatSzint < min;
+
+  let h = `<div class="rb-nev">${mesc(r.n)}</div>`;
+  /* A tekercsnév 23 esetben maga is "Recept"-tel kezdődik ("Recept: Torta
+     sütés"), ott a címke megduplázná: "Recept: Recept: ...". MÉRVE a
+     valódi böngészőben, a Halászlén. */
+  if(ta) h += `<div class="rb-recept">${/^Recept/.test(ta[0]) ? "" : "Recept: "}<b>${mesc(ta[0])}</b></div>`;
+  if(learned && learned.includes(r.i)) h += `<div class="hsor rb-megt">Megtanulva</div>`;
+  h += `<div class="hsor${keves ? " rb-hiany" : ""}">Igényel: ${mesc(profLabel(r.p))} ${min}</div>`;
+  if(sajatSzint !== null){
+    const meg = min - sajatSzint;
+    h += `<div class="hsor">Neked: ${mesc(profOf(sajatP))} ${sajatSzint}`
+       + (meg > 0 ? ` <span class="rb-hiany">· még ${meg} szint</span>` : "") + `</div>`;
+  }
+  const tdb = tekercsDb(r.i);
+  if(tdb !== null)
+    h += `<div class="hsor rb-tk ${tdb > 0 ? "rb-van" : "rb-nincs"}">Táskádban ${tdb} darab</div>`;
+  if(ta){
+    h += `<div class="rb-extra">vétel $${ta[1]} · eladás $${ta[2]} · `
+       + (ta[3] ? "Árverezhető" : "Nem árverezhető") + " · "
+       + (ta[4] ? "Fejleszthető" : "Nem fejleszthető") + `</div>`;
+  }
+  return h;
+}
+let rbubGomb = null;
+function receptBubNyit(gomb){
+  const r = recipeMap.get(gomb.dataset.pick);
+  const t = receptBuborek(r);
+  if(!t) return;
+  const b = hbubDoboz();
+  b.className = "hbub rbub";
+  b.innerHTML = t;
+  b.style.visibility = "hidden";
+  b.classList.add("mutat");
+  hbubHelyre(gomb);
+  b.style.visibility = "";
+  rbubGomb = gomb;
+}
+function receptBubZar(){
+  if(rbubGomb){ rbubGomb = null; hbubZar(); }
+}
+/* Delegálva, egyszer: a lista minden rajzoláskor újraépül, a tartály marad. */
+$("rlist").addEventListener("pointerover", e => {
+  if(e.pointerType && e.pointerType !== "mouse") return;
+  const g = e.target.closest && e.target.closest("[data-pick]");
+  if(!g || g === rbubGomb) return;
+  receptBubNyit(g);
+});
+$("rlist").addEventListener("pointerout", e => {
+  const g = e.target.closest && e.target.closest("[data-pick]");
+  if(!g || g !== rbubGomb) return;
+  if(e.relatedTarget && g.contains(e.relatedTarget)) return;
+  receptBubZar();
+});
+
+/* TEKERCSEK: hány recept-tekercs van a táskádban (a panel t54 jelzése).
+
+   A tekercs a raktártól KÜLÖN él: ha a stock-ba kerülne, a Raktár fül
+   tételszáma és a továbbküldött hivatkozás is megtelne vele.
+
+   Három állapot van, és a különbség számít:
+     null - nem tudjuk (kézi raktár, régi könyvjelző): SEMLEGES ikon, a
+            buborékban nincs "Táskádban" sor. Hamis nullát nem mutatunk.
+     {}   - tudjuk, és egy tekercsed sincs: minden ikon piros.
+     {..} - tudjuk, mennyi van: zöld, ahol van, piros, ahol nincs.
+
+   Honnan tudjuk, hogy a beolvasás tartalmazza a tekercseket? A könyvjelző és
+   a másik eszközre küldött hivatkozás kimondja ("tk=1"). Az import szkript
+   a táska TELJES tartalmát küldi, abban mindig van olyan tárgy is, ami se
+   recept, se alapanyag, se tekercs - ebből ismerjük fel, a szkript
+   módosítása nélkül. Ha egyik sem igaz, a tekercsadat ismeretlen marad. */
+let tekercsek = null;
+const TEKERCS_IDK = new Set(Object.keys(TEKERCS_ADAT));
+function tekercsBeolvas(str, kimondva){
+  const ujAlak = str.indexOf(".") >= 0 || str.indexOf("-") >= 0;
+  const out = {};
+  let teljesTaska = false;
+  (ujAlak ? str.split(".") : str.split(",")).forEach(pair => {
+    const m = pair.match(ujAlak ? /^(\d+)-(\d+)$/ : /^(\d+):(\d+)$/);
+    if(!m) return;
+    const id = m[1].length > 4 || Number(m[1]) < 100000 ? m[1] + "000" : m[1];
+    if(TEKERCS_IDK.has(id)) out[id] = parseInt(m[2]);
+    else if(!recipeMap.has(id) && !baseIds.includes(id)) teljesTaska = true;
+  });
+  return (kimondva || teljesTaska) ? out : null;
+}
+/* Egy termék tekercsei (a két közös terméknek négy van) és a darabszám. */
+function termekTekercsei(id){
+  const t = RECEPT_TEKERCS[String(id)];
+  return t === undefined ? [] : [].concat(t).map(String);
+}
+function tekercsDb(id){
+  if(tekercsek === null) return null;
+  return termekTekercsei(id).reduce((a, x) => a + (Number(tekercsek[x]) || 0), 0);
+}
+/* Melyiket másoljuk: a birtokoltat, ha van, különben az elsőt. */
+function masolandoTekercs(id){
+  const l = termekTekercsei(id);
+  return l.find(x => tekercsek && tekercsek[x] > 0) || l[0];
+}
+const TEKERCS_SVG = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/></svg>';
+function tekercsIkon(r){
+  const tk = masolandoTekercs(r.i);
+  if(!tk) return "";
+  const db = tekercsDb(r.i);
+  const all = db === null ? "ismeretlen" : db > 0 ? "van" : "nincs";
+  const cim = (db === null ? "" : db > 0 ? "A recept a táskádban van - " : "Nincs a táskádban - ")
+    + "kattints a másoláshoz";
+  return `<span class="tk ${all}" data-tk="${tk}" role="button" tabindex="0" title="${cim}" aria-label="${cim}">${TEKERCS_SVG}</span>`;
+}
+/* MÁSOLÁS a felső Kód/Szöveg váltó szerint: Kód állásban a tekercs
+   [item=...] kódja (ez a játék chatjébe illeszthető), Szöveg állásban a
+   tekercs neve, ahogy a játék hívja. A kattintás NEM választja ki a
+   receptet: a lista elkapó fázisában állítjuk meg. */
+async function tekercsMasol(ikon){
+  const tk = ikon.dataset.tk;
+  const szoveg = masolMod === "szoveg" ? (TEKERCS_ADAT[tk] || [""])[0] : `[item=${tk}]`;
+  const ok = await copyText(szoveg);
+  const regi = ikon.querySelector(".masolt");
+  if(regi) regi.remove();
+  const v = document.createElement("span");
+  v.className = "masolt";
+  v.textContent = ok ? "Másolva" : "Nem sikerült";
+  ikon.appendChild(v);
+  setTimeout(() => v.remove(), 1200);
+}
+$("rlist").addEventListener("click", e => {
+  const ikon = e.target.closest && e.target.closest("[data-tk]");
+  if(!ikon) return;
+  e.preventDefault();
+  e.stopPropagation();
+  tekercsMasol(ikon);
+}, true);
+$("rlist").addEventListener("keydown", e => {
+  if(e.key !== "Enter" && e.key !== " ") return;
+  const ikon = e.target.closest && e.target.closest("[data-tk]");
+  if(!ikon) return;
+  e.preventDefault();
+  e.stopPropagation();
+  tekercsMasol(ikon);
+}, true);
+
+/* Az ugrók kötése DELEGÁLVA, egyszer: a fa és a tervsor minden rajzoláskor
+   újraépül, a tartály viszont marad. Egér és billentyű (Enter, szóköz). */
+[$("steps"), $("orderMulti")].forEach(tartaly => {
+  const ugras = e => {
+    const u = e.target.closest && e.target.closest("[data-ugro]");
+    if(!u || !tartaly.contains(u)) return;
+    e.preventDefault();
+    ugorj(u.dataset.ugro);
+  };
+  tartaly.addEventListener("click", ugras);
+  tartaly.addEventListener("keydown", e => { if(e.key === "Enter" || e.key === " ") ugras(e); });
+});
+$("visszaGomb").onclick = visszaATervhez;
+
 $("tervLista").onclick = e => {
   const ny = e.target.closest("[data-tervnyitas]");
   if(ny){
@@ -7626,6 +8479,7 @@ $("tervLista").onclick = e => {
        megnéznél valamit, és egy kérdés minden alkalommal útban lenne. */
     const t = mentettTervek[Number(ny.dataset.tervnyitas)];
     if(!t) return;
+    visszaTerv = null;   /* új terv jött, a régi visszaút érvényét veszti */
     setTargets(t.c.map(x => ({ i:x.i, q:x.q, x:x.x !== false })));
     $("tervLista").hidden = true;
     renderRecipes(); renderPlan(); save();
