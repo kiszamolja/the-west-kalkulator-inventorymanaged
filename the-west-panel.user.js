@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Crafting Calculator
 // @namespace    the-west-kalkulator-ingame
-// @version      1.2.4
+// @version      1.2.5
 // @description  Crafting calculator inside the game, in a movable window. Reads only data already loaded in the browser.
 // @updateURL    https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/the-west-panel.user.js
 // @downloadURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/the-west-panel.user.js
@@ -29,7 +29,7 @@
 // ==/UserScript==
 
 /* =======================================================================
-   Mesterség-kalkulátor - játékbeli panel, 1.2.4
+   Mesterség-kalkulátor - játékbeli panel, 1.2.5
 
    Mit tud:
      · mozgatható ablak a játék saját ablakkeretében
@@ -1151,7 +1151,7 @@ const SZOVEG = {
 (function () {
     "use strict";
 
-    const VERZIO = "1.2.4";
+    const VERZIO = "1.2.5";
     /* Építésbélyeg. NEM kerül a @version sorba, tehát a frissítésellenőrzést
        nem érinti: az csak a @version sort olvassa. Csak arra való, hogy a
        tesztképernyőképekről egyértelmű legyen, melyik építés látszik.
@@ -3200,24 +3200,59 @@ li.collapsed > .node > .toggle::before{ content:"+" }
         if (t == null) return [];
         return Array.isArray(t) ? t : [t];
     }
-    function receptBirtoklas(r) {
+    /* t65: A VALASZTOTT TEKERCS. A 220 egytekercses receptnel ez maga a
+       tekercs. A 2 kozos termeknel (torta, Pohardesszert) negy tekercs van,
+       mestersegenkent egy, azonos nevvel (merve). A fejleszto szabalya:
+       mestersegre szurt listan AZ A mesterseg tekercse, "Mind" allasban a
+       karakter SAJAT mestersegee, es ha egyik sem derul ki, a lista elso
+       eleme (a beegetett sorrendben a Tabori szakacse). A taska tartalma a
+       valasztasba NEM szamit bele. A tekercs mesterseget a jatek adja
+       (ItemManager.get(id).profession_id, merve mind a nyolcra). */
+    function receptValasztott(r) {
         const lista = receptTekercsek(r);
-        let birtokolt = null;
+        if (lista.length <= 1) return lista.length ? lista[0] : null;
         try {
-            const Bag = jatek().Bag;
-            for (const t of lista) {
-                if (Bag && Bag.getItemCount && (Bag.getItemCount(t) || 0) > 0) { birtokolt = t; break; }
+            const W = jatek();
+            const cel = szuroProf !== null ? Number(szuroProf)
+                      : Number(W.Character && W.Character.professionId) || 0;
+            if (cel) {
+                const IM = W.ItemManager;
+                for (const t of lista) {
+                    const it = IM && IM.get ? IM.get(Number(t)) : null;
+                    if (it && Number(it.profession_id) === cel) return t;
+                }
             }
         } catch (e) {}
-        return { birtoklom: birtokolt !== null,
-                 masolId: birtokolt !== null ? birtokolt : (lista.length ? lista[0] : null) };
+        return lista[0];
+    }
+    /* t65: a szin es a darabszam a VALASZTOTT (masolt) tekercsrol szol, nem
+       barmelyikrol a negy kozul: a zold mindig azt jelenti, hogy amit
+       kattintasra kapsz, az nalad van. A fejleszto dontese (2. lehetoseg). */
+    function receptBirtoklas(r) {
+        const masolId = receptValasztott(r);
+        let db = 0;
+        try {
+            const Bag = jatek().Bag;
+            if (masolId != null && Bag && Bag.getItemCount) db = Bag.getItemCount(masolId) || 0;
+        } catch (e) {}
+        return { birtoklom: db > 0, db, masolId };
     }
 
     /* t54: a recept item_id kimásolása [item=<id>] alakban, kattintásra. A
        panel közös vagolapra() segédjét használjuk (böngészőengedély + rejtett
        mezős tartalék benne van). Siker után egy pillanatra "Másolva" villan. */
+    /* t65: a masolas koveti a Kod/Szoveg kapcsolot, mint a lista tobbi
+       masolasa. Szoveg modban a tekercs neve megy, pontosan ugy, ahogy a
+       jatek adja, darabszam nelkul. Ha a nev nem olvashato, a kod megy. */
     function receptMasol(scrollId, elem) {
-        const szoveg = "[item=" + scrollId + "]";
+        let szoveg = "[item=" + scrollId + "]";
+        if (masolMod === "szoveg") {
+            try {
+                const IM = jatek().ItemManager;
+                const it = IM && IM.get ? IM.get(Number(scrollId)) : null;
+                if (it && it.name) szoveg = String(it.name);
+            } catch (e) {}
+        }
         try { vagolapra(szoveg).then(jo => { if (jo) villantMasolva(elem); }); }
         catch (e) {}
     }
@@ -6179,8 +6214,10 @@ li.collapsed > .node > .toggle::before{ content:"+" }
   box-shadow:inset 4px 0 0 #fff0ad,0 5px 12px rgba(0,0,0,.24) }
 :host([data-nativ][data-ui5c]) .recipe-depot .rlist button.halvany span:not(.rikon-gomb):not(.masolt-buborek),
 :host([data-nativ][data-ui5c]) .recipe-depot .rlist button.halvany .szint{ color:#6b5940 }
-/* t62: a kivalasztott soron ugyanez: ott #3f2411-et kapott volna. */
-:host([data-nativ][data-ui5c]) .recipe-depot .rlist button[aria-current=true] span:not(.masolt-buborek),
+/* t62: a kivalasztott soron ugyanez: ott #3f2411-et kapott volna.
+   t64: az ikon is kimarad, a kijelolt soron is a sajat zold/piros szinet
+   viseli (a fejleszto dontese, B valtozat, folt nelkul). */
+:host([data-nativ][data-ui5c]) .recipe-depot .rlist button[aria-current=true] span:not(.rikon-gomb):not(.masolt-buborek),
 :host([data-nativ][data-ui5c]) .recipe-depot .rlist button[aria-current=true] .szint{ color:#3f2411 }
 
 /* A receptszám pergamenen sötét tintaszínű és mindig olvasható. */
@@ -7765,13 +7802,11 @@ li.collapsed > .node > .toggle::before{ content:"+" }
             if (!lista.length) return "";
             const W = jatek();
             const IM = W.ItemManager, Bag = W.Bag, CH = W.Character;
-            let db = 0, birtokolt = null;
-            for (const t of lista) {
-                const c = (Bag && Bag.getItemCount && Bag.getItemCount(t)) || 0;
-                db += c;
-                if (c > 0 && birtokolt === null) birtokolt = t;
-            }
-            const tekercsId = birtokolt !== null ? birtokolt : lista[0];
+            /* t65: a buborek is a VALASZTOTT tekercsrol szol (darab, ar,
+               igenyelt mesterseg), ugyanarrol, amit az ikon masol. */
+            const bt = receptBirtoklas(r);
+            const db = bt.db;
+            const tekercsId = bt.masolId != null ? bt.masolId : lista[0];
             const it = IM && IM.get ? IM.get(Number(tekercsId)) : null;
             const termekNev = esc(nameOf(r.i));
             const receptNev = it && it.name ? esc(String(it.name)) : "";
@@ -7785,6 +7820,10 @@ li.collapsed > .node > .toggle::before{ content:"+" }
             const kevesSajat = sajat && enSzint < minLvl;
 
             let h = `<div class="rbub-cim">${termekNev}</div>`;
+            /* t65: a cimke MINDIG ott all, utana a tekercs neve pontosan ugy,
+               ahogy a jatek adja - a fejleszto dontese. 23 nev maga is "Recept"-tel
+               kezdodik (merve), ilyenkor "Recept: Recept: ..." latszik: ez a nev,
+               amire a jatekban keresni kell. A t63-as elhagyas VISSZAVONVA. */
             if (receptNev) h += `<div class="rbub-recept"><span class="lab">${esc(T("rbub_recept"))}</span> ${receptNev}</div>`;
             if (tanult) h += `<div class="rbub-sor megt">${esc(T("rbub_megtanulva"))}</div>`;
             if (profNev) h += `<div class="rbub-sor${kevesSajat ? " hiany" : ""}">${esc(T("rbub_igenyel"))}: ${profNev} ${minLvl}</div>`;

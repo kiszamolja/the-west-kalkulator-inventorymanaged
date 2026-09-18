@@ -16,6 +16,35 @@ A korábbi bejegyzések szövegét nem írtam át. Ott az akkori állapot szerep
 
 ---
 
+## 1.2.5 - 2026-09-18
+
+Kis kör a recept-tekercsek körül: a kijelölt sor ikonja, a szöveges másolás,
+és a két közös termék tekercse.
+
+### Receptek
+
+- **A kijelölt receptsoron is látszik, zöld vagy piros a tekercs-ikon.**
+  Eddig a kijelölt sor sötétítése az ikonra is ráfutott, és sötétbarnára
+  váltott, így nem lehetett eldönteni, nálad van-e a tekercs. Most a
+  kijelölt soron is a saját színét viseli.
+- **Az ikonra kattintás követi a Kód/Szöveg kapcsolót**, ugyanúgy, mint a
+  lista többi másolása. Kód módban továbbra is az `[item=...]` kód kerül a
+  vágólapra, Szöveg módban a tekercs neve, pontosan úgy, ahogy a játékban
+  áll, darabszám nélkül. Például: `Recept: Halászlé elkészítése`.
+- **A két közös terméknél** (15. születésnapi torta, Pohárdesszert) mind a
+  négy mesterségnek saját tekercse van, azonos névvel. Hogy ezek közül melyik
+  számít, azt mostantól a mesterségszűrő dönti el: szűrt listán az adott
+  mesterség tekercse, a "Mind" állásban a saját mesterséged tekercse. Ez a
+  tekercs megy a vágólapra, ennek a színét mutatja az ikon, és a buborék is
+  erről szól, a darabszámmal és az igényelt mesterséggel együtt. Az ikon
+  tehát csak akkor zöld, ha az a tekercs van nálad, amit kattintásra kapsz.
+  Az eddigi viselkedés szerint bármelyik mesterség tekercse zöldre festette.
+
+A kör új kérést nem küld a játéknak: a tekercs nevét és mesterségét a
+böngészőben már betöltött adatból olvassa.
+
+---
+
 ## 1.2.4 - 2026-09-12
 
 Nagy kör: recept-tekercsek, termékbeszerzők helyben szerkesztése, és
