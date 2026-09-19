@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Crafting Calculator
 // @namespace    the-west-kalkulator-ingame
-// @version      1.2.5
+// @version      1.2.6
 // @description  Crafting calculator inside the game, in a movable window. Reads only data already loaded in the browser.
 // @updateURL    https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/the-west-panel.user.js
 // @downloadURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/the-west-panel.user.js
@@ -29,7 +29,7 @@
 // ==/UserScript==
 
 /* =======================================================================
-   Mesterség-kalkulátor - játékbeli panel, 1.2.5
+   Mesterség-kalkulátor - játékbeli panel, 1.2.6
 
    Mit tud:
      · mozgatható ablak a játék saját ablakkeretében
@@ -1004,6 +1004,7 @@ const SZOVEG = {
   max_cim_zarolt: ["Alapanyagod {n} darabra van, de a zárolás miatt egyszerre egyet gyárthatsz.","You have materials for {n}, but the lockout allows only one at a time.","Du hast Material für {n} Stück, wegen der Sperre kannst du aber nur eines auf einmal herstellen.","Masz surowce na {n} szt., ale blokada pozwala wytworzyć tylko jedną naraz."],
   max_nincs: ["{nev} kell hozzá, azt nem te gyártod","{nev} is needed, and you cannot craft it","{nev} wird benötigt, das stellst du nicht selbst her","Potrzebny jest {nev}, a tego nie wytwarzasz"],
   max_szam_cimke: ["Max:","Max:","Max:","Max:"],
+  max_katt: ["Kattints rá, és beírja ezt a darabszámot.","Click to fill in this quantity.","Klicken, um diese Menge einzutragen.","Kliknij, aby wpisać tę ilość."],
   gyart_gomb: ["Gyártás","Craft","Herstellen","Wytwórz"],
   gyart_cim: ["A játék saját gyártását indítja el, ennyi darabbal: {n}","Starts the game's own crafting, this many: {n}","Startet die spieleigene Herstellung, mit dieser Menge: {n}","Uruchamia własne wytwarzanie gry, w tej ilości: {n}"],
   gyart_tul_sok: ["Ennyit nem tudsz legyártani, legfeljebb ennyit: {n}","You cannot craft this many, at most: {n}","So viele kannst du nicht herstellen, höchstens: {n}","Nie możesz wytworzyć tylu, najwyżej: {n}"],
@@ -1062,6 +1063,14 @@ const SZOVEG = {
   terv_mentve: ["Mentve.","Saved.","Gespeichert.","Zapisano."],
   terv_nyit: ["Tervek ({n})","Plans ({n})","Pläne ({n})","Plany ({n})"],
   terv_torles: ["Terv törlése","Delete plan","Plan löschen","Usuń plan"],
+  terv_felulir: ["Felülírás","Overwrite","Überschreiben","Nadpisz"],
+  terv_ujkent: ["Mentés újként","Save as new","Als neu speichern","Zapisz jako nowy"],
+  terv_mentve_all: ["Mentve","Saved","Gespeichert","Zapisano"],
+  terv_megnyitva: ["Megnyitva:","Open:","Geöffnet:","Otwarty:"],
+  terv_modositva: ["módosítva","modified","geändert","zmieniony"],
+  terv_nyitott_jel: ["megnyitva","open","geöffnet","otwarty"],
+  terv_atnevez: ["Kattints rá az átnevezéshez. Üresre törölve visszaáll az automatikus név.","Click to rename. Clear it to go back to the automatic name.","Zum Umbenennen klicken. Leer lassen für den automatischen Namen.","Kliknij, aby zmienić nazwę. Wyczyść, by wrócić do nazwy automatycznej."],
+  terv_felulirva: ["Felülírva.","Overwritten.","Überschrieben.","Nadpisano."],
   terv_ures: ["Még nincs mentett terved.","No saved plans yet.","Noch keine gespeicherten Pläne.","Brak zapisanych planów."],
   hatasz_aria: ["Szűrés hatás szerint","Filter by effect","Nach Wirkung filtern","Filtruj wg efektu"],
   hatasz_barmelyik: ["Bármelyik hatás","Any effect","Beliebige Wirkung","Dowolny efekt"],
@@ -1151,7 +1160,7 @@ const SZOVEG = {
 (function () {
     "use strict";
 
-    const VERZIO = "1.2.5";
+    const VERZIO = "1.2.6";
     /* Építésbélyeg. NEM kerül a @version sorba, tehát a frissítésellenőrzést
        nem érinti: az csak a @version sort olvassa. Csak arra való, hogy a
        tesztképernyőképekről egyértelmű legyen, melyik építés látszik.
@@ -1632,8 +1641,14 @@ const SZOVEG = {
         /* 1.1.0: a munkakereső kerete a tárgyIKONON vagy a NÉVEN álljon-e,
            és a panel szélessége a nézetablak hány százaléka legyen. */
         mikon: true, meretszaz: 100, meretmod: "auto",
-        beszerzok: false, orak: false, hatasszuro: false, tervmentes: false,
-        tanulgomb: false, gyartgomb: false };
+        /* t67: a kapcsolhato funkciok ALAPBOL BEKAPCSOLVA. A fejleszto
+           engedelyt kapott ra, a jatekba lepo harom funkciora is (Gyartas
+           gomb, Megtanulom gomb, Munkaora-jelzes). A tervmentes kulcs holt:
+           a kapcsolojat a t54 megszuntette, a mentes mindig elerheto.
+           A beszerzok NEM funkcio, hanem szamitasi mod (a megbizasok
+           beszamitanak-e), ezert KIKAPCSOLVA marad - a fejleszto dontese. */
+        beszerzok: false, orak: true, hatasszuro: true, tervmentes: false,
+        tanulgomb: true, gyartgomb: true };
     /* Ez NEM beállítás, hanem munkamenet-állapot: a kiválasztott hatástípus.
        Panelnyitáskor mindig üres, mert egy szűrő, amiről nem tudod, hogy be
        van kapcsolva, csendben rossz listát adna. */
@@ -1655,6 +1670,22 @@ const SZOVEG = {
     /* A korábbi kísérleti felületválasztók mentett nyomait se vigyük tovább. */
     delete beall.felulet;
     delete beall.szinmod;
+
+    /* t67: EGYSZERI BEKAPCSOLAS MINDENKINEL. A ment() minden kapcsolo
+       allasat elmenti, a kikapcsoltat is, tehat a regi felhasznaloknal az
+       uj alapertek magatol nem ervenyesulne. A tarolobol nem latszik, hogy
+       valaki szandekosan kapcsolt-e ki valamit, vagy sosem nyult hozza, ezert
+       a fejleszto dontese szerint EGYSZER mindenkinel bekapcsoljuk, es ezt a
+       valtozasnaplo es a forum kimondja. Utana a jelzo miatt soha tobbe nem
+       nyulunk hozza: aki ezutan kikapcsol valamit, annal kikapcsolva marad. */
+    /* A beszerzok kapcsolojahoz NEM nyulunk: az a szamitast valtoztatna meg,
+       nem egy funkciot kapcsolna be. */
+    if (!beall.bekapcs126) {
+        beall.orak = true; beall.hatasszuro = true;
+        beall.tanulgomb = true; beall.gyartgomb = true;
+        beall.bekapcs126 = true;
+        ment();
+    }
 
     function ment() {
         try { GM_setValue("mk-panel", JSON.stringify(beall)); } catch (e) { /* nem baj */ }
@@ -1695,6 +1726,30 @@ const SZOVEG = {
     function tervMent() {
         try { GM_setValue(TERV_KULCS, JSON.stringify(mentettTervek)); } catch (e) { /* nem baj */ }
     }
+    /* t70: A TERV SAJAT AZONOSITOT KAP (id), es lehet sajat neve (n).
+       Eddig a terv a tartalmabol kepzett nevrol volt felismerheto, ezert egy
+       darabszam atirasa uj tervet jelentett, es felulirni nem lehetett. A
+       regi mentesek az elso betolteskor kapnak azonositot, egyik sem vesz el;
+       a tobbi mezo (c, d) valtozatlan, tehat egy regebbi panel is olvassa. */
+    function tervId() {
+        return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    }
+    if (mentettTervek.some(t => !t.id)) {
+        mentettTervek.forEach(t => { if (!t.id) t.id = tervId(); });
+        tervMent();
+    }
+    /* t70: a MEGNYITOTT terv azonositoja. Csak a munkamenetben el. Elvesz,
+       ha masik tervet nyitsz, a listaban masik receptre valtasz, ugrasz, vagy
+       torlod a tervet; a "Vissza a tervhez" visszahozza. A + gomb NEM torli:
+       a megnyitott tervhez tett uj tetel modositas, amit felulirhatsz. */
+    let nyitottTerv = null;
+    const tervTartalom = celok => JSON.stringify(celok.map(t => [String(t.i), t.q, t.x !== false]));
+    function nyitottMentett() {
+        if (!nyitottTerv) return null;
+        const t = mentettTervek.find(x => x.id === nyitottTerv);
+        if (!t) nyitottTerv = null;
+        return t || null;
+    }
 
     /* A név: minden cél darabszámmal, vesszővel. Hosszú tervnél csak az első
        tétel áll ott, utána a maradék száma - a teljes tartalmat a buborék
@@ -1706,6 +1761,8 @@ const SZOVEG = {
         if (celok.length <= 1) return tervNev(celok);
         return celok[0].q + " " + nameOf(celok[0].i) + " +" + (celok.length - 1);
     }
+    /* t70: a terv felirata: a sajat nev, ha van, kulonben az automatikus. */
+    const tervFelirat = t => (t.n && String(t.n).trim()) ? String(t.n).trim() : tervRovid(t.c);
     let terv = null;          /* a legutóbbi compute() eredménye */
     let bruttoTerv = null;    /* ugyanaz, de ÜRES készlettel - az Összesen dobozhoz */
     let nezet = beall.nezet || "tree";   /* tree | all | raw */
@@ -2126,6 +2183,19 @@ h1{ font-family:"Rye",Georgia,serif; font-size:19px; font-weight:400; line-heigh
   border:1px solid var(--line); background:transparent; color:var(--dim) }
 .tervgombok button:hover:not(:disabled),.visszasav button:hover{ border-color:var(--brass); color:var(--brass) }
 .tervgombok button:disabled{ opacity:.4; cursor:default }
+/* t70: a megnyitott terv allapota a fejlecben. A felirat nem nagybetus. */
+.tervallapot{ display:inline-flex; align-items:baseline; gap:5px; margin-right:4px;
+  text-transform:none; letter-spacing:0; font-size:11px; color:var(--dim); white-space:nowrap }
+.tervallapot:empty{ display:none }
+.tervallapot .tervnev{ color:var(--ink); font-weight:700; cursor:text;
+  border-bottom:1px dashed var(--brass); max-width:16em; overflow:hidden; text-overflow:ellipsis }
+.tervallapot .modjel{ color:var(--rust) }
+.tervallapot .tervnevmezo{ font:inherit; font-size:11px; width:14em; color:var(--ink);
+  background:var(--raised); border:1px solid var(--brass); border-radius:3px; padding:1px 5px }
+.tervgombok button.fo{ border-color:var(--brass); color:var(--ink); font-weight:700 }
+.tervsor.nyitott .tervvalt{ box-shadow:inset 3px 0 0 var(--brass); background:var(--panel) }
+.tervvalt .nyjel{ font-size:10px; font-weight:400; border:1px solid var(--brass);
+  border-radius:3px; padding:0 4px; margin-left:4px }
 
 .tervlista{ margin:0 0 10px; border:1px solid var(--line); border-radius:4px;
   background:var(--raised); padding:6px }
@@ -2288,6 +2358,9 @@ h1{ font-family:"Rye",Georgia,serif; font-size:19px; font-weight:400; line-heigh
    ket margo osszeadodott: 14 + 14 = 28 kepont. */
 .maxj:last-child{ margin-right:14px }
 .maxj b{ color:var(--green); font-weight:600; font-size:12.5px }
+/* t68: a zold Max kattinthato */
+.maxj.katt{ cursor:pointer }
+.maxj.katt:hover b, .maxj.katt:focus-visible b{ text-decoration:underline }
 .maxj.tehetetlen{ color:var(--dim); opacity:.85 }
 /* t37: HARMADIK allapot. Nem hiany, hanem varakozas: minden megvan hozza,
    csak a mas mestersegebe tartozo koztes lepest kell valakinek legyartania.
@@ -2958,7 +3031,10 @@ li.collapsed > .node > .toggle::before{ content:"+" }
         <p class="eyebrow">${T("eyebrow_munkalap")}
           <span class="visszasav" data-mez="visszasav"></span>
           <span class="tervgombok" data-mez="tervgombok" hidden>
+            <span class="tervallapot" data-mez="tervallapot"></span>
             <button data-mit="tervment" type="button">${esc(T("terv_mentes"))}</button>
+            <button data-mit="tervfelulir" type="button" class="fo" hidden>${esc(T("terv_felulir"))}</button>
+            <button data-mit="tervujkent" type="button" hidden>${esc(T("terv_ujkent"))}</button>
             <button data-mit="tervnyit" type="button" data-mez="tervnyit"></button>
           </span></p>
         <div class="tervlista" data-mez="tervlista" hidden></div>
@@ -3522,14 +3598,40 @@ li.collapsed > .node > .toggle::before{ content:"+" }
         nyit.textContent = T("terv_nyit", { n: mentettTervek.length });
         const cel = celok();
         const ment = gombok.querySelector('[data-mit="tervment"]');
-        if (ment) ment.disabled = !cel.length;
+        const felul = gombok.querySelector('[data-mit="tervfelulir"]');
+        const ujkent = gombok.querySelector('[data-mit="tervujkent"]');
+        const allapot = $("tervallapot");
+
+        /* t70: HAROM ALLAPOT. Nincs megnyitott terv: Mentes, mint eddig.
+           Megnyitott es valtozatlan: "Megnyitva: nev" es Mentve (tiltva).
+           Megnyitott es modositott: "modositva", Felulirás, Mentés újként. */
+        const ny = nyitottMentett();
+        const modositott = !!ny && tervTartalom(cel) !== tervTartalom(ny.c);
+        if (ment) {
+            ment.hidden = !!ny && modositott;
+            ment.disabled = !cel.length || (!!ny && !modositott);
+            ment.textContent = ny ? T("terv_mentve_all") : T("terv_mentes");
+        }
+        if (felul) felul.hidden = !modositott;
+        if (ujkent) ujkent.hidden = !modositott;
+        /* Atnevezes kozben a mezot nem rajzoljuk at, kulonben egy kozben
+           erkezo ujrarajzolas (pl. taskavaltozas) elnyelne a beirt szoveget. */
+        if (allapot && !allapot.querySelector("input")) {
+            allapot.innerHTML = ny
+                ? `${esc(T("terv_megnyitva"))} <span class="tervnev" data-tervnev tabindex="0" role="button"`
+                  + ` title="${esc(T("terv_atnevez"))}">${esc(tervFelirat(ny))}</span>`
+                  + (modositott ? ` <span class="modjel">&#9679; ${esc(T("terv_modositva"))}</span>` : "")
+                : "";
+        }
 
         lista.innerHTML = mentettTervek.length
             ? mentettTervek.map((t, i) => `
-                <div class="tervsor" data-tervi="${i}">
+                <div class="tervsor${ny && t.id === ny.id ? " nyitott" : ""}" data-tervi="${i}">
                   <button class="tervvalt" data-tervnyitas="${i}"
                     title="${esc(tervNev(t.c))}">
-                    <b>${esc(tervRovid(t.c))}</b><small>${esc(t.d || "")}</small></button>
+                    <b>${esc(tervFelirat(t))}${ny && t.id === ny.id
+                        ? ` <span class="nyjel">${esc(T("terv_nyitott_jel"))}</span>` : ""}</b>`
+                    + `<small>${esc((t.n ? tervRovid(t.c) + " \u00b7 " : "") + (t.d || ""))}</small></button>
                   ${tervTorlesre === i
                     ? `<button class="tervbiztos" data-tervtorol="${i}">${esc(T("terv_biztos"))}</button>`
                     : `<button class="tervx" data-tervkerdes="${i}"
@@ -3738,6 +3840,9 @@ li.collapsed > .node > .toggle::before{ content:"+" }
                egyszer rákattintasz arra, ami már nyitva van - az pedig nem
                váltás, hanem ugyanaz a hely. */
             if (valasztott !== b.dataset.id || tervek.length > 1) tervek = [];
+            /* t70: ha a terv kiurult, uj munka kezdodott: a megnyitott terv
+               emleke elvesz. Ugyanarra a receptre kattintva megmarad. */
+            if (!tervek.length) nyitottTerv = null;
             /* t60: a listakattintas tudatos valtas, tehat a visszaut elveszik. */
             visszaTerv = null;
             valasztott = b.dataset.id;
@@ -4046,7 +4151,13 @@ li.collapsed > .node > .toggle::before{ content:"+" }
                ezért 1 áll, a tényleges készlet a buborékban marad meg. */
             const mutat = zarolt ? 1 : n;
             const cim = zarolt ? T("max_cim_zarolt", { n: n }) : T("max_cim");
-            return `<span class="maxj" title="${esc(cim)}">`
+            /* t68: a ZOLD szam kattinthato, es beirja a darabszamot a
+               leptetobe. Csak ez az ag: a zold azt jelenti, hogy a recept a
+               tied es most gyarthatod. Zarolt receptnel 1-et ir be, amit a
+               jelzo is mutat. A rez szam nem kattinthato. A jelzo csak az
+               egycelu nezet fejleceben all (a fejleszto kerese is erre szol). */
+            return `<span class="maxj katt" role="button" tabindex="0" data-maxbe="${esc(String(id))}" data-maxn="${mutat}"`
+                + ` title="${esc(cim + " " + T("max_katt"))}">`
                 + `${esc(T("max_szam_cimke"))} <b>${esc(String(mutat))}</b></span>`;
         }
 
@@ -4179,8 +4290,11 @@ li.collapsed > .node > .toggle::before{ content:"+" }
            nem a + gombbal epitette a felhasznalo, az ugyanaz, mint az egycelu
            nezet - nincs mit visszaadni. */
         if (tervek.length > 1) {
-            visszaTerv = { c: tervek.map(t => ({ i: t.i, q: t.q, x: t.x })), v: valasztott, p: szuroProf };
+            visszaTerv = { c: tervek.map(t => ({ i: t.i, q: t.q, x: t.x })), v: valasztott, p: szuroProf,
+                           ny: nyitottTerv };   /* t70: a megnyitott terv emleke is */
         }
+        /* t70: az ugras uj celt nyit, a megnyitott terv nem irhato felul vele. */
+        nyitottTerv = null;
         tervek = [];
         valasztott = String(id);
         const p = profIds(r.p);
@@ -4934,6 +5048,15 @@ li.collapsed > .node > .toggle::before{ content:"+" }
         fo.querySelectorAll("[data-gyart]").forEach(b =>
             b.addEventListener("click", () =>
                 gyartas(b.dataset.gyart, parseInt(b.dataset.gyartdb, 10) || 1)));
+        /* t68: a zold Max beirja a darabszamot. Az allit a 9999-es felso
+           korlatot es a valtozatlan szamot is kezeli. */
+        fo.querySelectorAll("[data-maxbe]").forEach(m => {
+            const be = () => allit(m.dataset.maxbe, parseInt(m.dataset.maxn, 10) || 1);
+            m.addEventListener("click", be);
+            m.addEventListener("keydown", e => {
+                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); be(); }
+            });
+        });
         fo.querySelectorAll("[data-tinc]").forEach(b =>
             b.addEventListener("click", () => allit(b.dataset.tinc, qOf(b.dataset.tinc) + 1)));
         fo.querySelectorAll("[data-tdec]").forEach(b =>
@@ -4975,29 +5098,99 @@ li.collapsed > .node > .toggle::before{ content:"+" }
             tg.addEventListener("click", e => {
                 const b = e.target.closest("[data-mit]");
                 if (!b) return;
-                if (b.dataset.mit === "tervment") {
+                if (b.dataset.mit === "tervment" || b.dataset.mit === "tervujkent"
+                    || b.dataset.mit === "tervfelulir") {
                     const cel = celok();
                     if (!cel.length) return;
                     const c = cel.map(t => ({ i: t.i, q: t.q, x: t.x !== false }));
-                    const nev = tervNev(c);
-                    const volt = mentettTervek.findIndex(t => tervNev(t.c) === nev);
-                    if (volt >= 0) mentettTervek.splice(volt, 1);
-                    mentettTervek.unshift({ c: c, d: new Date().toISOString().slice(0, 10) });
+                    const ma = new Date().toISOString().slice(0, 10);
+                    /* t70: FELULIRAS a megnyitott terv helyere: az azonosito es a
+                       sajat nev megmarad, a tartalom es a datum friss, a terv a
+                       lista tetejere kerul. Ha kozben eltunt, uj tervkent ment. */
+                    let volt = -1, uj;
+                    const ny = b.dataset.mit === "tervfelulir" ? nyitottMentett() : null;
+                    if (ny) {
+                        volt = mentettTervek.indexOf(ny);
+                        mentettTervek.splice(volt, 1);
+                        uj = Object.assign({}, ny, { c: c, d: ma });
+                    } else if (b.dataset.mit === "tervujkent") {
+                        /* Mentes ujkent: a regi megmarad, az uj automatikus nevet kap. */
+                        uj = { id: tervId(), c: c, d: ma };
+                    } else {
+                        /* A sima Mentes a regi szabalyt koveti: a betu szerint
+                           AZONOS tartalmu terv helyere ment, a sajat nevet es az
+                           azonositot megtartva. */
+                        const nev = tervNev(c);
+                        volt = mentettTervek.findIndex(t => tervNev(t.c) === nev);
+                        const regi = volt >= 0 ? mentettTervek.splice(volt, 1)[0] : null;
+                        uj = Object.assign({ id: tervId() }, regi || {}, { c: c, d: ma });
+                    }
+                    mentettTervek.unshift(uj);
                     if (mentettTervek.length > TERV_MAX) mentettTervek.length = TERV_MAX;
+                    /* A mentett terv lesz a megnyitott: a tovabbi modositas mar
+                       felulirhato. */
+                    nyitottTerv = uj.id;
                     tervMent();
                     tervTorlesre = null;
                     rajzolTervek();
+                    if (b.dataset.mit !== "tervment") {
+                        const vg = tg.querySelector('[data-mit="tervment"]');
+                        if (vg) {
+                            vg.textContent = b.dataset.mit === "tervfelulir" ? T("terv_felulirva") : T("terv_mentve");
+                            setTimeout(() => rajzolTervek(), 2200);
+                        }
+                        return;
+                    }
                     /* A visszajelzés a gomb feliratában, ahogy a másolásnál is -
                        a panelnek nincs külön üzenetsávja. A felülírásról külön
                        szólunk: egy csendben eltűnő mentés rosszabb, mint egy
                        duplikátum. */
-                    const eredeti = b.textContent;
                     b.textContent = volt >= 0 ? T("terv_felulirt") : T("terv_mentve");
-                    setTimeout(() => { b.textContent = eredeti; }, 2200);
+                    setTimeout(() => rajzolTervek(), 2200);
                 } else if (b.dataset.mit === "tervnyit") {
                     tervTorlesre = null;
                     rajzolTervek();
                     if (tl) tl.hidden = !tl.hidden;
+                }
+            });
+        }
+        /* t70: ATNEVEZES A FEJLECBEN, a t58 helyben szerkesztes szabalyaival:
+           kattintas nyit, a szoveg kijelolve; Enter es ELKATTINTAS ment; Esc
+           visszaall. Ures nev = vissza az automatikusra. Azonnal ment, nem kell
+           hozza Felulirás: a nev csak felirat, a tartalmon nem valtoztat. */
+        const tal = $("tervallapot");
+        if (tal && !tal.dataset.kotve) {
+            tal.dataset.kotve = "1";
+            const nyitSzerk = () => {
+                const ny = nyitottMentett();
+                const cimke = tal.querySelector("[data-tervnev]");
+                if (!ny || !cimke) return;
+                const inp = document.createElement("input");
+                inp.type = "text"; inp.maxLength = 40; inp.className = "tervnevmezo";
+                inp.value = tervFelirat(ny);
+                cimke.replaceWith(inp);
+                inp.focus(); inp.select();
+                let kesz = false;
+                const vege = mentsd => {
+                    if (kesz) return; kesz = true;
+                    if (mentsd) {
+                        const v = inp.value.trim();
+                        if (v && v !== tervRovid(ny.c)) ny.n = v; else delete ny.n;
+                        tervMent();
+                    }
+                    inp.remove();
+                    rajzolTervek();
+                };
+                inp.addEventListener("keydown", e => {
+                    if (e.key === "Enter") { e.preventDefault(); vege(true); }
+                    else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); vege(false); }
+                });
+                inp.addEventListener("blur", () => vege(true));
+            };
+            tal.addEventListener("click", e => { if (e.target.closest("[data-tervnev]")) nyitSzerk(); });
+            tal.addEventListener("keydown", e => {
+                if ((e.key === "Enter" || e.key === " ") && e.target.closest("[data-tervnev]")) {
+                    e.preventDefault(); nyitSzerk();
                 }
             });
         }
@@ -5013,6 +5206,8 @@ li.collapsed > .node > .toggle::before{ content:"+" }
                     if (!t) return;
                     tervek = t.c.map(x => ({ i: x.i, q: x.q, x: x.x !== false }));
                     visszaTerv = null;   /* t60: uj terv jott, a regi visszaut ervenyet veszti */
+                    if (!t.id) t.id = tervId();
+                    nyitottTerv = t.id;  /* t70: ezt nyitottad meg, ez irhato felul */
                     valasztott = tervek[0].i;
                     /* t45: AZ EGYELEMŰ TERVET NEM ÜRÍTJÜK KI.
 
@@ -5037,7 +5232,9 @@ li.collapsed > .node > .toggle::before{ content:"+" }
                 if (kerd) { tervTorlesre = Number(kerd.dataset.tervkerdes); rajzolTervek(); return; }
                 const tor = e.target.closest("[data-tervtorol]");
                 if (tor) {
-                    mentettTervek.splice(Number(tor.dataset.tervtorol), 1);
+                    const torolt = mentettTervek.splice(Number(tor.dataset.tervtorol), 1)[0];
+                    /* t70: a megnyitott terv torlesevel az emleke is elvesz. */
+                    if (torolt && torolt.id === nyitottTerv) nyitottTerv = null;
                     tervMent(); tervTorlesre = null; rajzolTervek();
                 }
             });
@@ -5068,6 +5265,7 @@ li.collapsed > .node > .toggle::before{ content:"+" }
                 visszaTerv = null;
                 tervek = v.c.map(t => ({ i: t.i, q: t.q, x: t.x }));
                 valasztott = v.v;
+                nyitottTerv = v.ny || null;   /* t70 */
                 if (szuroProf !== v.p) {
                     szuroProf = v.p;
                     beall.prof = szuroProf; profBeallt = true; ment();
