@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Crafting Calculator
 // @namespace    the-west-kalkulator-ingame
-// @version      1.2.6
+// @version      1.2.7
 // @description  Crafting calculator inside the game, in a movable window. Reads only data already loaded in the browser.
 // @updateURL    https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/the-west-panel.user.js
 // @downloadURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/the-west-panel.user.js
@@ -29,7 +29,7 @@
 // ==/UserScript==
 
 /* =======================================================================
-   Mesterség-kalkulátor - játékbeli panel, 1.2.6
+   Mesterség-kalkulátor - játékbeli panel, 1.2.7
 
    Mit tud:
      · mozgatható ablak a játék saját ablakkeretében
@@ -965,6 +965,9 @@ const SZOVEG = {
   fa_ugras_cim: ["Ugrás erre a receptre","Jump to this recipe","Zu diesem Rezept springen","Przejdź do tej receptury"],
   frissites_ablak_cim: ["Mesterség-kalkulátor - frissítés","Crafting Calculator - update","Handwerksrechner - Update","Kalkulator rzemiosła - aktualizacja"],
   frissites_bevezeto: ["Új verzió érhető el a mesterség-kalkulátor paneljéből.","A new version of the crafting calculator panel is available.","Eine neue Version des Handwerksrechner-Panels ist verfügbar.","Dostępna jest nowa wersja panelu kalkulatora rzemiosła."],
+  frissites_valtozott: ["Mi változott:","What changed:","Was ist neu:","Co się zmieniło:"],
+  frissites_proba: ["PRÓBA - ez nem valódi frissítés, a gomb nem nyit telepítőt.","TEST - this is not a real update, the button does not open the installer.","TEST - kein echtes Update, der Knopf öffnet kein Installationsfenster.","TEST - to nie jest prawdziwa aktualizacja, przycisk nie otwiera instalatora."],
+  friss_proba_gomb: ["Frissítésablak próbája","Test the update window","Update-Fenster testen","Test okna aktualizacji"],
   frissites_elerheto: ["Elérhető:","Available:","Verfügbar:","Dostępna:"],
   frissites_gomb_kesobb: ["Később","Later","Später","Później"],
   frissites_gomb_megnyit: ["Frissítés megnyitása","Open update","Update öffnen","Otwórz aktualizację"],
@@ -1085,7 +1088,7 @@ const SZOVEG = {
   besz_alcim: ["megbízások nyilvántartása","tracking commissions","Aufträge verwalten","ewidencja zleceń"],
   besz_cim: ["Termékbeszerzők","Suppliers","Beschaffer","Dostawcy"],
   besz_db: ["Darab","Qty","Menge","Ilość"],
-  besz_gephez: ["Ez a nyilvántartás ehhez a böngészőhöz kötött, másik gépről nem látszik.","This list is tied to this browser, it is not visible from another machine.","Diese Liste ist an diesen Browser gebunden und auf anderen Geräten nicht sichtbar.","Ta lista jest powiązana z tą przeglądarką, nie widać jej na innym komputerze."],
+  besz_gephez: ["Ez a nyilvántartás ehhez a böngészőhöz és ehhez a karakterhez kötött: másik gépről és másik karakterrel nem látszik.","This list is tied to this browser and this character: it is not visible from another machine or another character.","Diese Liste ist an diesen Browser und diesen Charakter gebunden: auf anderen Geräten und mit anderen Charakteren ist sie nicht sichtbar.","Ta lista jest powiązana z tą przeglądarką i tą postacią: nie widać jej na innym komputerze ani na innej postaci."],
   besz_hozzaad: ["hozzáadás","add","hinzufügen","dodaj"],
   besz_atnevez: ["Kattints a beszerző átnevezéséhez - az egész rendelés átkerül","Click to rename the supplier - the whole order moves with it","Zum Umbenennen des Beschaffers klicken - der ganze Auftrag wandert mit","Kliknij, aby zmienić nazwę dostawcy - całe zlecenie przejdzie razem z nią"],
   besz_dbatir: ["Kattints a darabszám átírásához","Click to change the quantity","Zum Ändern der Menge klicken","Kliknij, aby zmienić ilość"],
@@ -1160,12 +1163,33 @@ const SZOVEG = {
 (function () {
     "use strict";
 
-    const VERZIO = "1.2.6";
+    const VERZIO = "1.2.7";
     /* Építésbélyeg. NEM kerül a @version sorba, tehát a frissítésellenőrzést
        nem érinti: az csak a @version sort olvassa. Csak arra való, hogy a
        tesztképernyőképekről egyértelmű legyen, melyik építés látszik.
        Kiadáskor üresre kell állítani. */
     const EPITES = "";
+
+    /* t74: A FRISSITESABLAK VALTOZASLISTAJA. A mar telepitett REGI panel
+       olvassa ki a letoltott uj fajlbol, a ket jelolosor kozotti reszt JSON-
+       kent. Ezert a ket jelolosor betu szerint nem valtozhat, a lista
+       ervenyes JSON (kettos idezojel, nincs zaro vesszo), es egy sorban nincs
+       egyszeru idezojel vagy visszaper. Nyelvenkent egy tomb (hu, en, de,
+       pl), barmelyik hianyozhat; a panel a sajat nyelvet, aztan az angolt,
+       aztan a magyart mutatja. Legfeljebb 5 rovid sor. A SZOVEGET MINDEN
+       ELES KIADAS ELOTT A FEJLESZTO HAGYJA JOVA. Ez a jelolosor-par legyen a
+       fajlban az ELSO, a kiolvaso a legelso elofordulast keresi. */
+    /* VALTOZASOK KEZDETE */
+    const VALTOZASOK = {
+        "hu": ["Minden karakter a saját terveit és megbízásait látja, világonként külön.", "A tervsor nevéről ugorva a tervezett darabszám is átjön, így rögtön gyárthatsz.", "A frissítésablak mostantól kiírja, mi változott."],
+        "en": ["Each character now sees its own plans and commissions, separately on each world.", "Jumping from a plan row now carries the planned quantity, so you can craft right away.", "The update window now lists what has changed."],
+        "de": ["Jeder Charakter sieht jetzt seine eigenen Pläne und Aufträge, getrennt für jede Welt.", "Beim Sprung aus einer Planzeile wird die geplante Menge übernommen, so kannst du sofort herstellen.", "Das Update-Fenster zeigt jetzt, was sich geändert hat."],
+        "pl": ["Każda postać widzi teraz własne plany i zlecenia, osobno na każdym świecie.", "Przejście z wiersza planu przenosi zaplanowaną ilość, więc możesz od razu wytwarzać.", "Okno aktualizacji pokazuje teraz, co się zmieniło."]
+    };
+    /* VALTOZASOK VEGE */
+    /* t74: a TESZT-epito true-ra allitja: a Beallitasokban megjelenik a
+       frissitesablak probagombja. Elesben a gomb rejtett. */
+    const FRISS_PROBA = false;
 
     /* ===================================================================
        1. Segédek és a játék adatai
@@ -1346,13 +1370,14 @@ const SZOVEG = {
        beírt kitalált megbízások megjelennének az élesben - egy hét múlva
        pedig már nem lehetne megkülönböztetni őket a valódiaktól. */
     const BESZ_KULCS = "mk-panel-beszerzok";
+    /* t72: A LISTA KARAKTERENKENT el, es NEM itt toltodik be: a kulcshoz a
+       jatek playerId-ja kell, ami a szkript indulasakor meg nincs meg. A
+       betoltest a karBetolt() vegzi a jatek betoltese utan (lasd ott). */
     let beszerzok = [];
-    try {
-        const b = JSON.parse(GM_getValue(BESZ_KULCS, "null"));
-        if (Array.isArray(b)) beszerzok = b.filter(x => x && x.id && x.nev && x.db > 0);
-    } catch (e) { beszerzok = []; }
+    const beszSzuro = b => Array.isArray(b) ? b.filter(x => x && x.id && x.nev && x.db > 0) : [];
     function beszMent() {
-        try { GM_setValue(BESZ_KULCS, JSON.stringify(beszerzok)); } catch (e) { /* nem baj */ }
+        if (!karUtotag) return;   /* t72: azonosito nelkul nincs mentes */
+        try { GM_setValue(BESZ_KULCS + karUtotag, JSON.stringify(beszerzok)); } catch (e) { /* nem baj */ }
     }
 
     /* Tárgyanként összegzett várható mennyiség. NEM beszerzőnként: ha a Fából
@@ -1715,16 +1740,15 @@ const SZOVEG = {
        ezt ki is mondjuk: egy csendben eltűnő mentés rosszabb, mint egy
        duplikátum.
 
-       Tízet tartunk, a legrégebbi esik ki. Tárolás géphez kötve. */
+       Tízet tartunk, a legrégebbi esik ki. Tárolás géphez és karakterhez kötve (t72). */
     const TERV_KULCS = "mk-panel-tervek";
     const TERV_MAX = 10;
+    /* t72: karakterenkent, a karBetolt() tolti be (lasd ott). */
     let mentettTervek = [];
-    try {
-        const t = JSON.parse(GM_getValue(TERV_KULCS, "null"));
-        if (Array.isArray(t)) mentettTervek = t.filter(x => x && Array.isArray(x.c) && x.c.length);
-    } catch (e) { mentettTervek = []; }
+    const tervSzuro = t => Array.isArray(t) ? t.filter(x => x && Array.isArray(x.c) && x.c.length) : [];
     function tervMent() {
-        try { GM_setValue(TERV_KULCS, JSON.stringify(mentettTervek)); } catch (e) { /* nem baj */ }
+        if (!karUtotag) return;   /* t72: azonosito nelkul nincs mentes */
+        try { GM_setValue(TERV_KULCS + karUtotag, JSON.stringify(mentettTervek)); } catch (e) { /* nem baj */ }
     }
     /* t70: A TERV SAJAT AZONOSITOT KAP (id), es lehet sajat neve (n).
        Eddig a terv a tartalmabol kepzett nevrol volt felismerheto, ezert egy
@@ -1734,9 +1758,86 @@ const SZOVEG = {
     function tervId() {
         return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     }
-    if (mentettTervek.some(t => !t.id)) {
-        mentettTervek.forEach(t => { if (!t.id) t.id = tervId(); });
+    /* t72: a regi tervek azonositoja a karBetolt()-ben potlodik, a
+       karakteres lista betoltese utan. */
+
+    /* ===================================================================
+       t72: KARAKTERENKENTI TAROLAS - a tervek es a megbizasok
+       ===================================================================
+       A GM_setValue szkriptenkent EGY tarolo: egy bongeszoben minden vilag
+       es minden karakter ugyanazt latta. A masik karakter megbizasa a sajat
+       raktarba szamitott bele, a terve a sajat terv helyere volt
+       felulirhato. Mostantol a ket lista kulcsa:
+           alapkulcs + ":" + a vilag cime (kisbetuvel) + ":" + playerId
+       A nev NEM resze: az atnevezeskor valtozik, es egy nev tobb vilagon is
+       elofordul. A vilag cime miatt ugyanaz az azonosito masik vilagon is
+       kulon kulcs. Az ertekeket a kod FUTAS KOZBEN olvassa, a forrasba soha
+       nem kerul azonosito vagy nev.
+       A beallitasok, a nyitogomb helye es a napi frissitesjelzo KOZOS marad:
+       azok a felhasznalo szokasai, nem a karaktere.
+       A REGI KOZOS LISTAT mindket kulcsbol EGYSZER, az elso belepo karakter
+       veszi at (a fejleszto dontese), es ezt egy-egy jelzo rogziti. A tobbi
+       karakter, barmelyik vilagon, ures listaval indul. A regi kulcs NEM
+       torlodik: ha valami rosszul sul el, onnan visszahozhato. */
+    let karUtotag = null;
+    function karAzonosito() {
+        try {
+            const W = jatek();
+            const id = W.Character ? W.Character.playerId : undefined;
+            if (id === undefined || id === null || id === "" || id === 0) return null;
+            const h = String(location.host || "").toLowerCase();
+            if (!h) return null;
+            return ":" + h + ":" + String(id);
+        } catch (e) { return null; }
+    }
+    /* Egy lista betoltese a karakter kulcsarol, az egyszeri atvetellel. */
+    function karLista(alap, szuro) {
+        const olvas = k => { try { return JSON.parse(GM_getValue(k, "null")); } catch (e) { return null; } };
+        const sajat = olvas(alap + karUtotag);
+        if (Array.isArray(sajat)) return { lista: szuro(sajat), atvett: false };
+        let atveve = "";
+        try { atveve = GM_getValue(alap + "-atveve", ""); } catch (e) { atveve = ""; }
+        if (atveve) return { lista: [], atvett: false };
+        try { GM_setValue(alap + "-atveve", "1"); } catch (e) { /* nem baj */ }
+        return { lista: szuro(olvas(alap)), atvett: true };
+    }
+    /* Az azonosito elott felvett tetel nem vesz el: a betoltott lista mellé
+       kerul, azonosito szerint duplikacio nelkul. */
+    function osszefesul(betoltott, kozben) {
+        if (!kozben.length) return betoltott;
+        const van = new Set(betoltott.map(x => x.id));
+        return betoltott.concat(kozben.filter(x => !van.has(x.id)));
+    }
+    function karBetolt() {
+        const u = karAzonosito();
+        if (!u) return false;
+        karUtotag = u;
+        const b = karLista(BESZ_KULCS, beszSzuro);
+        const t = karLista(TERV_KULCS, tervSzuro);
+        const bKozben = beszerzok, tKozben = mentettTervek;
+        beszerzok = osszefesul(b.lista, bKozben);
+        mentettTervek = osszefesul(t.lista, tKozben);
+        if (mentettTervek.length > TERV_MAX) mentettTervek.length = TERV_MAX;
+        mentettTervek.forEach(x => { if (!x.id) x.id = tervId(); });   /* t70 */
+        /* Az atvett, a kozben felvett vagy azonositot kapott lista mentodik,
+           igy a karakternek ettol kezdve sajat kulcsa van. */
+        beszMent();
         tervMent();
+        return true;
+    }
+    /* A jatek betoltese utan indul. Ha a playerId meg nincs meg, fel
+       masodpercenkent ujraprobal, legfeljebb egy percig, es amint sikerul,
+       ujrarajzol. */
+    function karIndit() {
+        if (karBetolt()) return;
+        let hatra = 120;
+        const ora = setInterval(() => {
+            if (karBetolt()) {
+                clearInterval(ora);
+                try { if (host && !host.hidden) frissit(); } catch (e) { /* nem baj */ }
+                try { if (host && !host.hidden) rajzolBeallitasok(); } catch (e) { /* nem baj */ }
+            } else if (--hatra <= 0) clearInterval(ora);
+        }, 500);
     }
     /* t70: a MEGNYITOTT terv azonositoja. Csak a munkamenetben el. Elvesz,
        ha masik tervet nyitsz, a listaban masik receptre valtasz, ugrasz, vagy
@@ -4283,7 +4384,11 @@ li.collapsed > .node > .toggle::before{ content:"+" }
 
        ZÁROLT ÉS MEG NEM TANULT RECEPTRE IS UGRIK: a munkalap úgyis megmutatja
        az állapotot, és épp azért nézel oda, hogy lásd. */
-    function ugorj(id) {
+    /* t73: A DARABSZAM a tervsor nevebol ugorva JON MAGAVAL, mert a
+       tervlistaban nincs gyartas: az egycelu nezetben a Gyartas gombbal
+       rogton indithato a tervezett mennyiseg. A robbantott abrabol ugorva
+       tovabbra is 1 darab (a fenti t48-as szabaly). A fejleszto kerese. */
+    function ugorj(id, db) {
         const r = recipeMap.get(String(id));
         if (!r) return;
         /* t60: csak a LEGALABB KETTETELES tervet jegyezzuk meg. Az egyeleműt
@@ -4295,7 +4400,9 @@ li.collapsed > .node > .toggle::before{ content:"+" }
         }
         /* t70: az ugras uj celt nyit, a megnyitott terv nem irhato felul vele. */
         nyitottTerv = null;
-        tervek = [];
+        const q = Math.min(9999, Math.max(1, parseInt(db, 10) || 1));
+        /* Az egyelemu terv az egycelu nezet a darabszammal (lasd allit). */
+        tervek = q > 1 ? [{ i: String(id), q: q, x: true }] : [];
         valasztott = String(id);
         const p = profIds(r.p);
         if (szuroProf !== null && !p.includes(szuroProf)) {
@@ -4569,7 +4676,11 @@ li.collapsed > .node > .toggle::before{ content:"+" }
              + esc(T("fa_megrendelve", { n: b.megrendelt })) + '<span class="csill">*</span>';
     }
 
-    function faHTML(csp, gyoker) {
+    /* t75: tobbGyoker = a faban egynel tobb gyoker all (tobbteteles terv).
+       A gyoker CSAK ilyenkor ugro: egycelu nezetben onmagara mutatna, es az
+       alahuzas felrevezetne. A weboldal is igy dont. A kozteses termekek
+       mindig ugrok. */
+    function faHTML(csp, gyoker, tobbGyoker) {
         const fedve = csp.marad === 0;
         const hianyos = !csp.gyartott && csp.marad > 0;
         const oszt = ["node", gyoker ? "root" : csp.gyartott ? "craft" : "base",
@@ -4607,7 +4718,7 @@ li.collapsed > .node > .toggle::before{ content:"+" }
             <span class="q">${csp.kell} ×</span>${munkaIkon(csp.id, "sm")}
             <span class="nm">${/* t59: a GYOKER is ugro. Eddig itt egy !gyoker
                     allt, ezert a terv sajat tetelein nem lehetett tovabblepni. */
-                csp.gyartott
+                csp.gyartott && (!gyoker || tobbGyoker)
                 ? `<span class="ugro" data-ugro="${esc(String(csp.id))}" role="button" tabindex="0"
                      title="${esc(T("fa_ugras_cim"))}">${munkaNev(csp.id, esc(csp.nev))}</span>`
                 : munkaNev(csp.id, esc(csp.nev))}</span>${meta}</div>
@@ -4723,7 +4834,7 @@ li.collapsed > .node > .toggle::before{ content:"+" }
                 const r = recipeMap.get(t.i);
                 const van = raktar[t.i] || 0;
                 return `<div class="trow">${ico(t.i, "lg")}
-                  <div class="tname"><b><span class="ugro" data-ugro="${esc(String(t.i))}"
+                  <div class="tname"><b><span class="ugro" data-ugro="${esc(String(t.i))}" data-ugroq="${t.q}"
                         role="button" tabindex="0"
                         title="${esc(T("fa_ugras_cim"))}">${esc(nameOf(t.i))}</span></b><small>${esc(profLabel(r.p))} · ${lepcso(r.l)}</small>
                     <label class="texcl${van ? "" : " tehetetlen"}">
@@ -4780,7 +4891,7 @@ li.collapsed > .node > .toggle::before{ content:"+" }
             return `<div class="treebar">
                 <button data-tb="open">${T("fa_mind_kinyit")}</button>
                 <button data-tb="close">${T("fa_mind_bezar")}</button></div>
-              <ul class="tree">${erdo.map(n => faHTML(n, true)).join("")}</ul>`
+              <ul class="tree">${erdo.map(n => faHTML(n, true, erdo.length > 1)).join("")}</ul>`
               + (Object.keys(beszVarhato()).length
                   ? `<p class="beszlab">${esc(T("besz_labjegyzet"))}</p>` : "");
         };
@@ -5281,7 +5392,7 @@ li.collapsed > .node > .toggle::before{ content:"+" }
                 if (e.target.closest && e.target.closest("[data-munka]")) return;
                 e.preventDefault();
                 e.stopPropagation();
-                ugorj(u.dataset.ugro);
+                ugorj(u.dataset.ugro, u.dataset.ugroq);   /* t73: tervsornal a darabszam */
             };
             u.addEventListener("click", ugras);
             u.addEventListener("keydown", e => {
@@ -7191,7 +7302,8 @@ li.collapsed > .node > .toggle::before{ content:"+" }
                 + `<br><span style="display:inline-block;margin-top:5px">${eredmeny}</span>`
                 + (f.ido ? `<br><span class="mono">${esc(T("beall_frissites_utoljara", { ido: f.ido }))}</span>` : "")),
             sor(T("beall_forras"), `<span class="mono">${esc(SZKRIPT_URL)}</span>`)
-        ].join("");
+        ].concat(FRISS_PROBA ? [sor("", `<button class="icon" style="width:auto;padding:4px 10px"`
+            + ` data-mit="frissproba">${esc(T("friss_proba_gomb"))}</button>`)] : []).join("");
 
         cellaSzam = 0;
         const megt = megtanult.size;
@@ -7337,6 +7449,13 @@ li.collapsed > .node > .toggle::before{ content:"+" }
             /* 1.5.2 SINGLE-VIEW: a fogaskerék oda-vissza vált */
             if (mit === "diagvalt") valtLap(beall.tab === "diag" ? "calc" : "diag");
             if (mit === "frissiteskeres") frissitestNezKezzel();
+            /* t74: a TESZT probagombja, szerverhivas nelkul: a sajat verzio
+               utolso tagja eggyel nagyobb, a lista a sajat blokkbol jon. */
+            if (mit === "frissproba" && FRISS_PROBA) {
+                const r = String(SAJAT_VER).split(".");
+                r[r.length - 1] = String((parseInt(r[r.length - 1], 10) || 0) + 1);
+                frissitesAblak(r.join("."), valtozasKiolvas(SAJAT_BLOKK), true);
+            }
             if (mit === "frissitesnyit" && frissAllapot.ver) {
                 try { window.open(SZKRIPT_URL, "_blank"); } catch (e) { /* nem baj */ }
             }
@@ -8691,6 +8810,34 @@ li.collapsed > .node > .toggle::before{ content:"+" }
 
     /* A fent lévő fájl @version sorának kiolvasása. A hibát NEM nyeljük el:
        minden ág beállítja a frissAllapot mezőit. */
+    /* t74: a valtozaslista kiolvasasa egy szkriptszovegbol. A jelolosorokat
+       darabokbol rakjuk ossze, hogy ez a kod maga ne tartalmazza oket, es a
+       keresest ne tevessze meg. Hibas vagy hianyzo blokknal ures lista: az
+       ablak akkor is szol, csak lista nelkul. */
+    const VALT_ELEJE = "/* VALTOZASOK " + "KEZDETE */";
+    const VALT_VEGE = "/* VALTOZASOK " + "VEGE */";
+    function valtozasKiolvas(txt) {
+        try {
+            const i = txt.indexOf(VALT_ELEJE);
+            const j = txt.indexOf(VALT_VEGE);
+            if (i < 0 || j < i) return [];
+            const m = txt.slice(i + VALT_ELEJE.length, j).match(/const VALTOZASOK\s*=\s*([\s\S]*?);\s*$/);
+            if (!m) return [];
+            const o = JSON.parse(m[1]);
+            if (!o || typeof o !== "object") return [];
+            const ny = nyelv || nyelvBeallit();
+            for (const k of [ny, "en", "hu"]) {
+                const l = Array.isArray(o[k]) ? o[k].filter(x => typeof x === "string" && x.trim()) : [];
+                if (l.length) return l.slice(0, 5).map(x => x.trim());
+            }
+            return [];
+        } catch (e) { return []; }
+    }
+    let frissLista = [];
+    /* A TESZT probajahoz a sajat blokk, ugyanabban az alakban, ahogy a
+       letoltott fajlban allna. */
+    const SAJAT_BLOKK = VALT_ELEJE + "\n    const VALTOZASOK = " + JSON.stringify(VALTOZASOK) + ";\n    " + VALT_VEGE;
+
     async function ujVerzio() {
         frissAllapot.ido = new Date().toLocaleString("hu-HU");
         let txt = null;
@@ -8715,17 +8862,30 @@ li.collapsed > .node > .toggle::before{ content:"+" }
             frissAllapot = { statusz: "naprakesz", ido: frissAllapot.ido, ver: m[1], ok: null };
             return null;
         }
+        frissLista = valtozasKiolvas(txt);   /* t74 */
         frissAllapot = { statusz: "van-uj", ido: frissAllapot.ido, ver: m[1], ok: null };
         return m[1];
     }
 
     /* a játék saját ablakstílusában jelenít meg egy értesítőt */
-    function frissitesAblak(ver) {
+    /* t74: lista = a valtozasok sorai (lehet ures), proba = a TESZT
+       probagombjabol nyilt, szerverhivas nelkul: piros sor jelzi, es a
+       Frissites gomb nem nyit telepitot. */
+    function frissitesAblak(ver, lista, proba) {
         const W = jatek();
+        lista = Array.isArray(lista) ? lista : [];
         const szoveg =
+            (proba ? "<div style='color:#b5291a;font-weight:600;margin-bottom:8px'>"
+                     + esc(T("frissites_proba")) + "</div>" : "") +
             T("frissites_bevezeto") + "<br><br>" +
-            "<b>" + T("frissites_jelenlegi") + "</b> " + SAJAT_VER + " &nbsp; " +
-            "<b>" + T("frissites_elerheto") + "</b> " + ver + "<br><br>" +
+            "<b>" + T("frissites_jelenlegi") + "</b> " + esc(SAJAT_VER) + " &nbsp; " +
+            "<b>" + T("frissites_elerheto") + "</b> " + esc(ver) + "<br><br>" +
+            (lista.length
+                ? "<b>" + esc(T("frissites_valtozott")) + "</b>"
+                  + "<ul style='margin:4px 0 12px;padding-left:20px'>"
+                  + lista.map(x => "<li style='margin:2px 0'>" + esc(x) + "</li>").join("")
+                  + "</ul>"
+                : "") +
             T("frissites_magyarazat");
 
         /* 1.0.2: a szöveg a NATÍV ablak pergamen hátteréhez igazodik, mert az
@@ -8733,14 +8893,17 @@ li.collapsed > .node > .toggle::before{ content:"+" }
            dobozhoz készült, és a pergamenen szinte olvashatatlan maradt.
            Ha mégis a tartalék dobozba kerül, ott a sotetre() állítja át. */
         const tart = document.createElement("div");
-        tart.style.cssText = "padding:14px 16px;font:14px/1.5 Arial,sans-serif;color:#2b2119";
+        /* t74: a tartalom kitolti az ablak teljes szelesseget. */
+        tart.style.cssText = "padding:14px 16px;font:14px/1.5 Arial,sans-serif;color:#2b2119;"
+            + "box-sizing:border-box;width:100%";
         tart.innerHTML = "<div style='margin-bottom:12px'>" + szoveg + "</div>";
 
         const gomb = document.createElement("button");
         gomb.textContent = T("frissites_gomb_megnyit");
         gomb.style.cssText = "padding:7px 14px;cursor:pointer;font:600 13px Arial,sans-serif;" +
             "background:#3a2713;color:#f0c874;border:1px solid #8a6330;border-radius:5px";
-        gomb.onclick = () => { window.open(SZKRIPT_URL, "_blank"); };
+        gomb.onclick = () => { if (!proba) window.open(SZKRIPT_URL, "_blank"); };
+        if (proba) { gomb.disabled = true; gomb.style.opacity = ".5"; gomb.style.cursor = "default"; }
 
         const kesobb = document.createElement("button");
         kesobb.textContent = T("frissites_gomb_kesobb");
@@ -8750,7 +8913,9 @@ li.collapsed > .node > .toggle::before{ content:"+" }
 
         /* a szerző jelzése, halványan, a doboz jobb alsó sarkában */
         const alairas = document.createElement("div");
-        alairas.textContent = ALAIRAS;
+        /* t74: a sziv piros, mint a panel .alairas .sziv szine. Az ablak a
+           jatek DOM-jaban el, nem az arnyekgyokerben, ezert helyben. */
+        alairas.innerHTML = esc(ALAIRAS).replace("\u2665", "<span style='color:#d7473f'>\u2665</span>");
         alairas.style.cssText = "margin-top:14px;text-align:right;font:11px Arial,sans-serif;" +
             "color:rgba(43,33,25,.45);letter-spacing:.03em";
 
@@ -8853,7 +9018,7 @@ li.collapsed > .node > .toggle::before{ content:"+" }
             const ver = await ujVerzio();
             if (!ver) return;
             GM_setValue("mk-upd-nap", ma);
-            frissitesAblak(ver);
+            frissitesAblak(ver, frissLista);
         } catch (e) {
             frissAllapot = { statusz: "hiba", ido: new Date().toLocaleString("hu-HU"),
                              ver: null, ok: "váratlan hiba: " + (e && e.message || "ismeretlen") };
@@ -8894,6 +9059,7 @@ li.collapsed > .node > .toggle::before{ content:"+" }
             clearInterval(var_);
             betuk();
             epit();
+            karIndit();   /* t72: a karakteres listak betoltese */
             gombKi();
             setTimeout(frissitestNez, 4000);   /* a játék betöltése után nézünk rá */
         }
