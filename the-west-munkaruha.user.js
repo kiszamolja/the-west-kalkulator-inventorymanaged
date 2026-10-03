@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         The West Munkaruha-választó
 // @namespace    the-west-munkaruha
-// @version      1.0.0
-// @description  Gombok a munkaablakban: egy kattintással a legtöbb munkapontot, tapasztalatot, terméket vagy szerencsét adó ruha, a munka fokozatát is figyelembe véve; villám gomb a leggyorsabb ruhához az úthoz.
+// @version      1.0.1
+// @description  Gombok a munkaablakban: egy kattintással a legtöbb munkapontot, tapasztalatot, terméket vagy szerencsét adó ruha, a munka fokozatát is figyelembe véve; villám gomb a leggyorsabb ruhához az úthoz; zZ gomb a hotelben a legjobb regenerációs ruhához.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
 // @match        https://*.the-west.hu/game.php*
@@ -66,7 +66,7 @@
     'use strict';
 
     var NEV = 'Munkaruha-választó';
-    var VERZIO = '1.0.0';
+    var VERZIO = '1.0.1';
     var TESZT = false;
 
     var WEBOLDAL = 'https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/';
@@ -86,10 +86,9 @@
     // visszaper nelkul). A ket jelolo sor nem valtozhat.
     /* VALTOZASOK KEZDETE */
     var VALTOZASOK = [
-        "A Gy\u0171jt\u00f6get\u0151 \u00e9s a Tapasztalat gomb a munka fokozat\u00e1t (bronz, ez\u00fcst, arany cs\u00e1k\u00e1ny) is figyelembe veszi.",
-        "Az \u00fczenet ki\u00edrja, melyik fokozatba \u00f6lt\u00f6ztetett.",
-        "A sorban l\u00e9v\u0151 munka csak akkor akad\u00e1lyozza az \u00e1t\u00f6lt\u00f6z\u00e9st, ha a munka szintj\u00e9t m\u00e9g nem \u00e9rted el.",
-        "Vill\u00e1m gomb az er\u0151d, a v\u00e1ros \u00e9s a k\u00fcldet\u00e9sad\u00f3 ablak\u00e1ban is."
+        "\u0022zZ\u0022 gomb a hotel ablak\u00e1ban: egy kattint\u00e1ssal felveszi a legjobb regener\u00e1ci\u00f3s ruh\u00e1t",
+        "Ha a Felszerel\u00e9s kezel\u0151ben van ugyanilyen j\u00f3 mentett szetted, egy l\u00e9p\u00e9sben azt veszi fel",
+        "Vill\u00e1m gomb a Szab\u00f3, a Fegyverkov\u00e1cs \u00e9s a Vegyesbolt ablak\u00e1ban is"
     ];
     /* VALTOZASOK VEGE */
 
@@ -115,7 +114,10 @@
         dolgozik: false,
         utolsoRuhacsere: 0,
         // a "mentsd el" tipp: 'most' az elso darabonkenti gyors oltozeskor, utana 'volt'
-        gyorsTipp: null
+        gyorsTipp: null,
+        alvasTipp: null,
+        // TESZT: az uj ablakok osztalyanak kiirasa, alapbol kikapcsolva
+        ablakNaplo: false
     };
 
     function naplo(szoveg, adat)
@@ -1529,13 +1531,120 @@
     // A leggyorsabb osszeallitas targyazonositoi (a gyorsszett szamoltGyorsSzett-je szerint).
     function gyorsIdk()
     {
+        return celIdk('gyors');
+    }
+
+    /* ================================================================== */
+    /* Celok a villamhoz es a zZ gombhoz                                   */
+    /*                                                                     */
+    /* Merve (2026-10-03): a regen bonusz sima tort (0.3 = 30%), szintfuggo */
+    /* sehol, a szettfokozatok osszeadodnak (getMergedStages). Alvas       */
+    /* kozben a maximum szoba-szorzo x (1 + regen) toltodik orankent, az   */
+    /* energia es az eletero egyforman (Character.energyRegen / healthRegen).*/
+    /* A cel ezert a regen-osszeg; a ruha maximum eleterejet a jatek       */
+    /* atoltozeskor visszavagja, az nem szamit.                            */
+    /* ================================================================== */
+
+    var CELOK = {
+        gyors:
+        {
+            skills: 'ms',
+            tipp: 'gyorsTipp',
+            nincs: 'Nem találtam gyorsabb ruhát.',
+            kesz: 'Felvettem a leggyorsabb ruhát',
+            marRajta: 'Már a leggyorsabb ruha van rajtad',
+            szettben: 'a gyors szettben'
+        },
+        alvas:
+        {
+            skills:
+            {
+                regen: 1
+            },
+            tipp: 'alvasTipp',
+            nincs: 'Nincs regenerációs tárgyad.',
+            kesz: 'Felvettem az alvó ruhát',
+            marRajta: 'Már a legjobb alvó ruha van rajtad',
+            szettben: 'az alvó szettben'
+        }
+    };
+
+    function celIdk(celNev)
+    {
         var sz = new Szamito(
         {
-            skills: 'ms'
+            skills: CELOK[celNev].skills
         });
         var lista = sz.legjobb();
         if (!lista.length) return [];
         return sz.hasznaltDarabok(lista[0]) || [];
+    }
+
+    // A ruha pontos regeneracios bonusza (tort, 2.46 = 246%), szettfokozatokkal.
+    // A kereso bonuszonkent egeszre kerekit, ezert az uzenet ezt irja ki.
+    function regenOsszeg(idk)
+    {
+        var ossz = 0;
+        var szettek = {};
+
+        function ertek(b, ex)
+        {
+            var v, t;
+            if (b.type === 'character')
+            {
+                v = ex.getCharacterItemValue(b);
+                t = b.bonus && b.bonus.type;
+            }
+            else
+            {
+                v = ex.getValue(b);
+                t = b.type;
+            }
+            return t === 'regen' ? (v || 0) : 0;
+        }
+        for (var i = 0; i < idk.length; i++)
+        {
+            var d = ItemManager.get(idk[i]);
+            if (!d) continue;
+            var lista = (d.bonus && d.bonus.item) || [];
+            if (lista.length)
+            {
+                var ex = new west.item.BonusExtractor(Character, d.getItemLevel());
+                for (var j = 0; j < lista.length; j++) ossz += ertek(lista[j], ex);
+            }
+            if (d.set) (szettek[d.set] = szettek[d.set] || []).push(idk[i]);
+        }
+        var ex0 = new west.item.BonusExtractor(Character);
+        for (var k in szettek)
+        {
+            var leiro = west.storage.ItemSetManager.get(k);
+            if (!leiro) continue;
+            var szett = new west.item.ItemSet(
+            {
+                key: k,
+                items: szettek[k],
+                bonus: leiro.bonus
+            });
+            var fokok = szett.getMergedStages() || [];
+            for (var f = 0; f < fokok.length; f++) ossz += ertek(fokok[f], ex0);
+        }
+        return ossz;
+    }
+
+    // Az uzenet vege: a gyorsszettnel semmi, az alvo ruhanal a regeneracio.
+    function celUtotag(celNev, idk)
+    {
+        if (celNev !== 'alvas') return '';
+        try
+        {
+            var sz = Math.round(regenOsszeg(idk) * 1000) / 10;
+            return ' (+' + String(sz).replace('.', ',') + '% regeneráció)';
+        }
+        catch (e)
+        {
+            hiba(e, 'celUtotag');
+            return '';
+        }
     }
 
     /* ================================================================== */
@@ -1863,7 +1972,7 @@
             }, FRISSULES_VARAS - eltelt + 100);
             return;
         }
-        if (mod === 'gyors') gyorsInditas(ab, eltelt);
+        if (mod === 'gyors' || mod === 'alvas') gyorsInditas(ab, eltelt, mod);
         else szamolasEsOltozes(ab, mod, eltelt);
     }
 
@@ -1989,24 +2098,26 @@
         return null;
     }
 
-    function gyorsInditas(ab, eltelt)
+    function gyorsInditas(ab, eltelt, celNev)
     {
+        celNev = celNev || 'gyors';
+        var cel = CELOK[celNev];
         var sz, legjobb, legjobbPont;
         try
         {
             sz = new Szamito(
             {
-                skills: 'ms'
+                skills: cel.skills
             });
             var eredmeny = sz.legjobb();
             legjobb = eredmeny.length ? (sz.hasznaltDarabok(eredmeny[0]) || []) : [];
-            if (!legjobb.length) return gyorsDarabonkent(ab, eltelt);
+            if (!legjobb.length) return gyorsDarabonkent(ab, eltelt, celNev);
             legjobbPont = sebessegPont(sz, legjobb);
         }
         catch (e)
         {
             hiba(e, 'gyorsInditas / szamitas');
-            return gyorsDarabonkent(ab, eltelt);
+            return gyorsDarabonkent(ab, eltelt, celNev);
         }
 
         function keres(frissit)
@@ -2049,12 +2160,12 @@
                         idk: idk
                     };
                 }
-                if (TESZT) naplo('gyors: kiszamolt legjobb ' + legjobbPont + ' | mentett szettek: ' + (naploSor.join(', ') || 'nincs') +
+                if (TESZT) naplo(celNev + ': kiszamolt legjobb ' + legjobbPont + ' | mentett szettek: ' + (naploSor.join(', ') || 'nincs') +
                     ' | ' + (jo ? 'valasztott: ' + jo.szett.name : 'nincs eleg gyors') + (friss ? ' (friss lista)' : ' (tarolt lista)'));
-                if (jo) return mentettreValtas(ab, jo);
+                if (jo) return mentettreValtas(ab, jo, celNev);
                 if (!friss) return keres(true);
-                allapot.gyorsTipp = !allapot.gyorsTipp ? 'most' : 'volt';
-                gyorsDarabonkent(ab, eltelt);
+                allapot[cel.tipp] = !allapot[cel.tipp] ? 'most' : 'volt';
+                gyorsDarabonkent(ab, eltelt, celNev);
             });
         }
         keres(false);
@@ -2067,13 +2178,15 @@
 
     // Darabonkenti gyors oltozes. Munkaablakban a regi ut (a munka adataival es a TESZT
     // ellenorzessel), mas ablakban (erod, varos, kuldetesado) munka nelkul.
-    function gyorsDarabonkent(ab, eltelt)
+    function gyorsDarabonkent(ab, eltelt, celNev)
     {
-        if (munkaAblak(ab)) return szamolasEsOltozes(ab, 'gyors', eltelt);
+        celNev = celNev || 'gyors';
+        var cel = CELOK[celNev];
+        if (celNev === 'gyors' && munkaAblak(ab)) return szamolasEsOltozes(ab, 'gyors', eltelt);
         var gy;
         try
         {
-            gy = gyorsIdk();
+            gy = celIdk(celNev);
         }
         catch (e)
         {
@@ -2083,22 +2196,22 @@
         }
         if (!gy.length)
         {
-            uzenet('Nem találtam gyorsabb ruhát.');
+            uzenet(cel.nincs);
             return;
         }
-        var cel = teljesOsszeallitas(gy);
+        var celIdkLista = teljesOsszeallitas(gy);
         var sorrend = null;
         var kotesek = kotesekEpitese(rajtamIdk());
         if (kotesek.length)
         {
-            var vegso = legkisebbTobblet(cel, kotesek);
+            var vegso = legkisebbTobblet(celIdkLista, kotesek);
             if (vegso.tobblet < 0)
             {
                 uzenet('A sorban lévő munkához (' + vegso.munka.nev + ') ebben a ruhában nem lenne elég munkapontod (' +
                     (vegso.munka.nehezseg + vegso.tobblet) + ', kell ' + vegso.munka.nehezseg + ').', true);
                 return;
             }
-            var bs = biztonsagosSorrend(cel, kotesek);
+            var bs = biztonsagosSorrend(celIdkLista, kotesek);
             if (!bs.ok)
             {
                 uzenet('Nem tudok úgy átöltözni, hogy közben megmaradjon a munkapont a sorban lévő munkához (' +
@@ -2109,7 +2222,7 @@
         }
         allapot.dolgozik = true;
         gombAllapot();
-        oltoztet(cel, function (db, hibaSz)
+        oltoztet(celIdkLista, function (db, hibaSz)
         {
             allapot.dolgozik = false;
             gombAllapot();
@@ -2118,22 +2231,26 @@
                 uzenet('Nem sikerült minden darabot felvenni (' + db + ' sikerült): ' + hibaSz, true);
                 return;
             }
+            var utotag = celUtotag(celNev, celIdkLista);
             if (!db)
             {
-                uzenet('Már a leggyorsabb ruha van rajtad.');
+                uzenet(cel.marRajta + utotag + '.');
                 return;
             }
-            uzenet('Felvettem a leggyorsabb ruhát.' + (allapot.gyorsTipp === 'most' ?
+            uzenet(cel.kesz + utotag + '.' + (allapot[cel.tipp] === 'most' ?
                 ' Ha elmented a Felszerelés kezelőben (bármilyen néven), legközelebb egy lépésben átöltözöl.' : ''));
         }, sorrend);
     }
 
-    function mentettreValtas(ab, jo)
+    function mentettreValtas(ab, jo, celNev)
     {
+        celNev = celNev || 'gyors';
+        var cel = CELOK[celNev];
+        var utotag = celUtotag(celNev, jo.idk);
         var rajtam = rajtamIdk().slice(0).sort().join(',');
         if (rajtam === jo.idk.slice(0).sort().join(','))
         {
-            uzenet('Már a leggyorsabb ruha van rajtad (' + jo.szett.name + ').');
+            uzenet(cel.marRajta + ' (' + jo.szett.name + ')' + utotag + '.');
             return;
         }
         var kotesek = kotesekEpitese(rajtamIdk());
@@ -2142,7 +2259,7 @@
             var v = legkisebbTobblet(jo.idk, kotesek);
             if (v.tobblet < 0)
             {
-                uzenet('A sorban lévő munkához (' + v.munka.nev + ') a gyors szettben nem lenne elég munkapontod (' +
+                uzenet('A sorban lévő munkához (' + v.munka.nev + ') ' + cel.szettben + ' nem lenne elég munkapontod (' +
                     (v.munka.nehezseg + v.tobblet) + ', kell ' + v.munka.nehezseg + ').', true);
                 return;
             }
@@ -2160,15 +2277,15 @@
             var kapott = rajtamIdk().slice(0).sort().join(',');
             if (kapott !== jo.idk.slice(0).sort().join(','))
             {
-                if (TESZT) naplo('gyors: a valtas utan mas van rajtad, mint vartuk | vart: ' + jo.idk.join(',') + ' | kapott: ' + kapott);
+                if (TESZT) naplo(celNev + ': a valtas utan mas van rajtad, mint vartuk | vart: ' + jo.idk.join(',') + ' | kapott: ' + kapott);
                 szettLista(function ()
                 {
                     uzenet('A mentett szett (' + jo.szett.name + ') megváltozott, ezért most a legjobbat veszem fel.', true);
-                    gyorsDarabonkent(ab, FRISSULES_VARAS);
+                    gyorsDarabonkent(ab, FRISSULES_VARAS, celNev);
                 });
                 return;
             }
-            uzenet('Felvettem a leggyorsabb ruhát egy lépésben: ' + jo.szett.name + '.' + (munkaAblak(ab) ? ' Munka indítása után öltözz át a munkához.' : ''));
+            uzenet(cel.kesz + ' egy lépésben: ' + jo.szett.name + utotag + '.' + (munkaAblak(ab) ? ' Munka indítása után öltözz át a munkához.' : ''));
             if (TESZT) setTimeout(function ()
             {
                 var ut = ab.querySelector('.job_way_time');
@@ -2388,7 +2505,7 @@
 
     function gombAllapot()
     {
-        $('.' + OSZTALY + '-gomb, .' + OSZTALY + '-cimkes').each(function ()
+        $('.' + OSZTALY + '-gomb, .' + OSZTALY + '-cimkes, .' + OSZTALY + '-alvas').each(function ()
         {
             var tiltott = this.getAttribute('data-tiltva') === '1';
             this.style.opacity = tiltott ? '0.4' : (allapot.dolgozik ? '0.5' : '1');
@@ -2661,10 +2778,14 @@
     /* a szalag a huzhato .tw2gui_inner_window_title, a tartalom 70 px-nel */
     /* kezdodik. A villam az ablakba kerul, nem a szalag elembe, igy a     */
     /* kattintas nem indit huzast. Az utazo vasar osztalyat meg nem        */
-    /* mertuk (nem volt elerheto): a TESZT kiirja az uj ablakok osztalyat. */
+    /* mertuk (nem volt elerheto): a TESZT kiirja az uj ablakok osztalyat, */
+    /* ha a konzolban bekapcsoljak: smczMunkaruhaAblakNaplo(true).         */
+    /* Merve (2026-10-03): a varosi boltok osztalya tailor / gunsmith /    */
+    /* general (mind trader is, de a trader-t nem vesszuk, mert mas        */
+    /* kereskedoablak is viselheti).                                       */
     /* ================================================================== */
 
-    var UTICEL_ABLAKOK = ['townoverview', 'fort', 'window-quest_employer'];
+    var UTICEL_ABLAKOK = ['townoverview', 'fort', 'window-quest_employer', 'tailor', 'gunsmith', 'general'];
     var FEJLEC_BUBOREK = '<b>Gyorsszett</b><br>Felveszi a leggyorsabb ruhát, hogy hamarabb odaérj.';
     var latottAblakok = typeof WeakSet === 'function' ? new WeakSet() : null;
 
@@ -2728,7 +2849,7 @@
     // vasart) konnyen hozzaadhassunk.
     function ablakNaplo()
     {
-        if (!TESZT || !latottAblakok) return;
+        if (!TESZT || !allapot.ablakNaplo || !latottAblakok) return;
         var ablakok = document.querySelectorAll('.tw2gui_window');
         for (var i = 0; i < ablakok.length; i++)
         {
@@ -2740,6 +2861,98 @@
         }
     }
 
+    /* ================================================================== */
+    /* zZ gomb a hotel ablakaban                                           */
+    /*                                                                     */
+    /* Merve (2026-10-03): az ablak osztalya hotel-<szam> (pl. hotel-2568),*/
+    /* az Alvas gomb a jatek haromreszes gombja (div.tw2gui_button,        */
+    /* bal es jobb vegzaro, kozepso hatter, textart_title) a .buttonsleep  */
+    /* dobozban, 100 x 36. A zZ ugyanebbol a gombbol epul, ugyanolyan      */
+    /* magasan, a szobalista keretenek (az Alvas korul levo                */
+    /* tw2gui_groupframe_content_pane) jobb also sarkaba (MrA, t20; t19-ben */
+    /* az arak oszlopa alatt, az Alvas mellett volt, tul kozel).           */
+    /* Csak atoltoztet, aludni nem kuld; alvas kozben is mukodik (MrA).    */
+    /* ================================================================== */
+
+    // A zZ gomb tavolsaga a keret jobb es also szeletol, pixelben.
+    var ALVAS_SAROK_TAV = 4;
+
+    var ALVAS_BUBOREK = '<b>Alvó ruha</b><br>Felveszi a legjobb regenerációs ruhát. Alvás közben is működik.';
+
+    function hotelAblak(ab)
+    {
+        for (var i = 0; i < ab.classList.length; i++)
+        {
+            if (/^hotel-\d+$/.test(ab.classList[i])) return true;
+        }
+        return false;
+    }
+
+    function alvasGomb(ab)
+    {
+        var alvas = ab.querySelector('.buttonsleep .tw2gui_button:not(.' + OSZTALY + '-alvas)');
+        var el = ab.querySelector(':scope > .' + OSZTALY + '-alvas');
+        var ar = alvas ? alvas.getBoundingClientRect() : null;
+        if (!ar || !ar.width)
+        {
+            if (el) el.style.display = 'none';
+            return;
+        }
+        if (!el)
+        {
+            el = document.createElement('div');
+            el.className = 'tw2gui_button ' + OSZTALY + '-alvas';
+            el.innerHTML = '<div class="tw2gui_button_right_cap"></div><div class="tw2gui_button_left_cap"></div>' +
+                '<div class="tw2gui_button_middle_bg"></div><div class="textart_title">zZ</div>';
+            el.style.position = 'absolute';
+            el.style.zIndex = '10';
+            ab.appendChild(el);
+            try
+            {
+                $(el).addMousePopup(ALVAS_BUBOREK);
+            }
+            catch (e)
+            {
+                hiba(e, 'alvas buborek');
+            }
+            el.addEventListener('mousedown', function (e)
+            {
+                e.stopPropagation();
+            });
+            el.addEventListener('click', function (e)
+            {
+                e.stopPropagation();
+                e.preventDefault();
+                if (allapot.dolgozik) return;
+                inditas(ab, 'alvas');
+            });
+            gombAllapot();
+        }
+        var a = ab.getBoundingClientRect();
+        var meret = Math.round(ar.height);
+        // A szobalista kerete: az Alvas gombot tartalmazo groupframe. Ha nincs meg,
+        // az Alvas melle kerul, mint t19-ben.
+        var keret = alvas.closest('.tw2gui_groupframe_content_pane');
+        var kr = keret ? keret.getBoundingClientRect() : null;
+        var bal, fent;
+        if (kr && kr.width && kr.height)
+        {
+            bal = kr.right - ALVAS_SAROK_TAV - meret;
+            fent = kr.bottom - ALVAS_SAROK_TAV - meret;
+        }
+        else
+        {
+            bal = ar.right + 8;
+            fent = ar.top;
+        }
+        el.style.width = meret + 'px';
+        el.style.minWidth = meret + 'px';
+        el.style.height = meret + 'px';
+        el.style.left = Math.round(bal - a.left) + 'px';
+        el.style.top = Math.round(fent - a.top) + 'px';
+        el.style.display = '';
+    }
+
     function figyeles()
     {
         try
@@ -2749,6 +2962,7 @@
             for (var u = 0; u < uticelok.length; u++)
             {
                 if (uticelAblak(uticelok[u])) fejlecVillam(uticelok[u]);
+                if (hotelAblak(uticelok[u])) alvasGomb(uticelok[u]);
             }
             var ablakok = document.querySelectorAll('.jobwindow');
             for (var i = 0; i < ablakok.length; i++)
@@ -3009,6 +3223,15 @@
                 frissitesAblak(probaVerzio(VERZIO), VALTOZASOK, true);
             };
             naplo('frissitesablak probaja: smczMunkaruhaFrissProba()');
+        }
+        if (TESZT)
+        {
+            window.smczMunkaruhaAblakNaplo = function (be)
+            {
+                allapot.ablakNaplo = be !== false;
+                naplo('uj ablakok kiirasa: ' + (allapot.ablakNaplo ? 'be' : 'ki'));
+            };
+            naplo('uj ablakok kiirasa (alapbol ki): smczMunkaruhaAblakNaplo(true)');
         }
         frissitestKeres();
         setInterval(frissitestKeres, FRISS_IDOKOZ);
