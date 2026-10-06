@@ -1,0 +1,493 @@
+{
+ "v": 1,
+ "forras": "InnoGames tudásbázis 2026-10-06 + MrA jelölései",
+ "keszult": "2026-10-06T12:59:40.742Z",
+ "esemenyek": {
+  "Oktoberfest": [
+   {
+    "id": 283,
+    "nev": "Oktoberfest ismételhető kalandok",
+    "ism": true
+   },
+   {
+    "id": 155,
+    "nev": "Az Oktoberfest közeleg"
+   },
+   {
+    "id": 259,
+    "nev": "Különleges Oktoberfest"
+   },
+   {
+    "id": 342,
+    "nev": "Ausztráliában?"
+   },
+   {
+    "id": 306,
+    "nev": "Az Oktoberfest kezdete"
+   },
+   {
+    "id": 282,
+    "nev": "Heřman látogatása"
+   },
+   {
+    "id": 327,
+    "nev": "Lövöldözés a fesztivál előtt"
+   },
+   {
+    "id": 228,
+    "nev": "Szállítmány Németországból"
+   },
+   {
+    "id": 192,
+    "nev": "A hegyi farmer és a pásztornő"
+   },
+   {
+    "id": 246,
+    "nev": "Oktoberfest 2021"
+   },
+   {
+    "id": 210,
+    "nev": "Mentsd meg az Oktoberfest-et"
+   },
+   {
+    "id": 260,
+    "nev": "Házassági évforduló"
+   }
+  ],
+  "Foci/Sport esemény": [
+   {
+    "id": 169,
+    "nev": "Nagy focimeccs"
+   },
+   {
+    "id": 186,
+    "nev": "Foci esemény"
+   },
+   {
+    "id": 223,
+    "nev": "Foci esemény - ismételhető küldetések",
+    "ism": true
+   },
+   {
+    "id": 224,
+    "nev": "Válj bíróvá"
+   },
+   {
+    "id": 349,
+    "nev": "Henry kupája"
+   },
+   {
+    "id": 302,
+    "nev": "Maria nem mindennapi hobbija"
+   },
+   {
+    "id": 324,
+    "nev": "Vadnyugati sportjátékok"
+   }
+  ],
+  "Húsvéti leszámolás": [
+   {
+    "id": 182,
+    "nev": "Tavaszi tojásvadászat"
+   },
+   {
+    "id": 166,
+    "nev": "Húsvéti kosár"
+   },
+   {
+    "id": 78,
+    "nev": "A húsvéti tojás"
+   },
+   {
+    "id": 141,
+    "nev": "Mr. Húsvéti Nyúl megtalálása"
+   },
+   {
+    "id": 314,
+    "nev": "Húsvéti esemény ismételhető küldetések",
+    "ism": true
+   },
+   {
+    "id": 46,
+    "nev": "Húsvét"
+   },
+   {
+    "id": 315,
+    "nev": "A nagy tojásvadászat hadművelet"
+   },
+   {
+    "id": 270,
+    "nev": "Egy új tojásvadász hagyomány"
+   },
+   {
+    "id": 255,
+    "nev": "Húsvéti reggeli"
+   },
+   {
+    "id": 336,
+    "nev": "Csirkepánik Wilson farmján"
+   },
+   {
+    "id": 295,
+    "nev": "Locsolkodás hagyománya"
+   },
+   {
+    "id": 239,
+    "nev": "Ringo a városban tartózkodik"
+   },
+   {
+    "id": 218,
+    "nev": "Az új vasútállomás"
+   },
+   {
+    "id": 238,
+    "nev": "Ringo a városban tartózkodik"
+   }
+  ],
+  "Valentin-nap": [
+   {
+    "id": 198,
+    "nev": "Titkos szerelem"
+   },
+   {
+    "id": 126,
+    "nev": "Elfújta a Valentin nap"
+   },
+   {
+    "id": 125,
+    "nev": "A szerelem a levegőben van"
+   },
+   {
+    "id": 251,
+    "nev": "Valentin-napi ismételhető kalandok",
+    "ism": true
+   },
+   {
+    "id": 43,
+    "nev": "Valentin-nap"
+   },
+   {
+    "id": 267,
+    "nev": "Maria vőlegénye"
+   },
+   {
+    "id": 292,
+    "nev": "Szerelem egy életre"
+   },
+   {
+    "id": 253,
+    "nev": "Angus szerelme"
+   },
+   {
+    "id": 313,
+    "nev": "Kupidó tévedése"
+   },
+   {
+    "id": 332,
+    "nev": "Queen of hearts"
+   },
+   {
+    "id": 197,
+    "nev": "A kötelék ami összetart"
+   }
+  ],
+  "Halottak napja": [
+   {
+    "id": 158,
+    "nev": "A háromnapos ünnep"
+   },
+   {
+    "id": 193,
+    "nev": "A fej nélküli lovas"
+   },
+   {
+    "id": 229,
+    "nev": "Az élet ünneplése"
+   },
+   {
+    "id": 211,
+    "nev": "Valami furcsa történik"
+   },
+   {
+    "id": 263,
+    "nev": "Vendég Kolumbiából"
+   },
+   {
+    "id": 328,
+    "nev": "Az emlékezés kertje"
+   },
+   {
+    "id": 132,
+    "nev": "Halottak napja"
+   },
+   {
+    "id": 307,
+    "nev": "Egy szomorú ünnep"
+   },
+   {
+    "id": 287,
+    "nev": "A Baljós Út: Mictlan kilenc szintje"
+   }
+  ],
+  "Ajándékvadászat": [
+   {
+    "id": 163,
+    "nev": "Ded Moroz"
+   },
+   {
+    "id": 231,
+    "nev": "Ajándékgyűjtés 2020"
+   },
+   {
+    "id": 214,
+    "nev": "Egy ünnepi labdajáték"
+   },
+   {
+    "id": 310,
+    "nev": "Nem is olyan zöld idő"
+   },
+   {
+    "id": 289,
+    "nev": "Ajándékok és nyomok"
+   },
+   {
+    "id": 213,
+    "nev": "A név nélküli"
+   },
+   {
+    "id": 330,
+    "nev": "Az Imposztor Mikulás"
+   },
+   {
+    "id": 265,
+    "nev": "Ajándékmentés"
+   },
+   {
+    "id": 250,
+    "nev": "Karácsonyi történet"
+   },
+   {
+    "id": 230,
+    "nev": "A baj nem jár egyedül"
+   }
+  ],
+  "Téli esemény": [
+   {
+    "id": 137,
+    "nev": "Karácsonyi vásár"
+   },
+   {
+    "id": 136,
+    "nev": "Karácsonyi szellem"
+   },
+   {
+    "id": 232,
+    "nev": "Ünnepi esemény ismételhető küldetések",
+    "ism": true
+   },
+   {
+    "id": 77,
+    "nev": "Ünnepi szellem"
+   },
+   {
+    "id": 34,
+    "nev": "Karácsony"
+   },
+   {
+    "id": 215,
+    "nev": "A hóvihar"
+   },
+   {
+    "id": 290,
+    "nev": "Téli fesztivál"
+   },
+   {
+    "id": 233,
+    "nev": "Szokatlan téli sport"
+   },
+   {
+    "id": 311,
+    "nev": "Havas emlékek a Vadnyugaton"
+   },
+   {
+    "id": 178,
+    "nev": "Mágikus világ"
+   },
+   {
+    "id": 252,
+    "nev": "Első tél"
+   },
+   {
+    "id": 266,
+    "nev": "Téli kihívások"
+   },
+   {
+    "id": 331,
+    "nev": "Féktelen hóvihar"
+   },
+   {
+    "id": 195,
+    "nev": "A mikulás kísérete"
+   }
+  ],
+  "Születésnap": [
+   {
+    "id": 79,
+    "nev": "A The West a születésnapját ünnepli!"
+   }
+  ],
+  "Függetlenség napja": [
+   {
+    "id": 206,
+    "nev": "A Függetlenség napi felvonulás"
+   },
+   {
+    "id": 49,
+    "nev": "A Függetlenség Napja"
+   },
+   {
+    "id": 257,
+    "nev": "Mindenki beteg"
+   },
+   {
+    "id": 225,
+    "nev": "Függetlenség napi előkészületek"
+   },
+   {
+    "id": 242,
+    "nev": "Tízórai tea"
+   },
+   {
+    "id": 340,
+    "nev": "Törzsi követelések"
+   },
+   {
+    "id": 303,
+    "nev": "Dán hagyományok"
+   },
+   {
+    "id": 278,
+    "nev": "Indián ünnepségek"
+   },
+   {
+    "id": 325,
+    "nev": "A forradalom visszhangjai"
+   }
+  ],
+  "Aratási idő": [
+   {
+    "id": 208,
+    "nev": "Aratási idő"
+   },
+   {
+    "id": 227,
+    "nev": "Aratási esemény napi küldetései",
+    "ism": true
+   },
+   {
+    "id": 258,
+    "nev": "Szokatlan betakarítás"
+   },
+   {
+    "id": 305,
+    "nev": "Francia kaland"
+   },
+   {
+    "id": 326,
+    "nev": "Szüreti ünnepség"
+   },
+   {
+    "id": 343,
+    "nev": "Arató segédek"
+   },
+   {
+    "id": 280,
+    "nev": "Unalmas aratás"
+   },
+   {
+    "id": 226,
+    "nev": "Aratási ünnepség előkészületei"
+   },
+   {
+    "id": 245,
+    "nev": "Az aratók élete"
+   },
+   {
+    "id": 243,
+    "nev": "Aratási idő (Ismételhető)",
+    "ism": true
+   }
+  ],
+  "Szent Patrik-nap": [
+   {
+    "id": 236,
+    "nev": "2021-es Szent Patrik napi ismételhető kalandok",
+    "ism": true
+   },
+   {
+    "id": 235,
+    "nev": "2021-es Szent Patrik nap"
+   },
+   {
+    "id": 127,
+    "nev": "Helytelen sörfőzés"
+   }
+  ],
+  "Tökvadászat": [
+   {
+    "id": 176,
+    "nev": "Tökvadászat"
+   },
+   {
+    "id": 56,
+    "nev": "Halloween"
+   },
+   {
+    "id": 212,
+    "nev": "2020-as Tökvadászat"
+   },
+   {
+    "id": 288,
+    "nev": "Mi történt a mezőn?"
+   },
+   {
+    "id": 309,
+    "nev": "Halloween-i szellem"
+   },
+   {
+    "id": 264,
+    "nev": "Jól ismered a tököket?"
+   },
+   {
+    "id": 249,
+    "nev": "2021-es Tökvadászat"
+   }
+  ]
+ },
+ "upBolt": {
+  "megj": "Union Pacific bolt, kalandtárgyak (quest). Mérve 2026-10-06 (MrA). Darabonként 20 kötvény vagy aranyrög, idő- és darabkorlát nélkül; évek óta fix (MrA).",
+  "ar": 20,
+  "penz": [
+   "kötvény",
+   "aranyrög"
+  ],
+  "targyak": [
+   50858000,
+   50859000,
+   50860000,
+   50861000,
+   51158000,
+   51159000,
+   51160000,
+   51161000,
+   51389000,
+   51390000,
+   51391000,
+   51392000,
+   51469000,
+   51470000,
+   51471000,
+   51472000
+  ]
+ }
+}
