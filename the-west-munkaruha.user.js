@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Munkaruha-választó
 // @namespace    the-west-munkaruha
-// @version      1.0.1
+// @version      1.0.2
 // @description  Gombok a munkaablakban: egy kattintással a legtöbb munkapontot, tapasztalatot, terméket vagy szerencsét adó ruha, a munka fokozatát is figyelembe véve; villám gomb a leggyorsabb ruhához az úthoz; zZ gomb a hotelben a legjobb regenerációs ruhához.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -66,7 +66,7 @@
     'use strict';
 
     var NEV = 'Munkaruha-választó';
-    var VERZIO = '1.0.1';
+    var VERZIO = '1.0.2';
     var TESZT = false;
 
     var WEBOLDAL = 'https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/';
@@ -86,9 +86,8 @@
     // visszaper nelkul). A ket jelolo sor nem valtozhat.
     /* VALTOZASOK KEZDETE */
     var VALTOZASOK = [
-        "\u0022zZ\u0022 gomb a hotel ablak\u00e1ban: egy kattint\u00e1ssal felveszi a legjobb regener\u00e1ci\u00f3s ruh\u00e1t",
-        "Ha a Felszerel\u00e9s kezel\u0151ben van ugyanilyen j\u00f3 mentett szetted, egy l\u00e9p\u00e9sben azt veszi fel",
-        "Vill\u00e1m gomb a Szab\u00f3, a Fegyverkov\u00e1cs \u00e9s a Vegyesbolt ablak\u00e1ban is"
+        "A Tapasztalat \u00e9s a Gy\u0171jt\u00f6get\u0151 gomb sokkal gyorsabban keres, nagy ruhat\u00e1rn\u00e1l sem akad meg",
+        "Tipp: ha a gomb \u00e1t\u00f6lt\u00f6ztetett, mentsd el a ruh\u00e1t a Felszerel\u00e9s kezel\u0151ben (b\u00e1rmilyen n\u00e9ven), \u00e9s legk\u00f6zelebb egy l\u00e9p\u00e9sben, szinte azonnal \u00e1t\u00f6lt\u00f6z\u00f6l - m\u00e1sodperceket nyerhetsz \u00f6lt\u00f6z\u00e9senk\u00e9nt"
     ];
     /* VALTOZASOK VEGE */
 
@@ -116,6 +115,10 @@
         // a "mentsd el" tipp: 'most' az elso darabonkenti gyors oltozeskor, utana 'volt'
         gyorsTipp: null,
         alvasTipp: null,
+        // a "mentsd el" tipp a Tapasztalat es a Gyujtogeto gombnal (t23), egyszer
+        munkaTipp: null,
+        // t23: a kovetkezo munkagomb-szamitas ne nezze a mentett szetteket (elavult szett utan)
+        mentettNelkul: false,
         // TESZT: az uj ablakok osztalyanak kiirasa, alapbol kikapcsolva
         ablakNaplo: false
     };
@@ -472,6 +475,11 @@
             return [];
         });
         var szettDarabok = {};
+        var viselt = {};
+        rajtamIdk().forEach(function (id)
+        {
+            viselt[id] = true;
+        });
 
         elerhetoDarabok().forEach(function (o)
         {
@@ -482,7 +490,8 @@
                 lp: e.lp,
                 cel: e[cel],
                 szett: o.set || null,
-                blokk: false
+                blokk: false,
+                rajta: !!viselt[o.getId()]
             };
             egyes[slotIndex[o.type]].push(j);
             if (o.set) (szettDarabok[o.set] = szettDarabok[o.set] || []).push(j);
@@ -546,6 +555,118 @@
             blokkok: blokkok
         };
     }
+
+    /* SZURES-KEZDET */
+    // A kereso elott kidobja a bizonyithatoan felesleges jelolteket (t22). Csak azt,
+    // amit ugyanazokon a helyeken mas jeloltek munkapontban ES celban is legalabb
+    // ugyanugy kivaltanak, igy a kereso legjobb eredmenye nem valtozhat. A pontszam
+    // mindkettoben no (soha nem csokken), ezert ez a jatek pontszamara is igaz.
+    // Szettdarabot egyedul soha nem dob ki (a szettbonusz miatt kesobb jo lehet).
+
+    // A nem megvert pontok: munkapont szerint csokkeno, a cel szigoruan novekvo.
+    function paretoSzur(lista)
+    {
+        var r = lista.slice(0).sort(function (a, b)
+        {
+            return (b.lp - a.lp) || (b.cel - a.cel);
+        });
+        var ki = [];
+        var legCel = -Infinity;
+        for (var i = 0; i < r.length; i++)
+        {
+            if (r[i].cel > legCel)
+            {
+                ki.push(r[i]);
+                legCel = r[i].cel;
+            }
+        }
+        return ki;
+    }
+
+    // Egyes darabok: a szett nelkulit kidobja, ha ugyanarra a helyre van mas darab,
+    // ami munkapontban es celban is legalabb annyit ad. Pontos egyezesnel egy marad:
+    // a rajta levo, kulonben az elobbi.
+    function szuresEgyes(egyes)
+    {
+        return egyes.map(function (lista)
+        {
+            return lista.filter(function (x, i)
+            {
+                if (x.szett) return true;
+                for (var j = 0; j < lista.length; j++)
+                {
+                    if (j === i) continue;
+                    var y = lista[j];
+                    if (y.lp < x.lp || y.cel < x.cel) continue;
+                    if (y.lp > x.lp || y.cel > x.cel) return false;
+                    if (x.rajta) continue;
+                    if (y.rajta || j < i) return false;
+                }
+                return true;
+            });
+        });
+    }
+
+    // Szettblokk: kidobja, ha ugyanazokon a helyeken egyes darabokbol (vagy ures
+    // hellyel) kirakhato legalabb ugyanannyi munkapont es cel.
+    function szuresBlokkok(slotSzam, egyes, blokkok)
+    {
+        var helyFront = [];
+        for (var s = 0; s < slotSzam; s++) helyFront.push(paretoSzur((egyes[s] || []).concat([
+        {
+            lp: 0,
+            cel: 0
+        }])));
+        var tar = {};
+
+        function maszkFront(mask)
+        {
+            if (tar[mask]) return tar[mask];
+            var f = [
+            {
+                lp: 0,
+                cel: 0
+            }];
+            for (var h = 0; h < slotSzam; h++)
+            {
+                if (!(mask & (1 << h))) continue;
+                var uj = [];
+                for (var a = 0; a < f.length; a++)
+                {
+                    for (var b = 0; b < helyFront[h].length; b++)
+                    {
+                        uj.push(
+                        {
+                            lp: f[a].lp + helyFront[h][b].lp,
+                            cel: f[a].cel + helyFront[h][b].cel
+                        });
+                    }
+                }
+                f = paretoSzur(uj);
+            }
+            tar[mask] = f;
+            return f;
+        }
+        return blokkok.filter(function (bl)
+        {
+            var f = maszkFront(bl.mask);
+            for (var i = 0; i < f.length; i++)
+            {
+                if (f[i].lp >= bl.lp && f[i].cel >= bl.cel - 1e-9) return false;
+            }
+            return true;
+        });
+    }
+
+    function szures(slotSzam, adat)
+    {
+        var egyes = szuresEgyes(adat.egyes);
+        return {
+            egyes: egyes,
+            blokkok: szuresBlokkok(slotSzam, egyes, adat.blokkok)
+        };
+    }
+    /* SZURES-VEGE */
 
     /* OPT-KEZDET */
     // A kereso. Slotonkent halad, minden reszallapotban csak a nem megvert
@@ -717,56 +838,104 @@
     {
         var kezdes = Date.now();
         var adat = adatEpites(job, cel);
+        var adatKesz = Date.now();
         var celMp = teljesFokozatMp(cel, job.nehezseg);
         if (job.mpKell) celMp = Math.max(celMp, job.nehezseg);
         var kell = Math.max(0, celMp - alap);
-        var front = optimalizal(Wear.slots.length, adat.egyes, adat.blokkok, kell, FRONT_MAX);
+        var szurt = szures(Wear.slots.length, adat);
+        var szuresKesz = Date.now();
+        var front = optimalizal(Wear.slots.length, szurt.egyes, szurt.blokkok, kell, FRONT_MAX);
+        var keresesKesz = Date.now();
 
         // Biztonsagi halo: a kereso eredmenyei melle a mostani ruha es a nativ
         // Munkaruhazat ruhaja is jelolt.
-        var jeloltek = front.map(function (f)
-        {
-            return f.idk;
-        });
-        jeloltek.push(rajtamIdk());
+        var tobbi = [rajtamIdk()];
         try
         {
             var nativ = west.item.Calculator.getBestSet(job.skills, job.id);
-            if (nativ && nativ.getItems) jeloltek.push(nativ.getItems());
+            if (nativ && nativ.getItems) tobbi.push(nativ.getItems());
         }
         catch (e)
         {
             hiba(e, 'nativ getBestSet');
         }
 
-        var legjobb = null;
-        var forras = '';
-        for (var i = 0; i < jeloltek.length; i++)
+        var most = {};
+        rajtamIdk().forEach(function (id)
         {
-            var idk = teljesOsszeallitas(jeloltek[i]);
-            var e = pontosErtek(idk, job.skills, job.id);
-            if (job.mpKell && alap + e.lp < job.nehezseg) continue;
-            var p = kerekit(pontszam(cel, alap + e.lp, job.nehezseg, e[cel]));
-            if (!legjobb || p > legjobb.pont || (p === legjobb.pont && e.lp > legjobb.ertek.lp))
+            most[id] = true;
+        });
+
+        // A legjobb pontszam nyer. Egyenlo pontszamnal a kevesebb cserevel jaro
+        // (a mostani ruha 0 csere, igy az marad), utana a tobb munkapont (t22;
+        // elotte egyenlo pontszamnal a tobb munkapont nyert, es feleslegesen cserelt).
+        function valaszt(front)
+        {
+            var jeloltek = front.map(function (f)
             {
-                legjobb = {
-                    idk: idk,
-                    ertek: e,
-                    pont: p
-                };
-                forras = i < front.length ? 'kereso' : (i === front.length ? 'mostani ruha' : 'nativ Munkaruhazat');
+                return f.idk;
+            }).concat(tobbi);
+            var legjobb = null;
+            for (var i = 0; i < jeloltek.length; i++)
+            {
+                var idk = teljesOsszeallitas(jeloltek[i]);
+                var e = pontosErtek(idk, job.skills, job.id);
+                if (job.mpKell && alap + e.lp < job.nehezseg) continue;
+                var p = kerekit(pontszam(cel, alap + e.lp, job.nehezseg, e[cel]));
+                var csere = 0;
+                for (var c = 0; c < idk.length; c++)
+                {
+                    if (!most[idk[c]]) csere++;
+                }
+                if (!legjobb || p > legjobb.pont || (p === legjobb.pont && (csere < legjobb.csere ||
+                        (csere === legjobb.csere && e.lp > legjobb.ertek.lp))))
+                {
+                    legjobb = {
+                        idk: idk,
+                        ertek: e,
+                        pont: p,
+                        csere: csere,
+                        forras: i < front.length ? 'kereso' : (i === front.length ? 'mostani ruha' : 'nativ Munkaruhazat')
+                    };
+                }
             }
+            return legjobb;
         }
+        var legjobb = valaszt(front);
+
         if (TESZT)
         {
-            var egyesDb = adat.egyes.reduce(function (a, l)
+            var darab = function (eg)
             {
-                return a + l.length;
-            }, 0);
-            naplo('kereses: ' + egyesDb + ' darab, ' + adat.blokkok.length + ' szettblokk, vegso front ' +
-                front.length + ', ' + (Date.now() - kezdes) + ' ms, teljes fokozat ' + celMp + ' munkapontnal (meg ' + kell +
-                ')' + (job.mpKell ? ', a nehezseg is feltetel' : '') + ', gyoztes: ' + (legjobb ? forras + ', ' +
-                fokozatSzoveg(fokozat(alap + legjobb.ertek.lp, job.nehezseg)) + ', pontszam ' + legjobb.pont : 'nincs'));
+                return eg.reduce(function (a, l)
+                {
+                    return a + l.length;
+                }, 0);
+            };
+            naplo('kereses: ' + darab(adat.egyes) + ' darab, ' + adat.blokkok.length + ' szettblokk; szures utan ' +
+                darab(szurt.egyes) + ' darab, ' + szurt.blokkok.length + ' szettblokk; vegso front ' + front.length +
+                ', adat ' + (adatKesz - kezdes) + ' ms, szures ' + (szuresKesz - adatKesz) + ' ms, kereses ' +
+                (keresesKesz - szuresKesz) + ' ms, teljes fokozat ' + celMp + ' munkapontnal (meg ' + kell + ')' +
+                (job.mpKell ? ', a nehezseg is feltetel' : '') + ', gyoztes: ' + (legjobb ? legjobb.forras + ', ' +
+                fokozatSzoveg(fokozat(alap + legjobb.ertek.lp, job.nehezseg)) + ', pontszam ' + legjobb.pont +
+                ', csere ' + legjobb.csere : 'nincs'));
+            // Kettos futas: a szures nelkuli kereso is lefut, es a pontszamuknak egyeznie kell.
+            try
+            {
+                var t0 = Date.now();
+                var regiFront = optimalizal(Wear.slots.length, adat.egyes, adat.blokkok, kell, FRONT_MAX);
+                var regi = valaszt(regiFront);
+                var rp = regi ? regi.pont : null;
+                var up = legjobb ? legjobb.pont : null;
+                if (rp !== up) naplo('SZURES ELTERES: szurve pontszam ' + up + ', szures nelkul ' + rp +
+                    (regi ? ' (' + regi.forras + ')' : ''));
+                else naplo('szures ellenorzes: a pontszam egyezik (' + up + '), szures nelkul a kereses ' +
+                    (Date.now() - t0) + ' ms');
+            }
+            catch (e)
+            {
+                hiba(e, 'szures ellenorzes');
+            }
         }
         return legjobb;
     }
@@ -2098,6 +2267,43 @@
         return null;
     }
 
+    // t23: a Tapasztalat es a Gyujtogeto gomb mentett szettje. Csak akkor nyer, ha a
+    // pontszama legalabb a kiszamolt legjobb (rosszabbat soha nem valaszt); akkor egy
+    // keressel (switch_equip) valtunk ra a darabonkenti oltozes helyett.
+    function mentettMunkara(job, alap, celKulcs, legjobb, lista)
+    {
+        var jo = null;
+        var naploSor = [];
+        for (var i = 0; i < lista.length; i++)
+        {
+            var idk = mentettIdk(lista[i]);
+            if (!idk.length) continue;
+            var e;
+            try
+            {
+                e = pontosErtek(idk, job.skills, job.id);
+            }
+            catch (h)
+            {
+                hiba(h, 'mentettMunkara ' + lista[i].name);
+                continue;
+            }
+            if (job.mpKell && alap + e.lp < job.nehezseg) continue;
+            var p = kerekit(pontszam(celKulcs, alap + e.lp, job.nehezseg, e[celKulcs]));
+            naploSor.push(lista[i].name + ' ' + p);
+            if (p < legjobb.pont) continue;
+            if (!jo || p > jo.pont || (p === jo.pont && e.lp > jo.ertek.lp)) jo = {
+                szett: lista[i],
+                idk: idk,
+                ertek: e,
+                pont: p
+            };
+        }
+        if (TESZT) naplo('mentett szettek a munkahoz (legjobb ' + legjobb.pont + '): ' + (naploSor.join(', ') || 'nincs') +
+            ' | ' + (jo ? 'valasztott: ' + jo.szett.name + ' ' + jo.pont : 'egyik sem eleg jo'));
+        return jo;
+    }
+
     function gyorsInditas(ab, eltelt, celNev)
     {
         celNev = celNev || 'gyors';
@@ -2294,8 +2500,11 @@
         });
     }
 
-    function szamolasEsOltozes(ab, mod, eltelt)
+    function szamolasEsOltozes(ab, mod, eltelt, opciok)
     {
+        opciok = opciok || {};
+        var mentettNelkul = allapot.mentettNelkul;
+        allapot.mentettNelkul = false;
         var jobId = jobIdAblakbol(ab);
         var job = jobId !== null ? jobAdat(jobId) : null;
         if (!job)
@@ -2371,6 +2580,45 @@
             return;
         }
 
+        // t23: ha cserelni kell, egy legalabb ilyen jo mentett szett egy keressel felveheto.
+        // A szettlistat egyszer toltjuk be (1 show_equip), utana a jatek tarolt listajat nezzuk.
+        var mentett = null;
+        if ((mod === 'tapasztalat' || mod === 'gyujtogeto') && cel.csere > 0 && !mentettNelkul)
+        {
+            var lista = jatekLista();
+            if (!lista && !opciok.listaUtan)
+            {
+                allapot.dolgozik = true;
+                gombAllapot();
+                szettLista(function ()
+                {
+                    allapot.dolgozik = false;
+                    gombAllapot();
+                    szamolasEsOltozes(ab, mod, eltelt,
+                    {
+                        listaUtan: true
+                    });
+                });
+                return;
+            }
+            try
+            {
+                mentett = mentettMunkara(job, alap, mod === 'tapasztalat' ? 'exp' : 'drop', cel, lista || []);
+            }
+            catch (e)
+            {
+                hiba(e, 'mentettMunkara');
+                mentett = null;
+            }
+            if (mentett) cel = {
+                idk: mentett.idk,
+                ertek: mentett.ertek,
+                pont: mentett.pont,
+                csere: 1,
+                forras: 'mentett szett'
+            };
+        }
+
         var joslat = {
             mp: alap + cel.ertek.lp,
             drop: cel.ertek.drop,
@@ -2400,23 +2648,32 @@
                     (vegso.munka.nehezseg + vegso.tobblet) + ', kell ' + vegso.munka.nehezseg + ').', true);
                 return;
             }
-            var bs = biztonsagosSorrend(cel.idk, kotesek);
-            if (TESZT) naplo('munkasor: ' + kotesek.map(function (k)
+            if (mentett)
             {
-                return k.id + ' ' + k.nev + ' (kell ' + k.nehezseg + ', sajat resz ' + k.alap + ')';
-            }).join(', ') + ' | sorrend es legkisebb tobblet: ' + bs.lepesek.join(', ') + (bs.ok ? '' : ' | NINCS biztonsagos sorrend'));
-            if (!bs.ok)
-            {
-                uzenet('Nem tudok úgy átöltözni, hogy közben megmaradjon a munkapont a sorban lévő munkához (' +
-                    bs.akad.e.munka.nev + '). Mentett szettel egy lépésben átválthatsz.', true);
-                return;
+                // Egy keressel valtunk, nincs koztes allapot: csak a vegso ruha szamit.
+                if (TESZT) naplo('munkasor: mentett szett, csak a vegso allapot szamit, legkisebb tobblet ' + vegso.tobblet);
             }
-            sorrend = bs.sorrend;
+            else
+            {
+                var bs = biztonsagosSorrend(cel.idk, kotesek);
+                if (TESZT) naplo('munkasor: ' + kotesek.map(function (k)
+                {
+                    return k.id + ' ' + k.nev + ' (kell ' + k.nehezseg + ', sajat resz ' + k.alap + ')';
+                }).join(', ') + ' | sorrend es legkisebb tobblet: ' + bs.lepesek.join(', ') + (bs.ok ? '' : ' | NINCS biztonsagos sorrend'));
+                if (!bs.ok)
+                {
+                    uzenet('Nem tudok úgy átöltözni, hogy közben megmaradjon a munkapont a sorban lévő munkához (' +
+                        bs.akad.e.munka.nev + '). Mentett szettel egy lépésben átválthatsz.', true);
+                    return;
+                }
+                sorrend = bs.sorrend;
+            }
         }
 
         allapot.dolgozik = true;
         gombAllapot();
-        oltoztet(cel.idk, function (db, hibaSz)
+
+        function vege(db, hibaSz)
         {
             allapot.dolgozik = false;
             gombAllapot();
@@ -2452,7 +2709,14 @@
                 uzenet(sz[0]);
                 return;
             }
-            uzenet(sz[1]);
+            var szoveg = sz[1];
+            if (mentett) szoveg = szoveg.replace(/\)\.$/, ', egy lépésben: ' + mentett.szett.name + ').');
+            else if ((mod === 'tapasztalat' || mod === 'gyujtogeto') && db > 1 && !allapot.munkaTipp)
+            {
+                allapot.munkaTipp = 'volt';
+                szoveg += ' Ha elmented a Felszerelés kezelőben (bármilyen néven), legközelebb egy lépésben átöltözöl.';
+            }
+            uzenet(szoveg);
             ellenorzesNaplo(ab, job,
             {
                 drop: mostErtek.drop,
@@ -2461,7 +2725,35 @@
                 xp: elottXp ? elottXp.textContent : '-',
                 ut: elottUt ? elottUt.textContent : '-'
             }, joslat);
-        }, sorrend);
+        }
+
+        if (mentett)
+        {
+            if (rajtamIdk().slice(0).sort().join(',') === mentett.idk.slice(0).sort().join(',')) return vege(0, null);
+            if (TESZT) naplo('valtas mentett szettre: ' + mentett.szett.name + ' (1 keres, switch_equip)');
+            mentettSzettFelvetel(mentett.szett.equip_manager_id, function ()
+            {
+                // Ellenorzes: azt kaptuk-e, amit vartunk. Ha a mentett szett kozben megvaltozott,
+                // friss listaval, mentett szett nelkul, darabonkent szamolunk ujra.
+                var kapott = rajtamIdk().slice(0).sort().join(',');
+                if (kapott !== mentett.idk.slice(0).sort().join(','))
+                {
+                    allapot.dolgozik = false;
+                    gombAllapot();
+                    if (TESZT) naplo(mod + ': a valtas utan mas van rajtad, mint vartuk | vart: ' + mentett.idk.join(',') + ' | kapott: ' + kapott);
+                    szettLista(function ()
+                    {
+                        uzenet('A mentett szett (' + mentett.szett.name + ') megváltozott, ezért most darabonként öltözöm.', true);
+                        allapot.mentettNelkul = true;
+                        inditas(ab, mod);
+                    });
+                    return;
+                }
+                vege(1, null);
+            });
+            return;
+        }
+        oltoztet(cel.idk, vege, sorrend);
     }
 
     // A zart ablak Munkapont gombjanak ikonja: a jatek kis csakanya.
