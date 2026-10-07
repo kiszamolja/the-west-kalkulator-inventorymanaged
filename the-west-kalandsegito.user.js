@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Kalandsegítő
 // @namespace    the-west-kalandsegito
-// @version      1.0.3
+// @version      1.0.4
 // @description  A felvett kalandok munkái és sétái egy helyen: melyik munkát hány kaland kéri, mennyi van még hátra, és egy kattintással megnyitja a munkát vagy megmutatja a helyet a térképen.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -82,7 +82,7 @@
     const setTimeout = (f, ms, ...a) => window.setTimeout(f, ksVarIdo(ms), ...a);
     const setInterval = (f, ms, ...a) => window.setInterval(f, ksVarIdo(ms), ...a);
 
-    const VERZIO = "1.0.3";
+    const VERZIO = "1.0.4";
     /* A TESZT-epito ide irja a belyeget. Kiadasi alakban ures. */
     const EPITES = "";
 
@@ -104,20 +104,18 @@
     const FRISS_PROBA = false;
     /* A KIADAS VALTOZASAI. Ezt olvassa ki a MAR TELEPITETT regi valtozat a
        letoltott uj fajlbol. Minden eles kiadas elott MrA hagyja jova; addig
-       probasorok allnak itt. Legfeljebb 8 rovid sor (a kiolvaso ennyit mutat), egyszeru idezojel es
+       probasorok allnak itt. Legfeljebb 8 sor, osszesen kb. 900 karakter: a frissitesi ablakot a jatekosnal meg a REGI verzio rajzolja (az 1.0.3 nem gorget, kb. 930 karaktert mutatott, MERT); az 1.0.4-tol gorgetheto, egyszeru idezojel es
        visszaper nelkul (JSON-kent olvassuk). A ket jelolo sor nem valtozhat. */
     /* VALTOZASOK KEZDETE */
     const VALTOZASOK = [
-        "\u00daj: a t\u00e1rggyal indul\u00f3 kalandsorok az \u00d6sszes\u00edt\u0151 alj\u00e1n: mit kell \u00f6sszegy\u0171jteni a kezd\u00e9shez \u00e9s honnan szerezhet\u0151, a t\u00e1rgy n\u00e9lk\u00fcl is felvehet\u0151 r\u00e9szekkel egy\u00fctt.",
-        "\u00daj: a rejtett t\u00e1rgyakn\u00e1l l\u00e9p\u00e9senk\u00e9nt l\u00e1tszik, mi kell az es\u00e9shez (munka, felt\u00e9telek, mit vegy\u00e9l fel).",
-        "\u00daj: a Kalandsorok f\u00fcl\u00f6n el\u0151re ker\u00fclnek a most felvehet\u0151 r\u00e9szek, \u00e9s egy gombbal v\u00e9gigugorhatsz rajtuk; a felv\u00e9tel id\u0151ablak\u00e1t is figyelembe veszi.",
-        "\u00daj: az Id\u0151z\u00edtett f\u00fcl\u00f6n a fut\u00f3 esem\u00e9ny, \u00e9s a t\u00e1rggyal indul\u00f3 kalandok id\u0151ablakai: mikor esnek a hi\u00e1nyz\u00f3 t\u00e1rgyak.",
-        "\u00daj: v\u00e1laszt\u00e1sn\u00e1l l\u00e1tszik, melyik \u00e1g visz tov\u00e1bb, a zs\u00e1kutca pirossal; az \u00e1gak teljes jutalma (tapasztalat, c\u00edm, t\u00e1rgy, minden m\u00e1s) bubor\u00e9kban.",
-        "\u00daj: a lead\u00e1s felt\u00e9telei (p\u00e9ld\u00e1ul k\u00e9pess\u00e9g vagy puszta k\u00e9z) a r\u00e9sz alatt l\u00e1tszanak.",
-        "\u00daj: a t\u00e1rgyikonokon a j\u00e1t\u00e9k saj\u00e1t t\u00e1rgybubor\u00e9ka.",
-        "Jav\u00edt\u00e1s: a haszn\u00e1lhat\u00f3 t\u00e1rgyakat (p\u00e9ld\u00e1ul b\u00e1jitalok) nem kell viselni, \u00e9s a t\u00f6bb darabot k\u00e9r\u0151 t\u00e1rgyn\u00e1l (p\u00e9ld\u00e1ul Romlott toj\u00e1sok) \u201elegyen n\u00e1lad\u201d \u00e1ll.",
-        "Jav\u00edt\u00e1s: a Megb\u00edz\u00f3hoz gomb a j\u00f3 megb\u00edz\u00f3t nyitja, \u00e9s f\u00fclv\u00e1lt\u00e1s n\u00e9lk\u00fcl is megjelenik; a lez\u00e1rt \u00e9s a gyorsan felvett-leadott kalandok nem ragadnak bent.",
-        "Jav\u00edt\u00e1s: a jutalom-jel megmondja, honnan j\u00f6n a t\u00e1rgy; ha m\u00e1r n\u00e1lad van, Felvesz gomb jelenik meg."
+        "\u00daj: Esem\u00e9nyek (napt\u00e1r gomb a c\u00edmsorban): esem\u00e9nyes kalandsorok kiv\u00e1laszt\u00e1sa, \u00e9s egy helyen minden t\u00e1rgy \u00e9s munka, amit el\u0151re beszerezhetsz.",
+        "\u00daj: Elakadt kalandsorok a Kalandsorok f\u00fcl alj\u00e1n: elkezdett, de felvett r\u00e9sz n\u00e9lk\u00fcli sorok, a k\u00f6vetkez\u0151 r\u00e9sz felt\u00e9teleivel \u00e9s Megb\u00edz\u00f3hoz gombbal.",
+        "\u00daj: gombok a felt\u00e9telekhez: Templom (im\u00e1dkoz\u00e1s), P\u00e1rbajok (bandit\u00e1k), MPI (kalandok), Er\u0151dharc.",
+        "\u00daj: a leadhat\u00f3 kalandsor a Kalandsorok f\u00fcl tetej\u00e9re ker\u00fcl, \u00e9s a n\u00e9zet odaugrik.",
+        "\u00daj: a megb\u00edz\u00f3 ablak\u00e1ban pipa jelzi a m\u00e1r teljes\u00edtett kalandokat.",
+        "Jav\u00edt\u00e1s: a t\u00f6bb\u00e9 fel nem vehet\u0151 r\u00e9szek (p\u00e9ld\u00e1ul az \u00daj f\u00f6ldn\u00e9l a f\u0151 \u00e1g ut\u00e1ni mell\u00e9kr\u00e9szek) m\u00e1r nem sz\u00e1m\u00edtanak h\u00e1tral\u00e9v\u0151nek.",
+        "Jav\u00edt\u00e1s: pontosabb adatb\u00e1zis: a felv\u00e9telhez viselend\u0151 t\u00e1rgyak (p\u00e9ld\u00e1ul Deton\u00e1tor) \u00e9s minden kalandsor els\u0151 r\u00e9sze is benne van.",
+        "Jav\u00edt\u00e1s: r\u00f6videbb gombfeliratok (UP bolt), \u00e9s a hossz\u00fa list\u00e1k \u00f6sszecsukhat\u00f3k."
     ];
     /* VALTOZASOK VEGE */
 
@@ -841,7 +839,7 @@ const RECEPT_TEKERCS = {
     }
     const ABLAK_CIM = "Kalandseg\u00EDt\u0151";
 
-    const ALAP_BEALL = { ful: "munka", rendez: "kozos", keszIs: false, sorKov: false, zart: {}, kinyit: {}, ugroMind: false, tobbMind: false, kituz: {}, fokusz: {} };
+    const ALAP_BEALL = { ful: "munka", rendez: "kozos", keszIs: false, sorKov: false, zart: {}, kinyit: {}, ugroMind: false, tobbMind: false, kituz: {}, fokusz: {}, fel: null };
     let beall = Object.assign({}, ALAP_BEALL);
     let beallKulcsAkt = null;
 
@@ -863,7 +861,8 @@ const RECEPT_TEKERCS = {
             const b = JSON.parse(GM_getValue(k, "null"));
             if (b && typeof b === "object") beall = Object.assign({}, ALAP_BEALL, b);
         } catch (e) { beall = Object.assign({}, ALAP_BEALL); }
-        if (["munka", "kaland", "sor", "ossz", "ido"].indexOf(beall.ful) < 0) beall.ful = "munka";
+        if (["munka", "kaland", "sor", "ossz", "ido", "fel"].indexOf(beall.ful) < 0) beall.ful = "munka";
+        ksFelNorm();
         beall.sorKov = !!beall.sorKov;
         ["zart", "kinyit", "kituz", "fokusz"].forEach(k => { if (!beall[k] || typeof beall[k] !== "object" || Array.isArray(beall[k])) beall[k] = {}; });
         beall.ugroMind = !!beall.ugroMind; beall.tobbMind = !!beall.tobbMind;
@@ -2167,7 +2166,7 @@ const RECEPT_TEKERCS = {
         const ful = upOlvas().fulek[x[0]] || "", ar = upAr(x);
         const bub = "Union Pacific bolt" + (ful ? " · " + ful + " fül" : "") + (ar ? " · " + ar : "") +
             ". Kattintásra megnyílik a bolt (1 kérés, mint a menüből), és a keresőben ez a tárgy áll.";
-        return `<button type="button" class="gomb${kis ? " kisgomb" : ""}" data-upbolt="${Number(id)}" data-bub="${esc(bub)}">Union Pacific ▸</button>`;
+        return `<button type="button" class="gomb${kis ? " kisgomb" : ""}" data-upbolt="${Number(id)}" data-bub="${esc(bub)}">UP bolt ▸</button>`;
     }
     function upNyit(id) {
         const G = jatek();
@@ -3015,7 +3014,7 @@ const RECEPT_TEKERCS = {
                   <div class="oszlop helysor"><span class="kicsikep ures"></span><div class="oszlop"><div class="nevsor egyebnev"><b title="${esc(g.nev)}">${esc(g.nev)}</b>${g.nyitottDb ? ksEgyebBevarhatoHTML(g.nev, ebv) : ""}${kozos ? `<span class="jelveny" title="Egy alkalom mindegyik kalandba beszámít, ezért a legnagyobb hátralék a mérvadó.">közös</span>` : ""}</div><span class="alcim">${bontas}</span></div></div>
                   <div class="oszlop"><span>${g.nyitottDb ? "" : "<span class=\"pipa\">✓</span> "}${Math.min(mut.kesz, mut.cel)} / ${mut.cel}</span>${csikHTML(mut)}</div>
                   <div class="jobb"><b>${g.nyitottDb ? "még " + g.hatra : "kész"}</b></div>
-                  <div class="jobb"></div>
+                  <div class="jobb">${g.nyitottDb ? ksSzovegGombHTML(g.nev) : ""}</div>
                 </div>`;
             });
             h += `</div>`;
@@ -3057,13 +3056,82 @@ const RECEPT_TEKERCS = {
         }
         adat.nyers.forEach(n => {
             if (!beall.keszIs && n.kesz) return;
-            h += `<div class="ksor nyers"><div class="oszlop"><b>${esc(n.info)}</b><span class="alcim">${esc(n.kaland.cim)} · a szöveget nem ismertem fel</span></div></div>`;
+            /* t86m: a gombos szoveges feltetelek itt is (Templom, Parbajok, MPI, Erodharc) */
+            const ng = n.kesz ? "" : ksSzovegGombHTML(n.info);
+            h += `<div class="ksor nyers${ng ? " gombos" : ""}"><div class="oszlop"><b>${esc(ksSzovegKiir(n.info))}</b><span class="alcim">${esc(n.kaland.cim)} · a szöveget nem ismertem fel</span></div>${ng ? `<div class="jobb">${ng}</div>` : ""}</div>`;
         });
         return h;
     }
 
     /* t16f: egy kalandfeltetel sora (a Kalandok nezetbol kiemelve, hogy a
        Kalandsorok ful a felvett resz nyitott felteteleit ugyanigy mutassa). */
+    /* t86k (MrA, 2026-10-07, Terv 39 A): IMADKOZAS. MERT: ChurchWindow.open(townId)
+       a varos templomablakat nyitja (building_church / get_data, ugyanaz a keres,
+       mint kezzel); az Ima gombot a jatekos nyomja (TaskPray, 15 perc). Minden
+       varosban van templom (MrA); egy ima = 1 (MrA). A tw-calc helyorzo szama
+       (A The West titkai 2965: 350400) helyett "ima" (MrA).
+       t86k (MrA): BANDITA-PARBAJ. MERT: DuelsWindow.open() (a TWX becsomagolja,
+       az eredeti open_twx; a csomagolas is az eredetit hivja), az elso ful a
+       Banditak (npcduel), megnyitaskor a jatek a sajat adatat keri
+       (getNewJsonData), mint kezzel. Csak az 5 bandita-tipusu feltetelnel
+       (MrA): a neven nevezett ellenfel es a jatekosok elleni parbaj nem. */
+    const KS_PARBAJ_RE = /^\s*(Banditák ellen nyert párbaj|Párbajban eszméletlenre vert banditák|Banditák elleni párbajokból nyert pénz|Banditák elleni párbajban nyert tapasztalat|Elvesztett banditák elleni párbaj)\b/;
+    const KS_IMA_RE = /^\s*Imádkozni mentem\b/;
+    /* t86l (MrA, 2026-10-07): KALANDOK es ERODHARC. MERT (MrA, a tobbi szkript
+       nelkul): MultiplayerWindow.open() parameter nelkul a Tobbjatekos mod
+       nyitokepernyoje (a kalandokhoz; a jatek a sajat tobbjatekos szerverehez
+       csatlakozik, mint kezzel); FortOverviewWindow.open() parameter nelkul az
+       Erod attekintes, Aktualis erodharcok ful. Mindket ablakot MrA megnyitotta
+       a paranccsal. */
+    /* t86m (MrA): a gomb felirata "MPI" (a "Kalandhoz" gombbal ne legyen osszeteveszheto;
+       a magyar szervereken is igy hivjak) */
+    const KS_KALAND_RE = /^\s*(Lejátszott kalandok|Megnyert kalandok)\b/;
+    const KS_EROD_RE = /^\s*(Befejezett erődharcok|Megnyert erődharcok|Túlélt erődharcok|Erődharcok során|Zászló megtartva az erődharcok során)/;
+    function ksSzovegGombHTML(t) {
+        t = String(t || "");
+        if (KS_IMA_RE.test(t)) return `<button type="button" class="gomb kisgomb" data-templom="1" data-bub="A legközelebbi város templomát nyitja meg; ott az Ima gombot te nyomod meg. Egy ima 15 perc.">Templom ▸</button>`;
+        if (KS_PARBAJ_RE.test(t)) return `<button type="button" class="gomb kisgomb" data-parbaj="1" data-bub="Megnyitja a Párbajok ablakot, a Banditák fülön.">Párbajok ▸</button>`;
+        if (KS_KALAND_RE.test(t)) return `<button type="button" class="gomb kisgomb" data-mpi="1" data-bub="Megnyitja a Többjátékos módot (MPI, kalandok).">MPI ▸</button>`;
+        if (KS_EROD_RE.test(t)) return `<button type="button" class="gomb kisgomb" data-erod="1" data-bub="Megnyitja az Erőd áttekintést, az Aktuális erődharcok fülön.">Erődharc ▸</button>`;
+        return "";
+    }
+    function ksSzovegKiir(t) { return String(t || "").replace(/^(\s*Imádkozni mentem:\s*)350400(\s*\/\s*350400)?\s*$/, "$1ima"); }
+    function ksTemplom() {
+        terkepet(ok => {
+            const G = jatek();
+            if (!ok || !terkep || !terkep.towns) { allapot("A városok nem töltöttek be, próbáld újra."); return; }
+            const p = pozicio();
+            const ido = t => { try { return Number(G.GameMap.calcWayTime(p, { x: t.x, y: t.y })) || 0; } catch (e) { return 0; } };
+            const v = Object.keys(terkep.towns).map(k => terkep.towns[k]).filter(t => t && t.town_id && t.member_count)
+                .map(t => ({ t, d: p ? ido(t) : 0 })).sort((a, b) => a.d - b.d)[0];
+            if (!v) { allapot("Nem találtam várost a térképen."); return; }
+            try {
+                hatra();
+                G.ChurchWindow.open(v.t.town_id);
+                setTimeout(hatra, 0);
+                allapot("Templom megnyitva" + (v.t.name ? ": " + v.t.name : "") + ". Az Ima gombot ott nyomd meg.");
+            } catch (e) { allapot("A templom ablaka nem nyílt meg."); }
+        });
+    }
+    function ksJatekAblak(nev, cim) {
+        try {
+            const A = jatek()[nev];
+            hatra();
+            A.open();
+            setTimeout(hatra, 0);
+            allapot(cim + " megnyitva.");
+        } catch (e) { allapot(cim + " nem nyílt meg."); }
+    }
+    function ksParbaj() {
+        try {
+            const D = jatek().DuelsWindow;
+            hatra();
+            D.open();
+            try { if (D.window && typeof D.showTab === "function") D.showTab("npcduel"); } catch (e) { /* az elso ful amugy is a Banditak */ }
+            setTimeout(hatra, 0);
+            allapot("Párbajok ablak megnyitva (Banditák).");
+        } catch (e) { allapot("A párbajablak nem nyílt meg."); }
+    }
     function kalandFeltSorHTML(x, tcs, nyitottPer) {
         let h = "";
         const kcl = x.megvan ? " kesz" : "";
@@ -3107,9 +3175,9 @@ const RECEPT_TEKERCS = {
         } else {
             const mj = !x.megvan ? kalandMegjHTML(x) : "";
             h += `<div class="ksor k2${kcl}">
-              <div class="oszlop helysor"><span class="pont">${x.megvan ? "✓" : "·"}</span><span>${esc(x.info)}${mj}</span></div>
+              <div class="oszlop helysor"><span class="pont">${x.megvan ? "✓" : "·"}</span><span>${esc(ksSzovegKiir(x.info))}${mj}</span></div>
               <div class="oszlop"><span class="alcim">${x.felismeretlen ? "a szöveget nem ismertem fel" : ""}</span></div>
-              <div class="jobb"></div><div class="jobb"></div>
+              <div class="jobb"></div><div class="jobb">${x.megvan ? "" : ksSzovegGombHTML(x.info)}</div>
             </div>`;
         }
         return h;
@@ -3648,10 +3716,12 @@ const RECEPT_TEKERCS = {
            fulvaltaskor a regi viselkedes */
         const horgony = stage.getAttribute("data-rajzolt") === beall.ful ? ksHorgonyMent(stage.querySelector(".lista")) : null;
         stage.setAttribute("data-rajzolt", beall.ful);
+        /* t86k: az Esemenyek gomb kiemelese (a cimsor nem rajzolodik ujra) */
+        try { const eg = gyoker.querySelector(".esemgomb"); if (eg) { eg.classList.toggle("aktiv", beall.ful === "fel"); eg.setAttribute("aria-pressed", beall.ful === "fel" ? "true" : "false"); } } catch (e) { /* nem baj */ }
         const adat = gyujt();
         const fulak = `<div class="fulsor" role="tablist">
-            <button type="button" class="ful${beall.ful === "munka" ? " aktiv" : ""}" data-ful="munka">Munkák szerint</button>
-            <button type="button" class="ful${beall.ful === "kaland" ? " aktiv" : ""}" data-ful="kaland">Kalandok szerint</button>
+            <button type="button" class="ful${beall.ful === "munka" ? " aktiv" : ""}" data-ful="munka">Munkák</button>
+            <button type="button" class="ful${beall.ful === "kaland" ? " aktiv" : ""}" data-ful="kaland">Kalandok</button>
             <button type="button" class="ful${beall.ful === "sor" ? " aktiv" : ""}" data-ful="sor">Kalandsorok</button>
             <button type="button" class="ful${beall.ful === "ossz" ? " aktiv" : ""}" data-ful="ossz">Összesítő</button>
             <button type="button" class="ful${beall.ful === "ido" ? " aktiv" : ""}" data-ful="ido">Időzített</button>
@@ -3676,10 +3746,24 @@ const RECEPT_TEKERCS = {
             ksIdoOraIndit();
             return;
         }
+        /* t84 (MrA, Terv 35b / 36 B): Felkeszules ful */
+        if (beall.ful === "fel") {
+            const gorgetF = (stage.querySelector(".lista") || {}).scrollTop || 0;
+            let fv;
+            ksNincsElore = true;
+            try { fv = ksFelNezet(); } finally { ksNincsElore = false; }
+            stage.innerHTML = fulak + fv.eszk + `<div class="lista">${fv.html}</div>` + lab();
+            const lF = stage.querySelector(".lista");
+            magassagAllit();
+            if (lF) lF.scrollTop = gorgetF;
+            return;
+        }
         if (beall.ful === "sor" || beall.ful === "ossz") {
             const gorget0 = (stage.querySelector(".lista") || {}).scrollTop || 0;
             ksMunkaKepCache = null;
             const ks = kalandsorNezet(adat, beall.ful);
+            /* t86f: a Kalandsorok ful aljan az elakadt kalandsorok */
+            if (beall.ful === "sor") { try { ks.html += ksElakadtHTML(); } catch (e) { /* nelkule is mukodik */ } }
             /* t65 (Terv 7.5, MrA): az Osszesito aljan a targyas blokk */
             if (beall.ful === "ossz") ks.html += ksTargyasHTML();
             stage.innerHTML = fulak + ks.eszk + ksEllSavHTML() + `<div class="lista">${ks.html}</div>` + lab();
@@ -3687,6 +3771,12 @@ const RECEPT_TEKERCS = {
             magassagAllit();
             if (l0) l0.scrollTop = gorget0;
             ksHorgonyAll(l0, horgony);
+            /* t86j: az ujonnan leadhato kalandsorhoz ugrik (csak a Kalandsorok fulon) */
+            if (beall.ful === "sor" && ksLeadUjG.length && l0) {
+                const g = ksLeadUjG[0], cel = stage.querySelector("#ks-" + g);
+                if (cel) { l0.scrollTop = cel.offsetTop - l0.offsetTop; ksKiemel(["#ks-" + g]); }
+            }
+            ksLeadUjG = [];
             ksKiemelAlkalmaz();
             /* t19: pipalas utan a fokusz-lista nyitva marad, ugyanott */
             if (beall.ful === "ossz" && ksFokuszNyitva) {
@@ -3787,12 +3877,16 @@ const RECEPT_TEKERCS = {
         }
         return { cimkek: ki, korlat };
     }
+    let ksNincsElore = false;
     function ksJelHTML(t) {
         if (t.jutalom) return jutalomJelHTML(t.id);
         if (t.csak) return `<span class="jel csak">csak felvétel után</span>`;
         /* t54 (MrA): a mar nalad levo (vagy viselt) viselendo / felvetelhez kello
            targynal az "elore gyujtheto" felesleges */
         if ((t.viselet || t.eleres) && (ksViselve(t.id) || (keszlet(t.id) || 0) >= (t.viselet ? 1 : t.db))) return "";
+        /* t86 (MrA): a Felkeszules fulon nem kell (ott minden elore gyujtheto),
+           a lancsorokban sem: a ful rajzolasa kozben kozos jelzo */
+        if (t.noElore || ksNincsElore) return "";
         return `<span class="jel elore">előre gyűjthető</span>`;
     }
     /* t16f: munkaikon. A Munkak/Kalandok nezet a kaland feltetelenek
@@ -3889,7 +3983,7 @@ const RECEPT_TEKERCS = {
         }
         return sor;
     }
-    const KS_FUL_NEV = { munka: "Munkák szerint", kaland: "Kalandok szerint", sor: "Kalandsorok", ossz: "Összesítő", ido: "Időzített" };
+    const KS_FUL_NEV = { munka: "Munkák", kaland: "Kalandok", sor: "Kalandsorok", ossz: "Összesítő", ido: "Időzített", fel: "Felkészülés" };
     function ksVisszaCim(sor) {
         const ful = beall.ful !== "sor" ? KS_FUL_NEV[beall.ful] || "" : "";
         const c = ksVisszaCim0(sor);
@@ -4054,7 +4148,7 @@ const RECEPT_TEKERCS = {
     function ksQuestBub(info) {
         if (!info) return KS_QGOMB_ISMERETLEN;
         if (info.mod === "resz") return "Megnyit\u00E1s a Kalandseg\u00EDt\u0151ben (" + info.cim + ", " + info.sorszam + ". r\u00E9sz)";
-        return "Megnyit\u00E1s a Kalandseg\u00EDt\u0151ben (Kalandok szerint)";
+        return "Megnyit\u00E1s a Kalandseg\u00EDt\u0151ben (Kalandok)";
     }
     function ksQuestUgras(info) {
         if (!info) return;
@@ -4616,15 +4710,18 @@ const RECEPT_TEKERCS = {
         /* t68 (16, MrA): a kituzottek utan a most felveheto reszes sorok; amig
            nyitva a panel es ezen a nezeten vagy, a sorrend nem valtozik (C) */
         const mostE = s => (s.reszek || []).some(ksMostFelveheto);
-        let sorok = o.sorok.slice().sort((a, b) => ((a.lejart ? 1 : 0) - (b.lejart ? 1 : 0)) || (kituzE(b) - kituzE(a)) || (mostE(b) - mostE(a)) || hatraDb(a) - hatraDb(b) || String(a.cim).localeCompare(String(b.cim), "hu"));
+        /* t86j (MrA, 2026-10-07): a LEADHATO kalandsor (felvett resze a jatek
+           szerint most leadhato) mindig legfelul, a kituzottek elott, mint a
+           Kalandok fulon. A t68-as C szabaly (nyitott panelnel nem rendez at)
+           megszunt: a sorrend mindig az aktualis allapotot koveti. */
+        const leadE = s => (s.reszek || []).some(r => r.allapot === "felvett" && adat && adat.rend && adat.rend.get(r.id) && leadAllapot(adat.rend.get(r.id)) === "igen");
+        const sorok = o.sorok.slice().sort((a, b) => ((a.lejart ? 1 : 0) - (b.lejart ? 1 : 0)) || (leadE(b) - leadE(a)) || (kituzE(b) - kituzE(a)) || (mostE(b) - mostE(a)) || hatraDb(a) - hatraDb(b) || String(a.cim).localeCompare(String(b.cim), "hu"));
+        /* t86j: ha a Kalandsorok fulon allva lesz egy sor leadhato, a nezet
+           odaugrik (a rajzolas utan); masik fulrol atjovet mar legfelul van */
         if (!ossz) {
-            /* a kituzes a felhasznalo dontese: arra azonnal rendez */
-            const kz = Object.keys(beall.kituz || {}).filter(k => beall.kituz[k]).sort().join(",");
-            if (ksSorRend && ksSorRend.nezet === ksTgyNezet && ksSorRend.kz === kz) {
-                const pos = new Map(ksSorRend.rend.map((g, i) => [g, i]));
-                sorok = sorok.slice().sort((a, b) => (pos.has(a.group) ? pos.get(a.group) : 1e6) - (pos.has(b.group) ? pos.get(b.group) : 1e6));
-                sorok.forEach(x => { if (!pos.has(x.group)) ksSorRend.rend.push(x.group); });
-            } else ksSorRend = { nezet: ksTgyNezet, kz, rend: sorok.map(x => x.group) };
+            const most = sorok.filter(leadE).map(s => Number(s.group));
+            ksLeadUjG = ksLeadElozo ? most.filter(g => !ksLeadElozo.has(g)) : [];
+            ksLeadElozo = new Set(most);
         }
         const mostDb = sorok.reduce((n, x) => n + (x.reszek || []).filter(ksMostFelveheto).length, 0);
         const kovGombok = `<div class="pkatvalaszto">
@@ -4756,7 +4853,11 @@ const RECEPT_TEKERCS = {
             let agI = null;
             if (R.some(r => r.valF || r.valaszt)) {
                 const cs0 = new Map();
-                R.forEach(r => { const k = r.valF ? "f" + r.valF.cs : r.valaszt ? "v" + r.valaszt : ""; if (!k) return; if (!cs0.has(k)) cs0.set(k, []); cs0.get(k).push(r.id); });
+                /* t86d (MrA, 2026-10-07): az ikerreszek (A vándorcirkusz 660/665)
+                   valasztasanal nincs "ez visz tovább" / "zsákutca" / "Elvész:"
+                   utmutato: a ket ut ugyanoda er (a 666 a 663 miatt esik ki, nem a
+                   665 miatt). Az "egyik kesz, a masik kiesik" marad (MrA: valasztos). */
+                R.forEach(r => { if (r.iker) return; const k = r.valF ? "f" + r.valF.cs : r.valaszt ? "v" + r.valaszt : ""; if (!k) return; if (!cs0.has(k)) cs0.set(k, []); cs0.get(k).push(r.id); });
                 /* t79 (Terv 31b): jutalom csak teljes (9-es formaju) adatbol; reszleges adatot nem mutatunk */
                 const nyers = (agAdat || {})[s.group] || null;
                 const teljes = nyers ? (nyers.forras === "db" ? Number(nyers.dbv) >= 9 : Number(nyers.ver) >= 9) : Number((ksDbAdat() || {}).ksVer) >= 9;
@@ -4818,7 +4919,7 @@ const RECEPT_TEKERCS = {
                     /* t16p: "Menj el ide" a megbizo kepevel, gombbal vagy "meg zarva" */
                     const mh = /^Menj el ide:\s*(.+)$/.exec(String(t));
                     if (mh) { helyNevek.push(mh[1]); x += ksHelySorHTML(t, mh[1], ksReszKulcs(r), s.group, r.id); return; }
-                    x += `<div class="bsor egyeb"><div class="nv"><span class="kicsikep pont">·</span><span>${esc(t)}</span></div><div></div><div class="jobb"></div><div class="jobb"></div></div>`;
+                    x += `<div class="bsor egyeb"><div class="nv"><span class="kicsikep pont">·</span><span>${esc(ksSzovegKiir(t))}</span></div><div></div><div class="jobb"></div><div class="jobb">${ksSzovegGombHTML(t)}</div></div>`;
                 });
                 r.munkak.forEach(m => {
                     x += `<div class="bsor"><div class="nv">${ksMunkaKepHTML(m.id)}<span><b>${esc(munkaNev(m.id))}</b>${m.most ? ` <span class="jel kozos">most is kell</span>` : ""}</span></div><div><span class="ora">${esc(m.menny)}</span></div><div class="jobb"></div><div class="jobb"><span class="jel munka">munka lesz</span></div></div>`;
@@ -4832,7 +4933,8 @@ const RECEPT_TEKERCS = {
                 if (r.valaszt) {
                     const tagok = hatra.filter(y => y.valaszt === r.valaszt);
                     n++;
-                    h += `<div class="elag"><div class="elagcim"><b>választható: csak az egyiket zárhatod le</b> · ${ksTavHTML(r.tav)}</div>`;
+                    const ikrek = tagok.every(y => y.iker);
+                    h += `<div class="elag"><div class="elagcim"><b>választható: csak az egyiket zárhatod le</b>${ikrek ? ` <span class="jel valt" data-bub="${esc("Ugyanez a feladat a kalandsor két útján: " + tagok.map(y => y.nev).join(" / ") + ". Mindkét út ugyanoda ér; a tárgyigény egyszer számít.")}">ikerrész, két úton</span>` : ""} · ${ksTavHTML(r.tav)}</div>`;
                     tagok.forEach(y => { kiirt.add(y.id); h += agBe(reszHTML(y), y); });
                     h += `</div>`;
                     return;
@@ -5141,7 +5243,10 @@ const RECEPT_TEKERCS = {
        jutalomtargyak darabszama (r.kc), ha van. A 7-es es a 8-as adatbazist
        tovabbra is elfogadjuk (KS_DB_MIN). A Befejezés oszlop kulonleges
        feltetelei (r.bek, pl. kepesseg: Fellépés 50) is ebben a formaban. */
-    const KS_VER = 9;
+    /* t86h (MrA, 2026-10-07): 10 = a 0-s azonositoju resz es az Elfogadas
+       oszlop targyai (r.et) is. A tarolt sorokat egyszer ujraolvassa (az
+       adatbazisbol). A 7-9-es adatbazist tovabbra is elfogadjuk. */
+    const KS_VER = 10;
     /* t16e: 3 = a darabos munkak is (MERT 135: "20 [Munkavállalás
        prémvadászként]", mertekegyseg nelkul); a 2-es wiki-adatot egyszer
        ujrakerjuk. */
@@ -5243,8 +5348,13 @@ const RECEPT_TEKERCS = {
         };
         const reszek = [];
         doc.querySelectorAll("div.quest[id]").forEach(q => {
+            /* t86h JAVITAS (MrA, 2026-10-07, MERT a nyers archivumon): a 0-s
+               azonositoju resz (Uj banditak, Mentsd meg a kocsmat, elso resz)
+               eddig kimaradt, mert a 0-t ervenytelennek vettuk. Az egesz
+               archivumban ez az egyetlen 0-s resz; az "Az elso tamadas" (1)
+               elofeltetelkent erre mutat. Csak szamjegyes azonosito ervenyes. */
+            if (!/^\d+$/.test(String(q.id))) return;
             const id = Number(q.id);
-            if (!(id > 0)) return;
             const span = q.querySelector("span");
             let nev = span ? span.textContent.replace(/\(ID:[\s\S]*$/, "").trim() : "";
             if (/^undefined$/i.test(nev)) nev = "";
@@ -5322,8 +5432,28 @@ const RECEPT_TEKERCS = {
                     eh.push([k, nev, xy ? Number(xy[1]) : null, xy ? Number(xy[2]) : null]);
                 });
                 if (eh.length) r.eh = eh;
+                /* t86g (MrA, 2026-10-07, MERT: tw-calc Munka Napja 1831 "Szint: 10"
+                   + "Legmagasabb szint: 40", 1837 "Szint: 91"): az Elfogadas oszlop
+                   szintsavja (szintvaltozatok). r.fsz: legalabb, r.fmx: legfeljebb. */
+                const fszov = cellSzoveg(elfogadas);
+                const fmin = /(?:^|\s)Szint:\s*(\d+)/.exec(fszov);
+                if (fmin) r.fsz = Number(fmin[1]);
+                const fmax = /Legmagasabb szint:\s*(\d+)/.exec(fszov);
+                if (fmax) r.fmx = Number(fmax[1]);
                 const e2 = feltetelek(elfogadas, id);
                 if (e2.length) r.e = (r.e || []).concat(e2);
+                /* t86h JAVITAS (MrA, 2026-10-07): az Elfogadas oszlop TARGYAI eddig
+                   kimaradtak. MERT (nyers archivum, 345 kalandsor + 3 ismetelheto
+                   oldal): 3 resz, mind "inv" jellel: A hianyzo gomb 1333 Egyenruha
+                   362000, Az utolso konvoj 3023 Detonator 2451000, Regibol ujat 670
+                   Torott aso 1789000. MrA: a felvetelhez VISELNI kell (a Detonator
+                   a termekhelyre). Az Eleres targyaival egyutt az r.et-be kerulnek,
+                   igy ugyanaz a viselesi szabaly dont rola (ksEleresTargyak). */
+                elfogadas.querySelectorAll(".tw2gui_item[id]").forEach(el => {
+                    const tid = Number(el.id);
+                    if (!(tid > 0) || (r.et || []).some(x => x[0] === tid)) return;
+                    (r.et = r.et || []).push([tid, kellDb(el), el.querySelector(".item-action.eqp") ? 1 : 0]);
+                });
                 linkek(elfogadas).forEach(a => { const k = kalandId(a); if (k != null && k !== id) { r.en = r.en || {}; r.en[k] = a.textContent.replace(/\s+/g, " ").trim(); } });
             }
             if (befejezes) {
@@ -5468,12 +5598,74 @@ const RECEPT_TEKERCS = {
         if (tars.length !== c.ids.length) return c;
         return Object.assign({}, c, { ids: tars, h: 0 });
     }
-    function ksFelt(r, sor) { return ((r && r.e) || []).map(ksFeltNorm).map(c => ksDupJavit(c, r, sor)); }
+    /* t86 (MrA, 2026-10-07): MERT, az Adatgyujto "i" jele (tw-calc: "Miután
+       elfogadtad a kalandot X (ID:N) várnod kell D nap") VARAKOZAST jelol, nem
+       ismetelhetoseget. Ha a resz az ELOZO reszre var (N nem a sajat id-je), az
+       egyszeri resz (Pony-expressz 951/952: 30 nap, MrA lezart listajaban
+       mind a 4 resz kesz). Kivetel: az eseményfajlban ismetelhetonek jelolt
+       sorok (MrA jovahagyta), ott marad a regi szabaly. MERT (9-es adatbazis):
+       ez 9 reszt erint: Mesterség mini esemény 6, Pony-expressz 2,
+       Aranyérmék 1. A sajat magara varo resz (129) marad ismetelheto. */
+    let ksIsmSorMemo = null;
+    function ksIsmSorReszek() {
+        const es = ksEsemAdat(), d = ksDbAdat();
+        if (ksIsmSorMemo && ksIsmSorMemo.es === es && ksIsmSorMemo.d === d) return ksIsmSorMemo.m;
+        const m = new Set();
+        if (es && d && d.sorok) Object.keys(es.esemenyek).forEach(n => (es.esemenyek[n] || []).forEach(x => {
+            const sor = x.ism ? d.sorok[String(x.id)] : null;
+            if (sor) (sor.reszek || []).forEach(r => m.add(Number(r.id)));
+        }));
+        ksIsmSorMemo = { es, d, m };
+        return m;
+    }
+    function ksVarRef(r) {
+        const ki = [], re = /Miután (?:elfogadtad|befejezted) a kalandot[\s\S]*?\(ID:(\d+)\) várnod kell (\d+)/g;
+        let m;
+        while ((m = re.exec(String((r && r.x) || "")))) ki.push({ id: Number(m[1]), nap: Number(m[2]) });
+        return ki;
+    }
+    /* t86f (MrA, 2026-10-07): MESTERSEG AZ ELFOGADAS HELYEBOL. MERT (9-es
+       adatbazis): 72 reszben a mesterseg-mezo ures, de az elfogadas helye
+       (megbizo) a mesterseg mestere (Tanito 28, Halado kezmuvesseg 24, a negy
+       "... vagy?" 5-5). Parositas az adatbazis kitoltott reszeibol: Field Cook
+       = 1, Sarlatan = 2, Kovacs = 3, Nyerges = 4 (MrA: Sarlatan, Character.
+       professionId = 2). A szamolas kozelitesehez nem nyul. */
+    const KS_MESTER_M = { master_fieldcook: 1, master_tonicpeddler: 2, master_blacksmith: 3, master_saddler: 4 };
+    function ksReszM(r) { return (r && (Number(r.m) || KS_MESTER_M[String(r.mb || "")])) || 0; }
+    function ksIsmE(r) {
+        if (!r || !r.i) return false;
+        /* az eseményfajl vagy az adatbazis tarolt masolata nelkul (a Felkeszules
+           ful meg sosem toltotte le) a regi szabaly marad, igy nem lesz
+           hatralevo az Oktoberfest-fele ismetelheto keszletbol. Szandekosan nem
+           kerjuk le mashol: MERT (proba-t29, -t36a), a Kalandsorok fulon egy
+           plusz letoltes es az utana jovo ujrarajzolas kiuritette a keresot. */
+        if (!ksEsemAdat() || !ksDbAdat()) return true;
+        const v = ksVarRef(r);
+        if (!v.length || v.some(x => x.id === Number(r.id))) return true;
+        return ksIsmSorReszek().has(Number(r.id));
+    }
+    /* t86i JAVITOBEJEGYZES (MrA, 2026-10-07): a tw-calc hibas "csak ha X nincs
+       kesz / nincs felveve" feltetelei. Uj fold: a wiki es MrA sajat jatéka
+       szerint a sor egyetlen feltetele a Leszamolas (Mentsd meg a kocsmat 2);
+       a Termeketlen fold 730 (az 1700-nal) es 731 (az 1704-nel) kizarasa nem
+       igaz (a 730 a tw-calc szerint csak 2009-2013 kozott letezett). Torzsi
+       kovetelesek 4988: a Fektelen hovihar 4889 (teli esemeny) kizarasa
+       ugyanigy hibas (MrA). resz -> a kivett azonositok. */
+    const KS_FELT_KIVESZ = { 1700: [730], 1704: [731], 4988: [4889] };
+    function ksFeltKivesz(c, r) {
+        const ki = r && KS_FELT_KIVESZ[r.id];
+        if (!ki || !c || (c.t !== "nemkesz" && c.t !== "nemfelvett") || !Array.isArray(c.ids)) return c;
+        const ids = c.ids.filter(x => ki.indexOf(Number(x)) < 0);
+        return ids.length === c.ids.length ? c : (ids.length ? Object.assign({}, c, { ids }) : null);
+    }
+    function ksFelt(r, sor) { return ((r && r.e) || []).map(ksFeltNorm).map(c => ksDupJavit(c, r, sor)).map(c => ksFeltKivesz(c, r)).filter(Boolean); }
 
     /* ---- szamitas: egy sor allapota a karakterre ----
        ctx: { felvett: Set(id), megoldott: Set(id), prof }
        Visszaad: { allapot: Map(id -> "kesz"|"felvett"|"hatra"|"ki"),
                    valaszt: Map(id -> csoportszam), most: Set(id), kesz: bool } */
+    /* t86i: az elveszett-resz szabaly kivetelei: Munka Napja (ismetelheto, MrA) */
+    const KS_ELVESZ_KIVETEL = new Set([1831, 1832, 1833, 1834, 1835, 1836, 1837, 1838]);
     function ksSzamol(sor, ctx) {
         const R = new Map((sor.reszek || []).map(r => [r.id, r]));
         const feltT = new Map();
@@ -5483,7 +5675,7 @@ const RECEPT_TEKERCS = {
         const felvett = new Set();
         (ctx.felvett || new Set()).forEach(id => { if (R.has(id)) felvett.add(id); });
         const ki = new Set();
-        R.forEach(r => { if (r.m && ctx.prof && r.m !== ctx.prof && !kesz.has(r.id) && !felvett.has(r.id)) ki.add(r.id); });
+        R.forEach(r => { const rm = ksReszM(r); if (rm && ctx.prof && rm !== ctx.prof && !kesz.has(r.id) && !felvett.has(r.id)) ki.add(r.id); });
         /* valasztasok: kolcsonos nemkesz / nemfelvett */
         const szulo = new Map();
         const gyoker = x => { while (szulo.get(x) !== x) x = szulo.get(x); return x; };
@@ -5497,6 +5689,38 @@ const RECEPT_TEKERCS = {
                 szulo.set(gyoker(r.id), gyoker(b));
             });
         }));
+        /* t86c (MrA, 2026-10-07, A valtozat): IKERRESZEK. MERT (9-es adatbazis):
+           A vándorcirkusz 660 "Egy új otthon" es 665 "A new home" ugyanazt a 6
+           targyat keri, ket egymast kizaro uton (664 nemkesz/nemfelvett 660,
+           666 nemkesz/nemfelvett 663; az utak az Allatszellemek 659-en
+           dontenek). Azonos, nem ures targylistaju reszek, ha legalabb egyikuk
+           egyiranyu kizarasban szerepel, valasztasnak szamitanak: a targyigeny
+           egyszer, es ha az egyik kesz, a masik kiesik. A 10 egyiranyu
+           kizarasos sorbol ma csak ez az egy ilyen (a tobbi kesobb, MrA-val). */
+        const egyIr = new Set(), iker = new Set();
+        R.forEach(r => felt(r).forEach(c => {
+            if (c.t !== "nemkesz" && c.t !== "nemfelvett") return;
+            c.ids.forEach(b => {
+                if (!R.has(b) || b === r.id) return;
+                const vissza = felt(R.get(b)).some(d => (d.t === "nemkesz" || d.t === "nemfelvett") && d.ids.indexOf(r.id) >= 0);
+                if (!vissza) { egyIr.add(r.id); egyIr.add(b); }
+            });
+        }));
+        if (egyIr.size) {
+            const tk = new Map();
+            R.forEach(r => {
+                const t = (r.t || []).map(x => Number(x[0]) + ":" + Number(x[1])).sort().join("|");
+                if (!t) return;
+                if (!tk.has(t)) tk.set(t, []);
+                tk.get(t).push(r.id);
+            });
+            tk.forEach(ids => {
+                if (ids.length < 2 || !ids.some(x => egyIr.has(x))) return;
+                ids.forEach(x => iker.add(x));
+                ids.forEach(x => { if (!szulo.has(x)) szulo.set(x, x); });
+                ids.slice(1).forEach(x => szulo.set(gyoker(x), gyoker(ids[0])));
+            });
+        }
         const csop = new Map();
         szulo.forEach((_, x) => { const g = gyoker(x); if (!csop.has(g)) csop.set(g, []); csop.get(g).push(x); });
         /* t36 JAVITAS (MrA merese 2026-09-30, A vasut hodito utja 41: 314/315
@@ -5524,6 +5748,17 @@ const RECEPT_TEKERCS = {
                    naplóban maradt, a szerver mar lezarta): ha az egyik ag kesz,
                    a masik, meg felvett ag is kiesik. */
                 if (tagok.some(x => kesz.has(x))) tagok.forEach(x => { if (!kesz.has(x) && felvett.has(x)) { felvett.delete(x); ad(ki, x); } });
+            });
+            /* t86i (MrA, 2026-10-07, jatekos jelzese: Uj fold, MERT a kepeirol):
+               ELVESZETT RESZ. A "Befejezetlen kalandok: X" (nemkesz) feltetelu
+               resz soha tobbe nem veheto fel, ha az X kesz: kiesik (a raepulok a
+               kovetkezo szaballyal). Az Uj foldnel az 1713 utan az 1707-1712 igy
+               esett ki (a jatekos 17 / 21 kesz, 4 hatravan helyett kesz sort
+               lat). Hatasmeres: 48 erintett sorbol 41 valtozatlan. Kivetel a
+               Munka Napja (ismetelheto, MrA). */
+            R.forEach(r => {
+                if (ki.has(r.id) || kesz.has(r.id) || felvett.has(r.id) || KS_ELVESZ_KIVETEL.has(Number(r.id))) return;
+                if (felt(r).some(c => c.t === "nemkesz" && c.ids.some(x => kesz.has(x) || (!R.has(x) && ctx.kulso && ctx.kulso.has(x))))) ad(ki, r.id);
             });
             /* kieses terjed: ES-elofeltetel kiesett, vagy VAGY minden tagja */
             R.forEach(r => {
@@ -5558,7 +5793,7 @@ const RECEPT_TEKERCS = {
         const allapot = new Map();
         R.forEach(r => allapot.set(r.id, kesz.has(r.id) ? "kesz" : felvett.has(r.id) ? "felvett" : ki.has(r.id) ? "ki" : "hatra"));
         /* t16b (MrA): ismetelheto kalandkeszletbol csak a felvett latszik. */
-        R.forEach(r => { if (r.i && allapot.get(r.id) === "hatra") allapot.set(r.id, "ism"); });
+        R.forEach(r => { if (ksIsmE(r) && allapot.get(r.id) === "hatra") allapot.set(r.id, "ism"); });
         const valaszt = new Map();
         /* t36: felvett aggal meg nyitott ("Befejezetlen" tipusu) valasztas:
            id -> { cs: sorszam, mas: [a tobbi el0 tag] }; a felvett ag fejlecen
@@ -5615,7 +5850,7 @@ const RECEPT_TEKERCS = {
         });
         let hatra = 0;
         allapot.forEach(a => { if (a === "hatra" || a === "felvett") hatra++; });
-        return { allapot, valaszt, valF, most, kulso, kesz: R.size > 0 && hatra === 0 };
+        return { allapot, valaszt, valF, most, kulso, iker, kesz: R.size > 0 && hatra === 0 };
     }
 
     /* ---- tarolas ---- */
@@ -5832,10 +6067,139 @@ const RECEPT_TEKERCS = {
             jatek().Ajax.remoteCallMode("building_quest", "get_solved_groups", {}, json => {
                 const ki = new Set();
                 ksLezartGyujt(json, ki, 0);
-                if (ki.size) { ksLezart = ki; if (latszik && (beall.ful === "sor" || beall.ful === "ossz")) frissitKesobb(); }
+                if (ki.size) { ksLezart = ki; ksMegbizoJelol(); if (latszik && (beall.ful === "sor" || beall.ful === "ossz")) frissitKesobb(); }
             });
         } catch (e) { /* marad a regi viselkedes */ }
         return null;
+    }
+    /* ---- t86e (MrA, 2026-10-07, A valtozat): PIPA A MEGBIZO-ABLAKOKBAN ----
+       MERT (Waupee indian faluja, TWIR nelkul): a jatek sora
+       div.questlog_entrie#open_quest_<id> > a#open_quest_employerlink_<id> >
+       img (kek felkialtojel) + nev. A mar megcsinalt kaland (a megoldott-lista,
+       get_solved_groups, vagy a munkamenetben megtudott reszek) sora ele kis
+       zold pipa kerul, a linken belul, a kep ele. A jatek szovegehez, jelehez
+       es szinehez nem nyul (MrA: a jatek szovegei maradnak). Ket peldany
+       (eles + TESZT) egyuttes futasakor is csak egy pipa: a meglevot nem
+       teszi ki ujra. MERT: a TWIR zoldje "leadhato", nem "megcsinaltad"; a
+       TWIR nem keri le a megoldott-listat.
+       A megoldott-lista lekerese (MrA, 2026-10-07): az elso panel- vagy
+       megbizoablak-nyitaskor, munkamenetenkent legfeljebb egyszer (ksLezartOlvas);
+       sima F5 utan, ha semmit nem nyitsz meg, nincs keres. */
+    function ksMegbizoJelol() {
+        const l = ksLezart;
+        if (!l && !ksMunkamenetKesz.size) return;
+        let sorok = [];
+        try { sorok = document.querySelectorAll('div.questlog_entrie[id^="open_quest_"]'); } catch (e) { return; }
+        sorok.forEach(d => {
+            const id = Number(String(d.id).replace(/^open_quest_/, ""));
+            if (!(id > 0) || !((l && l.has(id)) || ksMunkamenetKesz.has(id))) return;
+            const a = d.querySelector("a");
+            if (!a || a.querySelector(".smcz-ks-pipa")) return;
+            const p = document.createElement("span");
+            p.className = "smcz-ks-pipa";
+            p.textContent = "✓";
+            p.title = "Ezt a kalandot már megcsináltad.";
+            p.style.cssText = "color:#3b6d11;font-weight:700;margin-right:3px";
+            a.insertBefore(p, a.firstChild);
+        });
+    }
+    function ksMegbizoFigyel() {
+        let ido = 0;
+        const SOR = 'div.questlog_entrie[id^="open_quest_"]';
+        try {
+            new MutationObserver(ms => {
+                if (ido) return;
+                let van = false;
+                for (const m of ms) {
+                    for (const n of m.addedNodes) {
+                        if (n.nodeType === 1 && ((n.matches && n.matches(SOR)) || (n.querySelector && n.querySelector(SOR)))) { van = true; break; }
+                    }
+                    if (van) break;
+                }
+                if (!van) return;
+                ido = setTimeout(() => { ido = 0; if (ksLezartOlvas()) ksMegbizoJelol(); }, 50);
+            }).observe(document.body, { childList: true, subtree: true });
+        } catch (e) { /* pipa nelkul is mukodik a jatek */ }
+    }
+    /* ---- t86f (MrA, 2026-10-07): ELAKADT KALANDSOROK ----
+       Elkezdett (a megoldott-listaban van resze), nem kovetett, felvett resz
+       nelkuli, nem kesz kalandsorok, amelyeknek van most felveheto resze. MERT
+       (MrA adataival, 2026-10-07): pl. A torzs (8 / 22, kovetkezo: Talalkozo a
+       Cree torzsfonokkel). Kimarad: az eseményfajl sorai (MrA: lejart, kezzel
+       kivett esemenyes kalandok), ahol minden most felveheto resz varakozos
+       ("várnod kell", pl. Kereskedelmi csere), es ahol most semmi sem
+       veheto fel (pl. Apróságok). Keres nelkul: a megoldott-lista (az elso
+       panelnyitaskor jon) es az adatbazis; a Megbizohoz gomb a megbizolistat
+       a szokasos modon keri (csak kinyitott blokknal). Ha egy reszt felveszel,
+       a sor kovetett lesz, es atkerul a rendes listaba. */
+    function ksElakadtLista() {
+        const d = ksDbAdat();
+        if (!d || !d.sorok) return null;
+        const lez = ksLezartOlvas();
+        if (!lez) return null;
+        const es = ksEsemAdat(), esem = new Set();
+        if (es) Object.keys(es.esemenyek).forEach(n => (es.esemenyek[n] || []).forEach(x => esem.add(String(x && x.id))));
+        const allK = ksAllKulcs();
+        const all = allK ? ksOlvas(allK) : { sorok: {} };
+        const felvMind = new Set((kalandLista() || []).map(k => Number(k.id)));
+        const prof = Number(jatek().Character && jatek().Character.professionId) || 0;
+        const kulso = new Set(lez);
+        ksMunkamenetKesz.forEach(x => kulso.add(Number(x)));
+        Object.keys(all.sorok || {}).forEach(g => ((all.sorok[g] || {}).s || []).forEach(id => kulso.add(Number(id))));
+        const cs = new Map((d.csoportok || []).map(c => [String(c.id), c]));
+        const ki = [];
+        Object.keys(d.sorok).forEach(g => {
+            if (esem.has(g) || (all.sorok && all.sorok[g])) return;
+            const s = d.sorok[g], R = (s && s.reszek) || [];
+            if (!R.length || R.some(r => felvMind.has(Number(r.id)))) return;
+            const meg = new Set(R.filter(r => kulso.has(Number(r.id))).map(r => Number(r.id)));
+            if (!meg.size) return;
+            let e;
+            try { e = ksSzamol(s, { felvett: new Set(), megoldott: meg, prof, kulso, felvMind }); } catch (x) { return; }
+            if (e.kesz) return;
+            const most = R.filter(r => e.most.has(r.id) && !(e.kulso && e.kulso.get(r.id)));
+            if (!most.length || most.every(r => /várnod kell/.test(String(r.x || "")))) return;
+            ki.push({ g, cim: s.cim, c: cs.get(g) || {}, kesz: meg.size, ossz: R.length, most });
+        });
+        ki.sort((a, b) => (Number(a.c.szint) || 0) - (Number(b.c.szint) || 0) || String(a.cim).localeCompare(String(b.cim), "hu"));
+        return ki;
+    }
+    function ksElakadtHTML() {
+        const l = ksElakadtLista();
+        if (!l || !l.length) return "";
+        const ny = !!(beall.kinyit && beall.kinyit["ks-elakadt"]);
+        let h = `<div class="csoport elakadt"><div class="bfej${ny ? "" : " zart"}"><button type="button" class="csuk" data-kinyit="ks-elakadt" aria-expanded="${ny ? "true" : "false"}" aria-label="${ny ? "Összecsukás" : "Kinyitás"}">${ny ? "▾" : "▸"}</button><span class="nev" data-bub="Elkezdett kalandsorok, amelyeknek most nincs felvett része; a következő részt a megbízónál veheted fel. Az eseményes és az ismételhető jellegű sorok nincsenek itt. Ha felveszel egy részt, a kalandsor átkerül a rendes listába.">Elakadt kalandsorok</span><div class="meg"><b>${l.length} kalandsor</b></div></div>`;
+        /* t86k (MrA, Terv 40 A): a kovetkezo resz felveteli feltetelei mindig a
+           sor alatt (a Kalandsorok ful sorai: targyak a Felvesz / Boltban
+           gombbal, kulonleges feltetelek a Leveszem gombbal), az idoablak a sorban */
+        const d0 = ksDbAdat() || { sorok: {} };
+        const kep = id => { const t = targyAdat(id); return t && t.image ? String(t.image) : ""; };
+        const nevT = id => { const t = targyAdat(id); return t && t.name ? String(t.name) : "#" + id; };
+        if (ny) l.forEach(x => {
+            const tc = `<a class="klink" href="${esc(KS_URL + Number(x.g) + "?lang=hu")}" target="_blank" rel="noopener" data-bub="A kalandsor a TW-Calc.net oldalon" aria-label="A kalandsor a TW-Calc.net oldalon"><img class="tckep" src="${esc(CDN)}items/yield/book_plain.png" alt="TC"></a>`;
+            let gomb = "";
+            try { gomb = ksMegbizoAutoHTML(x.most[0], "sor", false).replace(/^ · /, ""); } catch (e) { gomb = ""; }
+            const s0 = d0.sorok[String(x.g)] || { reszek: [] };
+            const idoC = [];
+            let felt = "", hiany = 0, db = 0;
+            x.most.forEach(r => {
+                try { ksIdo(r.x).cimkek.concat(ksSzovegKi(r.s).ido).forEach(c => { if (idoC.indexOf(c) < 0) idoC.push(c); }); } catch (e) { /* nem baj */ }
+                let et = [];
+                try { et = ksEleresTargyak(r, s0) || []; } catch (e) { et = []; }
+                et.forEach(t => { felt += ksTargySorHTML(t, kep, nevT, ""); });
+                try { felt += ksKulonHTML(r.ek); } catch (e) { /* nem baj */ }
+                db += et.length + ((r.ek || []).length);
+                try { hiany += ksEleresHiany({ eleresT: et }).length + ksKulonHiany(r.ek).length; } catch (e) { /* nem baj */ }
+            });
+            const idoH = idoC.map(c => ` <span class="jel ido">${esc(c)}</span>`).join("");
+            /* t86l (MrA): soronkent osszecsukhato, alapbol csukva; az osszegzo sor
+               mondja, hany feltetel hianyzik (a nyitast soronkent megjegyzi) */
+            const kk = "el-" + Number(x.g), nyR = !!(beall.kinyit && beall.kinyit[kk]);
+            const osszeg = !db ? "" : `<br><button type="button" class="ugras elnyit" data-kinyit="${kk}" aria-expanded="${nyR ? "true" : "false"}">${nyR ? "▾" : "▸"} ${hiany ? hiany + " feltétel hiányzik" : "✓ minden feltétel megvan"}</button>`;
+            h += `<div class="kmsor elsor" data-elakadt="${Number(x.g)}"><span class="hol"><b>${esc(x.cim)}</b> <span class="jel munka">szint ${Number(x.c.szint) || "?"}</span><br><span class="kis">${x.kesz} / ${x.ossz} kész · következő: ${esc(x.most.map(r => r.n || ("#" + r.id)).join(", "))}</span>${idoH}${osszeg}</span><span class="tav">${gomb}</span><span class="linkek">${tc}</span></div>`;
+            if (felt && nyR) h += `<div class="elfelt" data-elfelt="${Number(x.g)}">${felt}</div>`;
+        });
+        return h + `</div>`;
     }
     function ksHelySorHTML(t, nev, elony, g, id) {
         const h = ksHely(nev, elony, g, id);
@@ -6341,6 +6705,387 @@ const RECEPT_TEKERCS = {
             });
         } catch (e) { ksDbVege("nincs GM_xmlhttpRequest"); }
     }
+    /* ---- t84 (MrA, 2026-10-06, Terv 35b / 36 B): FELKESZULES FUL, 1. LEPES ----
+       Ket uj fajl a weboldalon, a sajat adatbazis mellett (MrA: A valtozat):
+       - kalandsegito-esemenyek.json: MrA jovahagyott esemenycsoportjai (az
+         InnoGames tudasbazis 11 kategoriaja + Szent Patrik-nap, Szuletesnap),
+         soronkent { id, nev, ism }; mellette az upBolt (a 16 Union Pacific
+         kalandtargy, MrA: evek ota fix).
+       - kalandsegito-kb.json: a tudasbazis kivonata (magyar reszcimek,
+         oraszamok, forrasszovegek); ebben a lepesben meg csak betoltjuk.
+       Betoltes ugyanugy, mint az adatbazise: naponta legfeljebb egy keres a
+       weboldalra, ETag-gel (valtozatlanul 304), CSAK amikor a Felkeszules ful
+       nyitva van; a jatekszerverre nem kerdez. Ha nem jon le, a tarolt
+       masolatbol dolgozik.
+       A ful alapbol URES (MrA): esemenygomb betolti a csoport sorait, ujra
+       kattintva kikerulnek; az ismetelheto sorok kikapcsolva jonnek; a kereso
+       barmelyik kalandsort hozzaadja; "Lista ürítése" mindent kivesz. A
+       valasztas karakterenkent es vilagonkent (beall.fel: s = { g: { on, src } },
+       e = [esemenynevek]; src: "e" esemenybol, "k" keresobol).
+       Az osszesites a kovetkezo lepes (t85). */
+    const KS_ESEM = "smcz-kalandsegito-esem";
+    const KS_ESEM_URL = WEBOLDAL + "kalandsegito-esemenyek.json";
+    const KS_KB = "smcz-kalandsegito-kb";
+    const KS_KB_URL = WEBOLDAL + "kalandsegito-kb.json";
+    const ksFajlAll = {}, ksFajlMem = {};
+    function ksEsemJo(a) { return !!(a && a.v === 1 && a.esemenyek && typeof a.esemenyek === "object" && !Array.isArray(a.esemenyek)); }
+    function ksKbJo(a) { return !!(a && a.v === 1 && a.sorok && typeof a.sorok === "object"); }
+    function ksFajlTar(kulcs, jo) {
+        if (ksFajlMem[kulcs] !== undefined) return ksFajlMem[kulcs];
+        let o = null;
+        try { o = JSON.parse(GM_getValue(kulcs, "null")); } catch (e) { o = null; }
+        ksFajlMem[kulcs] = o && jo(o.adat) ? o : null;
+        return ksFajlMem[kulcs];
+    }
+    function ksEsemAdat() { const o = ksFajlTar(KS_ESEM, ksEsemJo); return o ? o.adat : null; }
+    function ksKbAdat() { const o = ksFajlTar(KS_KB, ksKbJo); return o ? o.adat : null; }
+    function ksFajlFrissit(kulcs, url, jo, kenyszer) {
+        const all = ksFajlAll[kulcs] = ksFajlAll[kulcs] || { allapot: "", hiba: "" };
+        if (all.allapot === "folyamatban") return;
+        const o = ksFajlTar(kulcs, jo);
+        if (!kenyszer && all.allapot) return;
+        if (!kenyszer && o && Date.now() - (o.ido || 0) < KS_DB_KOZ) { all.allapot = "kesz"; return; }
+        all.allapot = "folyamatban";
+        const vege = h => { all.allapot = h ? "hiba" : "kesz"; all.hiba = h || ""; if (latszik && beall.ful === "fel") frissitKesobb(); };
+        const fej = {};
+        if (o && o.etag) fej["If-None-Match"] = o.etag;
+        try {
+            GM_xmlhttpRequest({
+                method: "GET", url, headers: fej, nocache: true, timeout: 60000,
+                onload: r => {
+                    if (r.status === 304 && o) {
+                        o.ido = Date.now();
+                        try { GM_setValue(kulcs, JSON.stringify(o)); } catch (e) { /* nem baj */ }
+                        vege(null);
+                        return;
+                    }
+                    if (r.status !== 200) { vege(String(r.status)); return; }
+                    let a = null;
+                    try { a = JSON.parse(r.responseText || ""); } catch (e) { a = null; }
+                    if (!jo(a)) { vege("nem olvasható"); return; }
+                    const m = /^etag:\s*(.+)$/im.exec(r.responseHeaders || "");
+                    const uj = { ido: Date.now(), etag: m ? m[1].trim() : "", adat: a };
+                    ksFajlMem[kulcs] = uj;
+                    try { GM_setValue(kulcs, JSON.stringify(uj)); } catch (e) { /* ebben a munkamenetben megvan */ }
+                    vege(null);
+                },
+                onerror: () => vege("hálózat"),
+                ontimeout: () => vege("időtúllépés")
+            });
+        } catch (e) { vege("nincs GM_xmlhttpRequest"); }
+    }
+    function ksFelNorm() {
+        const f = beall.fel && typeof beall.fel === "object" && !Array.isArray(beall.fel) ? beall.fel : {};
+        if (!f.s || typeof f.s !== "object" || Array.isArray(f.s)) f.s = {};
+        if (!Array.isArray(f.e)) f.e = [];
+        Object.keys(f.s).forEach(k => {
+            const v = f.s[k];
+            if (!/^\d+$/.test(k) || !v || typeof v !== "object") { delete f.s[k]; return; }
+            v.on = v.on ? 1 : 0;
+            if (v.src !== "e" && v.src !== "k") v.src = "k";
+        });
+        f.e = f.e.filter(x => typeof x === "string" && x);
+        beall.fel = f;
+        return f;
+    }
+    /* az adatbazis csoportlistaja: id -> { id, nev, szint, db } */
+    function ksFelCsoportok() {
+        const d = ksDbAdat();
+        const m = new Map();
+        (d && Array.isArray(d.csoportok) ? d.csoportok : []).forEach(c => { if (c && c.id != null) m.set(String(c.id), c); });
+        return m;
+    }
+    function ksFelIsm(g) {
+        const es = ksEsemAdat();
+        if (!es) return false;
+        return Object.keys(es.esemenyek).some(n => (es.esemenyek[n] || []).some(x => String(x.id) === String(g) && x.ism));
+    }
+    function ksFelEsemeny(nev) {
+        const f = ksFelNorm(), es = ksEsemAdat();
+        if (!es || !Array.isArray(es.esemenyek[nev])) return;
+        const i = f.e.indexOf(nev);
+        if (i >= 0) {
+            f.e.splice(i, 1);
+            const marad = new Set();
+            f.e.forEach(n => (es.esemenyek[n] || []).forEach(x => marad.add(String(x.id))));
+            es.esemenyek[nev].forEach(x => { const k = String(x.id), v = f.s[k]; if (v && v.src === "e" && !marad.has(k)) delete f.s[k]; });
+        } else {
+            f.e.push(nev);
+            es.esemenyek[nev].forEach(x => { const k = String(x.id); if (!f.s[k]) f.s[k] = { on: x.ism ? 0 : 1, src: "e" }; });
+        }
+        beallMent(); rajzol();
+    }
+    let ksFelAkt = 0;
+    function ksFelKeresoLista(szuro) {
+        const t = ekNelkul(String(szuro || "").trim());
+        if (!t) return [];
+        const f = ksFelNorm();
+        const ki = [];
+        ksFelCsoportok().forEach((c, k) => { if (!f.s[k] && ekNelkul(c.nev).indexOf(t) >= 0) ki.push(c); });
+        ki.sort((a, b) => String(a.nev).localeCompare(String(b.nev), "hu"));
+        return ki.slice(0, 40);
+    }
+    function ksFelKeresoRajz(nyit) {
+        const inp = gyoker && gyoker.querySelector(".felkereso");
+        const ul = gyoker && gyoker.querySelector(".fellista");
+        const x = gyoker && gyoker.querySelector("[data-feltorol]");
+        if (!inp || !ul) return;
+        if (x) x.hidden = !inp.value;
+        const l = ksFelKeresoLista(inp.value);
+        if (!nyit || !l.length) { ul.hidden = true; ul.innerHTML = ""; return; }
+        if (ksFelAkt >= l.length) ksFelAkt = l.length - 1;
+        if (ksFelAkt < 0) ksFelAkt = 0;
+        ul.innerHTML = l.map((c, i) => `<li class="${i === ksFelAkt ? "akt" : ""}" data-felvalaszt="${Number(c.id)}"><span class="jnev"><b>${esc(c.nev)}</b> <span class="sor">(${Number(c.szint) || "?"}. szint · ${Number(c.db) || "?"} rész)</span></span></li>`).join("");
+        ul.hidden = false;
+        const akt = ul.querySelector("li.akt");
+        if (akt && akt.scrollIntoView) try { akt.scrollIntoView({ block: "nearest" }); } catch (e2) { /* nem baj */ }
+    }
+    function ksFelHozzaad(g) {
+        const f = ksFelNorm(), k = String(Number(g));
+        if (!ksFelCsoportok().has(k)) return;
+        if (!f.s[k]) f.s[k] = { on: 1, src: "k" };
+        const inp = gyoker && gyoker.querySelector(".felkereso");
+        if (inp) inp.value = "";
+        ksFelAkt = 0;
+        beallMent(); rajzol();
+    }
+    /* ---- t85 (MrA, 2026-10-06, Terv 35b): FELKESZULES OSSZESITES ----
+       A bekapcsolt sorok MEG NEM KESZ reszeinek targyigenye, a tw-calc
+       adatbazisbol (az alap tovabbra is a tw-calc; a tudasbazis csak hozzatesz,
+       t86). Szabalyok (MrA):
+       - leadando targy (r.t): reszenkent osszeadva; a resz felveteli targya
+         (r.et) ugyanabban a reszben legfeljebb egyszer (a nagyobb darab);
+       - viselendo targy (et viselve / r.w): 1 db, nem adodik ossze;
+       - valaszthato agak (ksSzamol valaszt): egy csoporton belul a nagyobb igeny;
+       - ismetelheto resz (r.i, vagy "várnod kell N nap"): egyszer szamolva,
+         jelolve, a jatekos szorozza fel;
+       - a kalandsor sajat jutalma (r.k) nem kerul a beszerzendok koze, kulon
+         blokkban latszik;
+       - a mas mesterseg aga es a kesz / kiesett resz kimarad (ksSzamol); a
+         karakter szintje folotti resz latszik;
+       - a csak a resz felvetele utan eso targy (r.r) kulon blokk, a feltetel-
+         lanccal (ksLancHTML), elore nem gyujtheto.
+       t86 (MrA, 2026-10-07): MINDIG A TELJES IGENY. Az eseményes kalandsorok
+       evrol evre visszajonnek, ezert a mar megoldott es a felvett resz is
+       beleszamit; a lezart lista (a kalandkonyv megnyitasakor betoltodik) nem
+       vag le semmit. MERT a t85-on: a kalandkonyv megnyitasa utan az
+       Oktoberfest "Előre beszerezhető" 49 hianyzorol 2-re esett. */
+    function ksFelOsszesit() {
+        const f = ksFelNorm(), d = ksDbAdat();
+        if (!d || !d.sorok) return null;
+        const kesz = new Set(), felv = new Set();
+        const prof = Number(jatek().Character && jatek().Character.professionId) || 0;
+        const M = new Map(), adja = new Map();
+        const hely = (id, g, s, db, visel, ism, nap, csak, ag, vnap) => {
+            if (!M.has(id)) M.set(id, { id, sorok: new Map() });
+            const t = M.get(id);
+            if (!t.sorok.has(g)) t.sorok.set(g, { g, cim: s.cim, db: 0, visel: false, ism: false, nap: 0, vnap: 0, csak: true, ag: false });
+            const h = t.sorok.get(g);
+            if (visel) h.visel = true; else h.db += db;
+            h.ism = h.ism || ism; h.nap = Math.max(h.nap, nap || 0); h.vnap = Math.max(h.vnap, vnap || 0); h.csak = h.csak && csak; h.ag = h.ag || ag;
+        };
+        Object.keys(f.s).filter(k => f.s[k].on && d.sorok[k]).forEach(g0 => {
+            const s = d.sorok[g0], g = Number(g0), R = s.reszek || [];
+            let st = null;
+            try { st = ksSzamol(s, { felvett: felv, megoldott: kesz, prof }); } catch (e) { st = null; }
+            /* MERT (proba-t85, 2026-10-06): a ksSzamol KOZELITES szabalya (a kesz /
+               felvett resz elotti gyoker reszek kesznek szamitanak) olyan sornal,
+               amelyben MEG SEMMI nincs kesz vagy felveve, minden gyoker reszt kesznek
+               venne (2020-as Tökvadászat: 3230-3233). A Felkeszules eppen ilyen
+               sorokat nez, ezert ott a "kesz" visszaall "hatra"-ra. A ksSzamol maga
+               nem valtozik (a kovetett soroknal mindig van kesz vagy felvett resz). */
+            if (st && !R.some(r => kesz.has(Number(r.id)) || felv.has(Number(r.id))))
+                st.allapot.forEach((v, id) => { if (v === "kesz") st.allapot.set(id, R.find(r => r.id === id && ksIsmE(r)) ? "ism" : "hatra"); });
+            const jut = new Set(), rejt = new Set();
+            R.forEach(r => { (r.k || []).forEach(x => jut.add(Number(x))); (r.r || []).forEach(x => rejt.add(Number(x[0]))); });
+            const agok = new Map();
+            R.forEach(r => {
+                const a = st ? st.allapot.get(r.id) : "hatra";
+                if (a === "kesz" || a === "ki") return;
+                const per = new Map();
+                const tesz = (id, db, visel) => { id = Number(id); const p = per.get(id) || { db: 0, visel: false }; if (visel) p.visel = true; else p.db = Math.max(p.db, Number(db) || 1); per.set(id, p); };
+                (r.t || []).forEach(([id, db]) => tesz(id, db, false));
+                let et = [];
+                try { et = ksEleresTargyak(r, s); } catch (e) { et = (r.et || []).map(([id, db, v]) => ({ id, db, viselet: !!v })); }
+                et.forEach(t => tesz(t.id, t.db, !!t.viselet));
+                (r.w || []).forEach(id => tesz(id, 1, true));
+                /* t86: csak a sajat magara varo resz napjai (az elozo reszre varo egyszeri);
+                   a sajat magara varo resz "i" jel nelkul is (2020-as Tökvadászat 3235-3238) */
+                const sajV = ksVarRef(r).find(x => x.id === Number(r.id));
+                const napM = sajV ? [null, String(sajV.nap)] : (ksIsmE(r) ? /várnod kell (\d+) nap/.exec(String(r.x || "")) : null);
+                const ism = a === "ism" || !!napM;
+                /* t86: masik reszre varas (elozo resz, vagy MERT: Karácsony 43343 a
+                   2043346 utan 181 nap, a ket evjarat ikerreszei) nem ismetles:
+                   "N nap várakozás" jel */
+                const vnap = !napM ? ksVarRef(r).filter(x => x.id !== Number(r.id)).reduce((m, x) => Math.max(m, x.nap), 0) : 0;
+                const vg = st && st.valaszt ? st.valaszt.get(r.id) : null;
+                per.forEach((p, id) => {
+                    /* t86i (MrA): a kalandsor adja; t86j (MrA): viselendonel csak "viseld" */
+                    if (jut.has(id)) { if (!adja.has(id)) adja.set(id, { id, sorok: new Map(), visel: false }); adja.get(id).sorok.set(g, s.cim); if (p.visel && !p.db) adja.get(id).visel = true; return; }
+                    if (p.visel && p.db) p.visel = false;
+                    if (vg != null) {
+                        const m = agok.get(vg) || new Map(), q = m.get(id) || { db: 0, visel: false, ism: false, nap: 0 };
+                        q.db = Math.max(q.db, p.db); q.visel = q.visel || p.visel; q.ism = q.ism || ism; q.nap = Math.max(q.nap, napM ? Number(napM[1]) : 0); q.vnap = Math.max(q.vnap || 0, vnap);
+                        m.set(id, q); agok.set(vg, m); return;
+                    }
+                    hely(id, g, s, p.db, p.visel, ism, napM ? Number(napM[1]) : 0, rejt.has(id), false, vnap);
+                });
+            });
+            agok.forEach(m => m.forEach((q, id) => hely(id, g, s, q.db, q.visel && !q.db, q.ism, q.nap, rejt.has(id), true, q.vnap)));
+        });
+        const lista = [...M.values()].map(t => {
+            const h = [...t.sorok.values()];
+            const db = h.reduce((n, x) => n + x.db, 0);
+            const csak = h.every(x => x.csak);
+            return Object.assign(t, { helyek: h, db: db > 0 ? db : 1, viselet: db === 0, csak, sorDb: h.length });
+        });
+        return { lista, adja: [...adja.values()] };
+    }
+    /* t86: a tudasbazis (kalandsegito-kb.json) forrasszovegei targyankent.
+       MERT (2026-10-06): a reszek t-listajaban [targy, db, forras-index] a
+       harmadik elem a forrasok[] indexe (115 targysor, 52 kulonbozo mondat). */
+    let ksKbFMemo = null;
+    function ksFelKbForras() {
+        const kb = ksKbAdat();
+        if (ksKbFMemo && ksKbFMemo.kb === kb) return ksKbFMemo.m;
+        const m = new Map();
+        if (kb && Array.isArray(kb.forrasok)) Object.keys(kb.sorok || {}).forEach(g => {
+            const r = (kb.sorok[g] || {}).r || {};
+            Object.keys(r).forEach(q => ((r[q] || {}).t || []).forEach(x => {
+                if (!Array.isArray(x) || x.length < 3 || x[2] == null) return;
+                const sz = kb.forrasok[Number(x[2])];
+                if (typeof sz !== "string" || !sz.trim()) return;
+                const id = Number(x[0]);
+                if (!m.has(id)) m.set(id, []);
+                if (m.get(id).indexOf(sz.trim()) < 0) m.get(id).push(sz.trim());
+            }));
+        });
+        ksKbFMemo = { kb, m };
+        return m;
+    }
+    function ksKbCimke(sz) {
+        const t = String(sz || "").trim();
+        const r = /megszerezhető a (.+?) tárgyból/.exec(t);
+        if (r || /^Kalandtermék megvehető/.test(t)) return [r ? r[1] : "", /SHOP/.test(t) ? "bolt" : "", /piac/i.test(t) ? "piac" : ""].filter(Boolean).join(" / ") || "kalandtermék";
+        const dz = /^Dolgozz itt:\s*"?([^"]+?)"?$/.exec(t);
+        if (dz) return dz[1];
+        if (/alábbi munk|térképen található munk|ami a térképen/.test(t)) return "munkából";
+        if (/:$/.test(t)) return "lásd leírás";
+        return t.length > 28 ? t.slice(0, 26).trim() + "…" : t;
+    }
+    function ksFelBontas(t) {
+        return `<span class="kis felbont">` + t.helyek.map(x => esc(x.cim) + " " + (x.visel && !x.db ? "viseld" : x.db) +
+            (x.nap ? ` <span class="jel valt" data-bub="Az ismételhető rész egyszer számolva; ha többször csinálod, szorozd fel.">${x.nap} naponta ismételhető</span>` : x.ism ? ` <span class="jel valt" data-bub="Ismételhető rész: egyszer számolva.">ismételhető</span>` : x.vnap ? ` <span class="jel valt" data-bub="A tw-calc szerint egy másik rész után ennyi napot kell várnod, mielőtt felveheted. Nem ismétlés: egyszer számolva.">${x.vnap} nap várakozás</span>` : "") +
+            (x.ag ? ` <span class="jel valf" data-bub="Választható ág: csak az egyik ág kell, a nagyobb igény számít.">egyik ág</span>` : "")).join(" · ") + `</span>`;
+    }
+    function ksFelTargyakHTML(o) {
+        const kep = id => { const t = targyAdat(id); return t && t.image ? String(t.image) : ""; };
+        const nevT = id => { const t = targyAdat(id); return t && t.name ? String(t.name) : "#" + id; };
+        const hiany = t => { const v = t.viselet ? (ksViselve(t.id) ? 1 : 0) : (keszlet(t.id) || 0); return Math.max(0, t.db - v); };
+        const rend = (a, b) => hiany(b) - hiany(a) || String(nevT(a.id)).localeCompare(String(nevT(b.id)), "hu");
+        /* t86 (MrA, t85 atnezese): a "Bolt, piac vagy más forrás" sorokban a
+           tudasbazis forrasszovege (rovid cimke, a buborekban a teljes mondat);
+           ha mas forrast nem ismerunk, a "forrás ismeretlen" helyere kerul */
+        const kbF = ksFelKbForras();
+        const sor = (t, egyeb) => {
+            const kb = egyeb ? kbF.get(Number(t.id)) : null;
+            let jel = kb ? kb.map(x => `<span class="jel kbf" data-bub="${esc("Tudásbázis: " + x)}">${esc(ksKbCimke(x))}</span>`).join(" ") : "";
+            let gombHTML;
+            if (jel && hiany(t) > 0) {
+                let gm = "";
+                try { gm = targyMuveletHTML({ id: t.id, hiany: hiany(t), forras: munkaForras(t.id), gyart: null }); } catch (e) { gm = ""; }
+                if (/forrás ismeretlen/.test(gm)) { gombHTML = jel + gm.replace(/^<span class="elobb"[\s\S]*?<\/span>/, ""); jel = ""; }
+            }
+            return ksTargySorHTML({ id: t.id, db: t.db, csak: t.csak, jutalom: "", viselet: t.viselet, sorDb: t.sorDb, noElore: true, gombHTML }, kep, nevT, ksFelBontas(t) + (jel ? " " + jel : ""));
+        };
+        /* t86 (MrA): alcsoportonkent a megvan sorok osszecsukva ("Megvan: N tárgy ▸") */
+        const blokk = (k, lista, egyeb) => {
+            const hi0 = lista.filter(t => hiany(t) > 0).sort(rend), mv = lista.filter(t => hiany(t) <= 0).sort(rend);
+            let x = hi0.map(t => sor(t, egyeb)).join("");
+            if (mv.length) {
+                const ny = !!(beall.kinyit && beall.kinyit["fzmeg-" + k]);
+                x += `<div class="osszecsuk fzmeg"><button type="button" class="ugras" data-kinyit="fzmeg-${k}" aria-expanded="${ny ? "true" : "false"}">Megvan: ${mv.length} tárgy ${ny ? "▴" : "▸"}</button></div>`;
+                if (ny) x += mv.map(t => sor(t, egyeb)).join("");
+            }
+            return x;
+        };
+        const elore = o.lista.filter(t => !t.csak), csak = o.lista.filter(t => t.csak);
+        const csop = { gyart: [], munka: [], egyeb: [] };
+        elore.forEach(t => {
+            let fo = null;
+            try { fo = munkaForras(t.id); } catch (e) { fo = null; }
+            (GYART_MAP.has(String(t.id)) ? csop.gyart : fo ? csop.munka : csop.egyeb).push(t);
+        });
+        let h = "";
+        const hi = elore.filter(t => hiany(t) > 0).length;
+        h += `<div class="csoport felelore">` + ksFejHTML("fel-elore", `<span class="nev" data-bub="A kalandok felvétele előtt is összegyűjthető tárgyak.">Előre beszerezhető</span>`, `<b>${hi} hiányzik · ${elore.length} tárgy</b>`);
+        if (!ksZartE("fel-elore")) {
+            if (!elore.length) h += `<div class="osszecsuk">Nincs előre beszerezhető tárgy a bekapcsolt kalandsorokban.</div>`;
+            [["munka", "Munkából"], ["gyart", "Gyártható"], ["egyeb", "Bolt, piac vagy más forrás"]].forEach(([k, cim]) => {
+                if (!csop[k].length) return;
+                h += `<div class="kmfej"><b>${cim}</b> <span class="kis">${csop[k].length} tárgy</span></div>` + blokk(k, csop[k], k === "egyeb");
+            });
+        }
+        h += `</div>`;
+        if (csak.length) {
+            h += `<div class="csoport felcsak">` + ksFejHTML("fel-csak", `<span class="nev" data-bub="Csak akkor esik, ha a rész fel van véve; előre nem gyűjthető. Alatta: mi kell az eséshez.">Csak a rész felvétele után esik</span>`, `<b>${csak.length} tárgy</b>`);
+            if (!ksZartE("fel-csak")) h += blokk("csak", csak, false);
+            h += `</div>`;
+        }
+        if (o.adja.length) {
+            h += `<div class="csoport feladja">` + ksFejHTML("fel-adja", `<span class="nev" data-bub="Egy korábbi rész jutalma ugyanabban a kalandsorban: nem kell beszerezni.">A kalandsor adja</span>`, `<b>${o.adja.length} tárgy</b>`);
+            if (!ksZartE("fel-adja")) h += o.adja.map(a => `<div class="bsor kesz"><div class="nv"><button type="button" class="ikonmasol" data-masol="${Number(a.id)}" aria-label="${esc("Kattints: [item=" + Number(a.id) + "] a vágólapra, a chatbe illeszthető")}">${kep(a.id) ? `<img class="kicsikep" src="${esc(kep(a.id))}" alt="">` : `<span class="kicsikep"></span>`}</button><span><b>${esc(nevT(a.id))}</b> <span class="jel jut">jutalom</span><br><span class="kis felbont">${esc([...a.sorok.values()].join(" · "))}</span></span></div><div></div><div class="jobb"><b>${a.visel ? "viseld" : "megkapod"}</b></div><div></div></div>`).join("");
+            h += `</div>`;
+        }
+        return { html: h, hiany: hi, csak: csak.length };
+    }
+    function ksFelNezet() {
+        ksDbFrissit();
+        ksFajlFrissit(KS_ESEM, KS_ESEM_URL, ksEsemJo);
+        ksFajlFrissit(KS_KB, KS_KB_URL, ksKbJo);
+        const f = ksFelNorm(), es = ksEsemAdat(), cs = ksFelCsoportok();
+        const ea = ksFajlAll[KS_ESEM] || {};
+        let gombok;
+        if (es) gombok = Object.keys(es.esemenyek).filter(n => Array.isArray(es.esemenyek[n]) && es.esemenyek[n].length)
+            .map(n => `<button type="button" class="pkat${f.e.indexOf(n) >= 0 ? " aktiv" : ""}" data-felesem="${esc(n)}" data-bub="${esc(f.e.indexOf(n) >= 0 ? "Újra kattintva az esemény kalandsorai kikerülnek." : es.esemenyek[n].length + " kalandsor")}">${esc(n)}</button>`).join("");
+        else gombok = `<span class="kis">${ea.allapot === "hiba" ? "Az eseménylistát nem sikerült letölteni (" + esc(ea.hiba) + "); a keresővel addig is felvehetsz kalandsort." : "Az eseménylista betöltése…"}</span>`;
+        const kulcsok = Object.keys(f.s).filter(k => cs.has(k));
+        const be = kulcsok.filter(k => f.s[k].on).length;
+        const ossz = kulcsok.length ? `${kulcsok.length} kalandsor kiválasztva, ebből ${be} bekapcsolva<!--felossz--> <button type="button" class="gomb kisgomb" data-felurit data-bub="Minden kiválasztott kalandsor kikerül; a lista üres lesz.">Lista ürítése</button>` : "Nincs kiválasztva semmi";
+        let eszk = `<div class="eszkozsor">
+            <div class="osszegzes">${ossz}</div>
+            <div class="fok"><span>Esemény:</span><span class="pkatvalaszto felesemek">${gombok}</span></div>
+          </div>
+          <div class="ugro kssav"><div class="jwrap"><input class="felkereso" type="text" autocomplete="off" spellcheck="false" placeholder="Kalandsor hozzáadása az adatbázisból (név)" aria-label="Kalandsor hozzáadása"><button type="button" class="torlo" data-feltorol hidden aria-label="Keresés törlése">✕</button><ul class="jlista fellista" hidden></ul></div></div>`;
+        if (!cs.size) return { eszk, html: `<div class="ures">${ksDbAll.allapot === "folyamatban" ? "Az adatbázis betöltése…" : "Az adatbázis még nincs meg; a kalandsorok listája nélküle üres."}</div>` };
+        if (!kulcsok.length) return { eszk, html: `<div class="ures felures">Válassz egy eseményt, vagy adj hozzá kalandsort a keresővel.<br>A lista üres marad, amíg nem választasz.</div>` };
+        /* t86f (MrA, 2026-10-07): honap-jel (az eseményfajl "ho" mezoje, az Egyeb
+           csoportnal); a honappal jelolt sorok elol, honap szerint, a tobbi nev szerint */
+        const HONAPOK = ["január", "február", "március", "április", "május", "június", "július", "augusztus", "szeptember", "október", "november", "december"];
+        const hoT = new Map();
+        if (es) Object.keys(es.esemenyek).forEach(n => (es.esemenyek[n] || []).forEach(x => { if (x && typeof x.ho === "string" && x.ho) hoT.set(String(x.id), x.ho); }));
+        const hoSz = k => { const i = HONAPOK.indexOf(String(hoT.get(k) || "").toLowerCase()); return i < 0 ? 99 : i; };
+        const sorrend = kulcsok.slice().sort((a, b) => hoSz(a) - hoSz(b) || String(cs.get(a).nev).localeCompare(String(cs.get(b).nev), "hu"));
+        /* t86b (MrA, 2026-10-07): a t85-os teto marad, a "Kiválasztott kalandsorok"
+           blokk osszecsukhato, mint a tobbi (alapbol nyitva, az allapotat megjegyzi).
+           A t86 / t86a ket lenyiloja kikerult. */
+        let h = `<div class="csoport felsorok">` + ksFejHTML("fel-sorok", `<span class="nev">Kiválasztott kalandsorok</span>`, `<b>${be} / ${kulcsok.length} bekapcsolva</b>`);
+        if (!ksZartE("fel-sorok")) sorrend.forEach(k => {
+            const c = cs.get(k), v = f.s[k];
+            const ism = ksFelIsm(k) ? ` <span class="jel valt" data-bub="Ismételhető kalandsor: kikapcsolva jön, mert az igénye attól függ, hányszor csinálod.">ismételhető</span>` : "";
+            const tc = `<a class="klink" href="${esc(KS_URL + Number(k) + "?lang=hu")}" target="_blank" rel="noopener" data-bub="A kalandsor a TW-Calc.net oldalon" aria-label="A kalandsor a TW-Calc.net oldalon"><img class="tckep" src="${esc(CDN)}items/yield/book_plain.png" alt="TC"></a>`;
+            h += `<div class="kmsor felsor${v.on ? "" : " ki"}"><span class="hol"><button type="button" class="pkat${v.on ? " aktiv" : ""}" data-felki="${Number(k)}" data-bub="${v.on ? "Kikapcsolás: nem számol bele az összesítésbe." : "Bekapcsolás"}" aria-pressed="${v.on ? "true" : "false"}">✓</button> <b>${esc(c.nev)}</b> <span class="jel munka">szint ${Number(c.szint) || "?"}</span>${hoT.has(k) ? ` <span class="jel honap" data-bub="Ebben a hónapban szokott jönni (az eseményfájl szerint).">${esc(hoT.get(k))}</span>` : ""}${ism}</span><span class="tav">${Number(c.db) || "?"} rész</span><span class="linkek">${tc}</span></div>`;
+        });
+        h += `</div>`;
+        let o = null;
+        try { o = ksFelOsszesit(); } catch (e) { o = null; }
+        if (o && be) {
+            const th = ksFelTargyakHTML(o);
+            h += th.html;
+            eszk = eszk.replace("<!--felossz-->", ` · <b>${th.hiany}</b> tárgy hiányzik${th.csak ? ` · ${th.csak} csak felvétel után` : ""}`);
+        } else if (!be) h += `<div class="ures">Minden kalandsor ki van kapcsolva; kapcsolj be legalább egyet az összesítéshez.</div>`;
+        return { eszk, html: h };
+    }
     function ksDbDatum(t) { const m = /^(\d{4}-\d{2}-\d{2})/.exec(String(t || "")); return m ? m[1] : ""; }
     function ksDbBubSzoveg() {
         const d = ksDbAdat();
@@ -6589,7 +7334,9 @@ const RECEPT_TEKERCS = {
     /* t66 (C, MrA): amig nyitva a panel es az Osszesito fulon vagy, a
        kalandsorok sorrendje nem valtozik; uj sor a vegere kerul. Ujra csak
        panelnyitaskor vagy fulvaltaskor rendez. */
-    let ksTgyRend = null, ksTgyNezet = 0, ksSorRend = null, ksMostIdx = -1, ksTgyPotolva = false;
+    let ksTgyRend = null, ksTgyNezet = 0, ksMostIdx = -1, ksTgyPotolva = false;
+    /* t86j: a leadhato kalandsorok az elozo Kalandsorok-rajzolaskor, es az azota ujak */
+    let ksLeadElozo = null, ksLeadUjG = [];
     function ksTgyUjNezet() { ksTgyNezet++; }
     function ksTargyasAdat(kerNelkul) {
         /* az adatbazis akkor is kell, ha nincs felvett kaland (naponta legfeljebb 1 keres) */
@@ -6629,7 +7376,7 @@ const RECEPT_TEKERCS = {
                 if (!r.et || !r.et.length) { tNelkul.push(r); return; }
                 if (kesz.has(id) || felv.has(id)) return;
                 if (szint && Number(r.sz) > szint) return;
-                if (r.m && prof && Number(r.m) !== prof) return;
+                if (ksReszM(r) && prof && ksReszM(r) !== prof) return;
                 const x = String(r.x || "");
                 const datumos = /Dátum:|Hónap:/.test(x);
                 const napM = /(?:^|\s)Nap:\s*([A-Za-zÁÉÍÓÖŐÚÜŰáéíóöőúüű]+)/.exec(x);
@@ -6667,7 +7414,7 @@ const RECEPT_TEKERCS = {
                 const id = Number(r.id);
                 if (kesz.has(id) || felv.has(id)) return;
                 if (szint && Number(r.sz) > szint) return;
-                if (r.m && prof && Number(r.m) !== prof) return;
+                if (ksReszM(r) && prof && ksReszM(r) !== prof) return;
                 const x = String(r.x || "");
                 if (/Dátum:|Hónap:/.test(x)) return;
                 let jo = true;
@@ -6986,7 +7733,7 @@ const RECEPT_TEKERCS = {
                 return ki.length ? ki : null;
             };
             const reszek = s.reszek.map(r => ({ id: r.id, nev: r.n, allapot: e.allapot.get(r.id), felvElobb: felvElobb(r), eh: r.eh || null,
-                valaszt: e.valaszt.get(r.id) || 0, valF: e.valF && e.valF.get(r.id) ? { cs: e.valF.get(r.id).cs, mas: e.valF.get(r.id).mas.map(x => (s.reszek.find(y => y.id === x) || {}).n || ("#" + x)) } : null, most: e.most.has(r.id), m: r.m || 0, x: r.x || "", lx: (r.s || []).filter(t => /^(Nap|Szerveridő|Dátum):/.test(String(t))).join(" "), korlat: felvKorlat.get(r.id) || "", mb: r.mb || "", mn: r.mn || "", kulso: e.kulso && e.kulso.get(r.id) ? e.kulso.get(r.id).map(ids => ids.map(x => (r.en && r.en[x]) || ("#" + x))) : null, kov: e.allapot.get(r.id) === "hatra" && kell(r.id).size === 0,
+                valaszt: e.valaszt.get(r.id) || 0, iker: !!(e.iker && e.iker.has(r.id)), valF: e.valF && e.valF.get(r.id) ? { cs: e.valF.get(r.id).cs, mas: e.valF.get(r.id).mas.map(x => (s.reszek.find(y => y.id === x) || {}).n || ("#" + x)) } : null, most: e.most.has(r.id), m: ksReszM(r), x: r.x || "", lx: (r.s || []).filter(t => /^(Nap|Szerveridő|Dátum):/.test(String(t))).join(" "), korlat: felvKorlat.get(r.id) || "", mb: r.mb || "", mn: r.mn || "", kulso: e.kulso && e.kulso.get(r.id) ? e.kulso.get(r.id).map(ids => ids.map(x => (r.en && r.en[x]) || ("#" + x))) : null, kov: e.allapot.get(r.id) === "hatra" && kell(r.id).size === 0,
                 targyDb: (r.t || []).length, viseletDb: (r.w || []).length, munkaDb: (r.j || []).length,
                 tav: e.allapot.get(r.id) === "hatra" ? kellF(r.id).size : 0,
                 tavH: e.allapot.get(r.id) === "hatra" ? kell(r.id).size : 0,
@@ -7345,6 +8092,11 @@ const RECEPT_TEKERCS = {
                 else { const k = "g" + Number(el.getAttribute("data-fokusz")); if (beall.fokusz[k]) delete beall.fokusz[k]; else beall.fokusz[k] = 1; }
                 ksFokuszNyitva = true; beallMent(); rajzol(); return;
             }
+            /* t84: Felkeszules ful */
+            if (el.hasAttribute("data-felesem")) { ksFelEsemeny(el.getAttribute("data-felesem")); return; }
+            if (el.hasAttribute("data-felki")) { const f = ksFelNorm(), k = String(Number(el.getAttribute("data-felki"))); if (f.s[k]) { f.s[k].on = f.s[k].on ? 0 : 1; beallMent(); rajzol(); } return; }
+            if (el.hasAttribute("data-felurit")) { const f = ksFelNorm(); f.s = {}; f.e = []; beallMent(); rajzol(); return; }
+            if (el.hasAttribute("data-feltorol")) { const i = gyoker.querySelector(".felkereso"); if (i) { i.value = ""; ksFelAkt = 0; ksFelKeresoRajz(false); try { i.focus(); } catch (e2) { /* nem baj */ } } return; }
             if (el.hasAttribute("data-ful")) { const uj = el.getAttribute("data-ful"); if (uj !== beall.ful) { ksFulHelyMent(); ksTgyUjNezet(); } beall.ful = uj; ksVissza.length = 0; beallMent(); rajzol(); ksFulHelyVissza(); return; }
             if (el.hasAttribute("data-vissza")) { ksVisszaLep(); return; }
             if (el.hasAttribute("data-ksell")) {
@@ -7474,6 +8226,12 @@ const RECEPT_TEKERCS = {
             if (el.hasAttribute("data-felvesz")) { felvesz(Number(el.getAttribute("data-felvesz"))); return; }
             if (el.hasAttribute("data-fegyverle")) { fegyverLe(); return; }
             if (el.hasAttribute("data-bolt")) { boltKeres(Number(el.getAttribute("data-bolt"))); return; }
+            /* t86k: Templom ▸ es Parbajok ▸ */
+            if (el.hasAttribute("data-templom")) { ksTemplom(); return; }
+            if (el.hasAttribute("data-parbaj")) { ksParbaj(); return; }
+            /* t86l: Kalandok ▸ es Erodharc ▸ */
+            if (el.hasAttribute("data-mpi")) { ksJatekAblak("MultiplayerWindow", "A Többjátékos mód"); return; }
+            if (el.hasAttribute("data-erod")) { ksJatekAblak("FortOverviewWindow", "Az Erőd áttekintés"); return; }
             if (el.hasAttribute("data-upbolt")) { upNyit(Number(el.getAttribute("data-upbolt"))); return; }
             if (el.hasAttribute("data-targymunka")) { targyMunkaNyit(Number(el.getAttribute("data-targymunka"))); return; }
             if (el.hasAttribute("data-gyart")) { gyartIndit(el.getAttribute("data-gyart"), Number(el.getAttribute("data-db"))); return; }
@@ -7699,6 +8457,18 @@ button.leadjel:hover{text-decoration:underline}
 /* t16q: kalandkereso (a Kereskedopult jwrap/jlista mintaja) */
 .ugro.kssav{flex-wrap:nowrap;align-items:flex-start;position:relative;z-index:6}
 .kssav .jwrap{position:relative;flex:1 1 auto;min-width:0}
+.kssav .felkereso{width:100%;box-sizing:border-box;height:24px;padding:2px 26px 2px 8px;border:1px solid #8f7a51;background:#fbf5e6;font:12px Arial,sans-serif;color:#211b12}
+.felesemek{display:flex;flex-wrap:wrap;gap:3px}
+.fzmeg{padding-left:36px}
+.jel.honap{border-color:#5a7fa8;background:#e6f1fb;color:#0c447c}
+.csoport.elakadt .elsor .tav{white-space:nowrap}
+.elfelt{padding:0 0 4px 36px}
+.elnyit{font-size:11px;margin-top:2px}
+.ksor.nyers.gombos{grid-template-columns:minmax(0,1fr) auto;align-items:center}
+.felsor.ki{opacity:.5}
+.felsor .pkat{min-width:22px;padding:1px 5px}
+.felures{text-align:center;padding:24px 12px}
+.felbont{color:#5b482d}
 .kssav .kskereso{width:100%;box-sizing:border-box;height:24px;padding:2px 26px 2px 8px;border:1px solid #8f7a51;background:#fbf5e6;font:12px Arial,sans-serif;color:#211b12}
 .kssav .torlo{position:absolute;right:3px;top:2px;width:20px;height:20px;border:0;background:transparent;color:#6b4f2a;font:700 12px Arial;cursor:pointer;padding:0}
 .kssav .torlo[hidden],.kssav .jlista[hidden]{display:none}
@@ -7831,6 +8601,12 @@ button.jel.most{cursor:pointer;color:#fff0cc;border-color:#2f4a26;background:#4d
 /* t16m: a TESZT frissites-proba gombja a felso savban, a verzio mellett */
 .bar .frissjel{position:absolute;left:92px;top:2px;margin:0;padding:1px 8px;border:1px solid #2f6140;border-radius:3px;background:#3d7a52;color:#fff;font:700 10px/14px Arial,sans-serif;cursor:pointer;z-index:2}
 .bar .frissjel:hover{background:#2f6140}
+/* t86k (MrA, Terv 38 A + 41/1): Esemenyek gomb a cimsor jobb vegen (naptar),
+   az Esemenyek nezetben kiemelve, mint egy kivalasztott ful */
+.esemgomb{position:absolute;right:14px;top:30px;width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;border:2px solid #2b1c0e;border-radius:4px;background:linear-gradient(#7a5530,#4a3018);cursor:pointer;z-index:2}
+.esemgomb svg{width:18px;height:18px;display:block}
+.esemgomb:hover{filter:brightness(1.15)}
+.esemgomb.aktiv{background:linear-gradient(#c9a64e,#8a6a22);border-color:#f3d77a;box-shadow:0 0 0 2px #2b1c0e,0 0 8px #f3d77a}
 .kiemel{box-shadow:inset 0 0 0 2px #c9962f;background-color:#f3dd9c88;transition:background-color .3s}
 .csoport{margin-bottom:8px}
 .bfej,.bfej.kozos{border:0;border-bottom:1px solid #a18b60;min-height:31px;padding:4px 6px;gap:6px}
@@ -7972,6 +8748,7 @@ span.kicsikep.ures{background:transparent}
               <button type="button" class="ctl zar" data-mit="bezar" title="Bezárás" aria-label="Bezárás"></button>
             </div>
             <div class="mark">${esc(ABLAK_CIM)}</div>
+            <button type="button" class="esemgomb" data-ful="fel" data-bub="Események" aria-label="Események"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="4" width="16" height="14" rx="1" fill="#f5e6c2"/><rect x="2" y="4" width="16" height="4" fill="#a03224"/><rect x="5" y="1.5" width="2" height="5" fill="#2b1c0e"/><rect x="13" y="1.5" width="2" height="5" fill="#2b1c0e"/><circle cx="10" cy="13" r="2.4" fill="#a03224"/></svg></button>
           </div>
           <div class="stage" id="stage"></div>
           <div class="grip" id="grip" role="separator" aria-label="Ablak magassága" aria-orientation="horizontal" tabindex="0" title="Húzd fel vagy le az ablak magasságának állításához"><span></span></div>`;
@@ -8015,6 +8792,25 @@ span.kicsikep.ures{background:transparent}
         gyoker.addEventListener("input", e => { if (e.target && e.target.classList && e.target.classList.contains("kskereso")) { ksKeresoAkt = 0; ksKeresoRajz(true); } });
         gyoker.addEventListener("focusin", e => { if (e.target && e.target.classList && e.target.classList.contains("kskereso")) ksKeresoRajz(true); });
         gyoker.addEventListener("focusout", e => { if (e.target && e.target.classList && e.target.classList.contains("kskereso")) setTimeout(() => { const i = gyoker.querySelector(".kskereso"); if (!i || gyoker.activeElement !== i) ksKeresoRajz(false); }, 150); });
+        /* t84: a Felkeszules kereso esemenyei (kulon osztaly, hogy ne akadjon ossze a kalandkeresovel) */
+        gyoker.addEventListener("input", e => { if (e.target && e.target.classList && e.target.classList.contains("felkereso")) { ksFelAkt = 0; ksFelKeresoRajz(true); } });
+        gyoker.addEventListener("focusin", e => { if (e.target && e.target.classList && e.target.classList.contains("felkereso")) ksFelKeresoRajz(true); });
+        gyoker.addEventListener("focusout", e => { if (e.target && e.target.classList && e.target.classList.contains("felkereso")) setTimeout(() => { const i = gyoker.querySelector(".felkereso"); if (!i || gyoker.activeElement !== i) ksFelKeresoRajz(false); }, 150); });
+        gyoker.addEventListener("mousedown", e => {
+            const li = e.target && e.target.closest && e.target.closest("[data-felvalaszt]");
+            if (!li) return;
+            e.preventDefault();
+            ksFelHozzaad(Number(li.getAttribute("data-felvalaszt")));
+        });
+        gyoker.addEventListener("keydown", e => {
+            if (!(e.target && e.target.classList && e.target.classList.contains("felkereso"))) return;
+            const l = ksFelKeresoLista(e.target.value);
+            if (e.key === "ArrowDown") { e.preventDefault(); ksFelAkt = Math.min(l.length - 1, ksFelAkt + 1); ksFelKeresoRajz(true); }
+            else if (e.key === "ArrowUp") { e.preventDefault(); ksFelAkt = Math.max(0, ksFelAkt - 1); ksFelKeresoRajz(true); }
+            else if (e.key === "Enter") { e.preventDefault(); const v = l[ksFelAkt] || l[0]; if (v) ksFelHozzaad(v.id); }
+            else if (e.key === "Escape") { e.target.value = ""; ksFelKeresoRajz(false); try { e.target.blur(); } catch (e2) { /* nem baj */ } }
+            e.stopPropagation();
+        });
         gyoker.addEventListener("mousedown", e => {
             const li = e.target && e.target.closest && e.target.closest("[data-ksvalaszt]");
             if (!li) return;
@@ -8103,7 +8899,7 @@ span.kicsikep.ures{background:transparent}
         };
         bar.addEventListener("pointerdown", e => {
             if (e.pointerType === "mouse" && e.button !== 0) return;
-            if (e.target.closest && e.target.closest(".ctl,.frissjel")) return;
+            if (e.target.closest && e.target.closest(".ctl,.frissjel,.esemgomb")) return;
             le = true; bar.classList.add("fog"); pid = e.pointerId;
             const r = host.getBoundingClientRect();
             sx = r.left; sy = r.top; ox = e.clientX; oy = e.clientY;
@@ -8174,6 +8970,8 @@ span.kicsikep.ures{background:transparent}
 
     function valt(be) {
         if (!!be && !latszik) ksTgyUjNezet();
+        /* t86e: az elso panelnyitaskor a megoldott-lista (munkamenetenkent egyszer) */
+        if (!!be) { try { ksLezartOlvas(); } catch (e) { /* nem baj */ } }
         latszik = !!be;
         if (!latszik) ksIdoMegnyitva = false;
         if (!host) return;
@@ -8309,7 +9107,9 @@ span.kicsikep.ures{background:transparent}
         tart.innerHTML =
             "<div>\u00DAj verzi\u00F3 \u00E9rhet\u0151 el a Kalandseg\u00EDt\u0151b\u0151l.</div>" +
             "<div style='margin:10px 0'><b>Jelenlegi:</b> " + esc(VERZIO) + " &nbsp; <b>El\u00E9rhet\u0151:</b> " + esc(ver) + "</div>" +
-            (tetelek ? "<ul style='margin:0 0 10px;padding-left:20px;font-size:13px;line-height:1.45'>" + tetelek + "</ul>" : "") +
+                        /* t86j (MrA, A valtozat): az 1.0.3 ablaka a 10 sorbol 8-at mutatta (a
+               fix meretu ablak levagta); a lista gorgetheto, az ablak merete marad */
+            (tetelek ? "<ul style='margin:0 0 10px;padding-left:20px;font-size:13px;line-height:1.45;max-height:150px;overflow-y:auto'>" + tetelek + "</ul>" : "") +
             "<div style='margin-bottom:12px'>A gombra kattintva megny\u00EDlik a Tampermonkey telep\u00EDt\u0151 ablaka, ott el\u00E9g a Friss\u00EDt\u00E9s gombot megnyomni.</div>" +
             (proba ? "<div style='margin-bottom:12px;font-size:12px;color:#923b29'>Pr\u00F3baablak a TESZT gombj\u00E1r\u00F3l: a gomb most nem nyit telep\u00EDt\u0151t.</div>" : "");
         const gomb = document.createElement("button");
@@ -8383,6 +9183,8 @@ span.kicsikep.ures{background:transparent}
             setInterval(frissitestKeres, FRISS_IDOKOZ);
             /* t44: a Union Pacific bolt kinalatanak tanulasa (keres nelkul) */
             setInterval(upFigyel, 3000);
+            /* t86e: pipa a megbizo-ablakokban (keres csak az ablak megnyitasakor, ha kell) */
+            ksMegbizoFigyel();
             /* t47: a kalandablakok gombja (keres nelkul); ha a Quest meg
                nincs betoltve, 1 mp-enkent ujra, legfeljebb 60-szor */
             if (!ksQuestBekot()) {
