@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Munkaruha-választó
 // @namespace    the-west-munkaruha
-// @version      1.0.2
+// @version      1.0.3
 // @description  Gombok a munkaablakban: egy kattintással a legtöbb munkapontot, tapasztalatot, terméket vagy szerencsét adó ruha, a munka fokozatát is figyelembe véve; villám gomb a leggyorsabb ruhához az úthoz; zZ gomb a hotelben a legjobb regenerációs ruhához.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -66,7 +66,7 @@
     'use strict';
 
     var NEV = 'Munkaruha-választó';
-    var VERZIO = '1.0.2';
+    var VERZIO = '1.0.3';
     var TESZT = false;
 
     var WEBOLDAL = 'https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/';
@@ -86,8 +86,8 @@
     // visszaper nelkul). A ket jelolo sor nem valtozhat.
     /* VALTOZASOK KEZDETE */
     var VALTOZASOK = [
-        "A Tapasztalat \u00e9s a Gy\u0171jt\u00f6get\u0151 gomb sokkal gyorsabban keres, nagy ruhat\u00e1rn\u00e1l sem akad meg",
-        "Tipp: ha a gomb \u00e1t\u00f6lt\u00f6ztetett, mentsd el a ruh\u00e1t a Felszerel\u00e9s kezel\u0151ben (b\u00e1rmilyen n\u00e9ven), \u00e9s legk\u00f6zelebb egy l\u00e9p\u00e9sben, szinte azonnal \u00e1t\u00f6lt\u00f6z\u00f6l - m\u00e1sodperceket nyerhetsz \u00f6lt\u00f6z\u00e9senk\u00e9nt"
+        "Vill\u00e1m gomb az Eszk\u00f6z\u00f6k ablak\u00e1ban \u00e9s az \u00fatmutat\u00f3 t\u00e1bl\u00e1n is",
+        "A kalandoszt\u00f3n\u00e1l a vill\u00e1m a S\u00e9ta gomb mell\u00e9 ker\u00fclt, a hotelben a zZ az Alv\u00e1s gomb mell\u00e9"
     ];
     /* VALTOZASOK VEGE */
 
@@ -2797,7 +2797,7 @@
 
     function gombAllapot()
     {
-        $('.' + OSZTALY + '-gomb, .' + OSZTALY + '-cimkes, .' + OSZTALY + '-alvas').each(function ()
+        $('.' + OSZTALY + '-gomb, .' + OSZTALY + '-cimkes, .' + OSZTALY + '-akcio').each(function ()
         {
             var tiltott = this.getAttribute('data-tiltva') === '1';
             this.style.opacity = tiltott ? '0.4' : (allapot.dolgozik ? '0.5' : '1');
@@ -2824,7 +2824,9 @@
             'border-radius:4px;color:#f3e2b8;font-family:Georgia,serif;font-size:13px;cursor:pointer;white-space:nowrap}' +
             '.' + OSZTALY + '-cimkes[data-tiltva="1"]{border-style:dashed}' +
             '.' + OSZTALY + '-cimkes:hover{border-color:#f3e2b8}' +
-            '.' + OSZTALY + '-cimkes span{display:block;width:16px;height:16px;background-image:url(' + IKONLAP + ');background-repeat:no-repeat}';
+            '.' + OSZTALY + '-cimkes span{display:block;width:16px;height:16px;background-image:url(' + IKONLAP + ');background-repeat:no-repeat}' +
+            '.' + OSZTALY + '-akcioikon{position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;z-index:2;' +
+            'background-image:url(' + IKONLAP + ');background-repeat:no-repeat;background-position:-96px -32px}';
         document.head.appendChild(st);
     }
 
@@ -3075,9 +3077,11 @@
     /* Merve (2026-10-03): a varosi boltok osztalya tailor / gunsmith /    */
     /* general (mind trader is, de a trader-t nem vesszuk, mert mas        */
     /* kereskedoablak is viselheti).                                       */
+    /* t25 (MrA): az Eszkozok ablak (wear) is ide kerult; a kalandoszto    */
+    /* (window-quest_employer) villamja a Seta gomb melle koltozott.       */
     /* ================================================================== */
 
-    var UTICEL_ABLAKOK = ['townoverview', 'fort', 'window-quest_employer', 'tailor', 'gunsmith', 'general'];
+    var UTICEL_ABLAKOK = ['townoverview', 'fort', 'tailor', 'gunsmith', 'general', 'wear'];
     var FEJLEC_BUBOREK = '<b>Gyorsszett</b><br>Felveszi a leggyorsabb ruhát, hogy hamarabb odaérj.';
     var latottAblakok = typeof WeakSet === 'function' ? new WeakSet() : null;
 
@@ -3160,14 +3164,10 @@
     /* az Alvas gomb a jatek haromreszes gombja (div.tw2gui_button,        */
     /* bal es jobb vegzaro, kozepso hatter, textart_title) a .buttonsleep  */
     /* dobozban, 100 x 36. A zZ ugyanebbol a gombbol epul, ugyanolyan      */
-    /* magasan, a szobalista keretenek (az Alvas korul levo                */
-    /* tw2gui_groupframe_content_pane) jobb also sarkaba (MrA, t20; t19-ben */
-    /* az arak oszlopa alatt, az Alvas mellett volt, tul kozel).           */
+    /* magasan, az Alvas bal oldalara (MrA, t25; t20-t24 a szobalista      */
+    /* keretenek jobb also sarkaban, t19 az Alvas jobb oldalan volt).      */
     /* Csak atoltoztet, aludni nem kuld; alvas kozben is mukodik (MrA).    */
     /* ================================================================== */
-
-    // A zZ gomb tavolsaga a keret jobb es also szeletol, pixelben.
-    var ALVAS_SAROK_TAV = 4;
 
     var ALVAS_BUBOREK = '<b>Alvó ruha</b><br>Felveszi a legjobb regenerációs ruhát. Alvás közben is működik.';
 
@@ -3180,32 +3180,62 @@
         return false;
     }
 
-    function alvasGomb(ab)
+    /* ================================================================== */
+    /* Gomb a jatek akciogombja (Seta, Alvas) bal oldalan (t25, MrA)       */
+    /*                                                                     */
+    /* Merve (2026-10-09): a Seta es az Alvas 100 x 36-os tw2gui_button.   */
+    /* Hotel: .buttonsleep; kalandoszto: .fingerboard (az ablak            */
+    /* window-quest_employer); utmutato tabla: parbeszedablak              */
+    /* (tw2gui_dialog), a gombsor .tw2gui_dialog_actions, az elso gomb a   */
+    /* Seta (mas script utana tehet sajat gombot, majd a Megse jon).    */
+    /* A gomb negyzet, az akciogomb magassagaval, AKCIO_RES px-re balra,   */
+    /* a helyet minden korben az akciogomb tenyleges helyebol szamoljuk.   */
+    /* Merve (2026-10-09, t25): a tw2gui_button stilusa margin-top: -2px;  */
+    /* a mi gombunk helyet a jatek gombjanak mar eltolt helyebol szamoljuk,*/
+    /* ezert a sajat margonkat nullazzuk (t25-ben 2 px-szel feljebb volt). */
+    /* A res t25-ben 6 px volt, MrA szerint tul nagy.                      */
+    /* ================================================================== */
+
+    // A gomb es az akciogomb kozti res, pixelben (TESZT-ben a konzolbol allithato).
+    var AKCIO_RES = 2;
+
+    function akcioGomb(tarto, akcio, mod, buborek)
     {
-        var alvas = ab.querySelector('.buttonsleep .tw2gui_button:not(.' + OSZTALY + '-alvas)');
-        var el = ab.querySelector(':scope > .' + OSZTALY + '-alvas');
-        var ar = alvas ? alvas.getBoundingClientRect() : null;
+        var el = tarto.querySelector('.' + OSZTALY + '-akcio[data-mod="' + mod + '"]');
+        var ar = akcio ? akcio.getBoundingClientRect() : null;
         if (!ar || !ar.width)
         {
             if (el) el.style.display = 'none';
             return;
         }
+        // Az abszolut hely viszonyitasi doboza: a tarto ablak vagy parbeszedablak, ha
+        // pozicionalt, kulonben az akciogomb sajat viszonyitasi doboza.
+        var szulo = tarto;
+        try
+        {
+            if (getComputedStyle(tarto).position === 'static' && akcio.offsetParent) szulo = akcio.offsetParent;
+        }
+        catch (e)
+        {}
         if (!el)
         {
             el = document.createElement('div');
-            el.className = 'tw2gui_button ' + OSZTALY + '-alvas';
+            el.className = 'tw2gui_button ' + OSZTALY + '-akcio' + (mod === 'alvas' ? ' ' + OSZTALY + '-alvas' : '');
+            el.setAttribute('data-mod', mod);
             el.innerHTML = '<div class="tw2gui_button_right_cap"></div><div class="tw2gui_button_left_cap"></div>' +
-                '<div class="tw2gui_button_middle_bg"></div><div class="textart_title">zZ</div>';
+                '<div class="tw2gui_button_middle_bg"></div>' +
+                (mod === 'alvas' ? '<div class="textart_title">zZ</div>' : '<span class="' + OSZTALY + '-akcioikon"></span>');
             el.style.position = 'absolute';
             el.style.zIndex = '10';
-            ab.appendChild(el);
+            el.style.margin = '0';
+            szulo.appendChild(el);
             try
             {
-                $(el).addMousePopup(ALVAS_BUBOREK);
+                $(el).addMousePopup(buborek);
             }
             catch (e)
             {
-                hiba(e, 'alvas buborek');
+                hiba(e, 'akciogomb buborek');
             }
             el.addEventListener('mousedown', function (e)
             {
@@ -3216,33 +3246,55 @@
                 e.stopPropagation();
                 e.preventDefault();
                 if (allapot.dolgozik) return;
-                inditas(ab, 'alvas');
+                inditas(tarto, mod);
             });
             gombAllapot();
         }
-        var a = ab.getBoundingClientRect();
+        var sr = el.parentNode.getBoundingClientRect();
+        var bx = el.parentNode.clientLeft || 0, by = el.parentNode.clientTop || 0;
         var meret = Math.round(ar.height);
-        // A szobalista kerete: az Alvas gombot tartalmazo groupframe. Ha nincs meg,
-        // az Alvas melle kerul, mint t19-ben.
-        var keret = alvas.closest('.tw2gui_groupframe_content_pane');
-        var kr = keret ? keret.getBoundingClientRect() : null;
-        var bal, fent;
-        if (kr && kr.width && kr.height)
-        {
-            bal = kr.right - ALVAS_SAROK_TAV - meret;
-            fent = kr.bottom - ALVAS_SAROK_TAV - meret;
-        }
-        else
-        {
-            bal = ar.right + 8;
-            fent = ar.top;
-        }
         el.style.width = meret + 'px';
         el.style.minWidth = meret + 'px';
         el.style.height = meret + 'px';
-        el.style.left = Math.round(bal - a.left) + 'px';
-        el.style.top = Math.round(fent - a.top) + 'px';
+        el.style.left = Math.round(ar.left - AKCIO_RES - meret - sr.left - bx) + 'px';
+        el.style.top = Math.round(ar.top - sr.top - by) + 'px';
         el.style.display = '';
+    }
+
+    function alvasGomb(ab)
+    {
+        akcioGomb(ab, ab.querySelector('.buttonsleep .tw2gui_button:not(.' + OSZTALY + '-akcio)'), 'alvas', ALVAS_BUBOREK);
+    }
+
+    function kalandosztoAblak(ab)
+    {
+        return ab.classList.contains('window-quest_employer');
+    }
+
+    function kalandosztoVillam(ab)
+    {
+        akcioGomb(ab, ab.querySelector('.fingerboard .tw2gui_button:not(.' + OSZTALY + '-akcio)'), 'gyors', FEJLEC_BUBOREK);
+    }
+
+    // Utmutato tabla (t26): a parbeszedablak tartalmaban a tabla kepe van
+    // (.fingerboard_dialog, images/fingerboard/fingerboard.png; merve 2026-10-09), ez
+    // nyelvfuggetlen. A Guidepost.show-hoz nem nyulunk: mas script a forrasszovegebol forditja
+    // ujra, igy egy csomagolo eltori (t25-ben a tabla nem nyilt meg).
+    function utmutatoParbeszed(d)
+    {
+        if (d.getAttribute('data-smcz-utmutato') === '1') return true;
+        if (d.getAttribute('data-smcz-utmutato') === '0') return false;
+        var tartalom = d.querySelector('.tw2gui_dialog_content');
+        if (!tartalom) return false;
+        var ok = !!tartalom.querySelector('.fingerboard_dialog img[src*="fingerboard/fingerboard"]');
+        d.setAttribute('data-smcz-utmutato', ok ? '1' : '0');
+        if (TESZT) naplo('parbeszedablak: ' + (ok ? 'utmutato tabla' : 'mas'));
+        return ok;
+    }
+
+    function utmutatoVillam(d)
+    {
+        akcioGomb(d, d.querySelector('.tw2gui_dialog_actions .tw2gui_button:not(.' + OSZTALY + '-akcio)'), 'gyors', FEJLEC_BUBOREK);
     }
 
     function figyeles()
@@ -3255,6 +3307,12 @@
             {
                 if (uticelAblak(uticelok[u])) fejlecVillam(uticelok[u]);
                 if (hotelAblak(uticelok[u])) alvasGomb(uticelok[u]);
+                if (kalandosztoAblak(uticelok[u])) kalandosztoVillam(uticelok[u]);
+            }
+            var parbeszedek = document.querySelectorAll('.tw2gui_dialog');
+            for (var p = 0; p < parbeszedek.length; p++)
+            {
+                if (utmutatoParbeszed(parbeszedek[p])) utmutatoVillam(parbeszedek[p]);
             }
             var ablakok = document.querySelectorAll('.jobwindow');
             for (var i = 0; i < ablakok.length; i++)
@@ -3524,6 +3582,12 @@
                 naplo('uj ablakok kiirasa: ' + (allapot.ablakNaplo ? 'be' : 'ki'));
             };
             naplo('uj ablakok kiirasa (alapbol ki): smczMunkaruhaAblakNaplo(true)');
+            window.smczMunkaruhaAkcioRes = function (px)
+            {
+                AKCIO_RES = Number(px) || 0;
+                naplo('res a Seta / Alvas gomb mellett: ' + AKCIO_RES + ' px');
+            };
+            naplo('res a Seta / Alvas mellett (most ' + AKCIO_RES + ' px): smczMunkaruhaAkcioRes(4)');
         }
         frissitestKeres();
         setInterval(frissitestKeres, FRISS_IDOKOZ);
