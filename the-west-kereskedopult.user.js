@@ -7392,10 +7392,8 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             const bag = jatek().Bag;
             if (!bag || typeof bag.getItemsIdsByBaseItemIds !== "function") return null;
             const cs = bag.getItemsIdsByBaseItemIds() || {};
-            Object.keys(cs).forEach(alap => {
-                const idk = cs[alap] || [];
-                if (!idk.length) return;
-                const id = idk[0];
+            /* t90: minden valtozat kulon (alap es fejlesztett). */
+            Object.keys(cs).forEach(alap => (cs[alap] || []).forEach(id => {
                 const it = itemObj(id);
                 const n = Number(keszlet(id)) || 0;
                 if (!n) return;
@@ -7408,7 +7406,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
                 }
                 ki.ossz += ar * n;
                 ki.top.push({ nev: targyNev(id), db: n, ertek: ar * n });
-            });
+            }));
             ki.top.sort((a, b) => b.ertek - a.ertek);
             ki.top = ki.top.slice(0, 5);
         } catch (e) { return null; }
@@ -7449,16 +7447,19 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             if (!bag || typeof bag.getItemsIdsByBaseItemIds !== "function") return ki;
             const cs = bag.getItemsIdsByBaseItemIds() || {};
             Object.keys(cs).forEach(alap => {
-                const idk = cs[alap] || [];
-                if (!idk.length) return;
-                const id = idk[0];
-                /* t82: a tablazat allando reszei targyankent egyszer
-                   szamolodnak (nev, ikon, minimum, kategoria); minden
-                   ujraepitesnel csak a darabszam es az inv_id. */
-                const al = eladAllando(id);
-                if (!al) return;
-                const db = Number(keszlet(id)) || 0;
-                ki.push(Object.assign({}, al, { keszlet: db, ertek: al.bolti * db, inv: eladInvId(bag, idk) }));
+                /* t90: egy csoportban az alap es a fejlesztett valtozat is
+                   lehet (MERVE 2026-10-10: 225001 fejlesztett, auctionable
+                   false, a csoport ELSO eleme; 225000 az eladhato alap).
+                   Minden valtozat kulon sor, a sajat adataival. */
+                (cs[alap] || []).forEach(id => {
+                    /* t82: a tablazat allando reszei targyankent egyszer
+                       szamolodnak (nev, ikon, minimum, kategoria); minden
+                       ujraepitesnel csak a darabszam es az inv_id. */
+                    const al = eladAllando(id);
+                    if (!al) return;
+                    const db = Number(keszlet(id)) || 0;
+                    ki.push(Object.assign({}, al, { keszlet: db, ertek: al.bolti * db, inv: eladInvId(bag, [id]) }));
+                });
             });
         } catch (e) { /* ures lista */ }
         return ki;
@@ -7487,6 +7488,9 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             id: String(id), nev: nev, nevN: piacNormal(nev), ikon: targyIkon(id),
             min: eladMinimum(id),
             adhato: it.auctionable !== false,
+            /* t90: a fejlesztes szintje az item_level (MERVE 2026-10-10:
+               225001 -> 1, 225000 -> 0; az "upgrade" mezo nincs). */
+            fejl: Number(it.item_level) > 0 ? Number(it.item_level) : 0,
             bolti: egysegAr, elado: it.sellable !== false, apro: aprope,
             kat: piacKategoria(it.getType ? it.getType() : it.type)
         };
@@ -7509,10 +7513,8 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
     function eladUjjlenyomat() {
         try {
             const cs = jatek().Bag.getItemsIdsByBaseItemIds() || {};
-            return Object.keys(cs).sort().map(k => {
-                const id = (cs[k] || [])[0];
-                return id == null ? "" : id + ":" + keszlet(id);
-            }).join("|");
+            return Object.keys(cs).sort().map(k => (cs[k] || [])
+                .map(id => id + ":" + keszlet(id)).join(",")).join("|");
         } catch (e) { return ""; }
     }
 
@@ -7545,7 +7547,8 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
                     if (ka !== kb) return ka - kb;
                 }
                 if (!k && eladNezet.sorrend === "leg" && (b.inv || 0) !== (a.inv || 0)) return (b.inv || 0) - (a.inv || 0);
-                return nev(a).localeCompare(nev(b), "hu");
+                /* t90: azonos nevnel az alap valtozat (kisebb azonosito) elol. */
+                return nev(a).localeCompare(nev(b), "hu") || (Number(a.id) - Number(b.id));
             });
     }
 
@@ -7554,7 +7557,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         return `
           <div class="ksor2 esor${t.adhato ? "" : " tiltott"}${v ? " valasztott" : ""}" data-eid="${esc(t.id)}">
             ${t.ikon ? `<img src="${esc(t.ikon)}" alt="" loading="lazy" decoding="async" data-iid="${esc(t.id)}">` : targyBubIkonHTML(t.id, null)}
-            <div class="knev2">${esc(t.nev)}${eladJelHTML(t.id)}</div>
+            <div class="knev2">${esc(t.nev)}${t.fejl ? `<span class="acim" style="margin-left:6px">fejlesztett</span><b style="margin-left:5px;font-size:12px;color:#d9a400">&#9733;${t.fejl}</b>` : ""}${eladJelHTML(t.id)}</div>
             <div class="jobb ekeszlet">${t.keszlet}</div>
             <div class="jobb${t.adhato ? "" : " halvany"}">${t.adhato ? (t.min > 0 ? kinalatSzam(t.min) + " $/db" : "-") : "nem \u00E1rverezhet\u0151"}</div>
             <div class="eertek${t.ertek > 0 ? "" : " nincs"}">${t.ertek > 0 ? kinalatSzam(t.ertek) + " $"
@@ -8104,7 +8107,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         }
 
         const t = eladKeszlet().find(x => x.id === String(f.id)) ||
-                  eladKeszlet().find(x => eladAlapEgyezik(f.id, x.id));
+                  eladKeszlet().filter(x => eladAlapEgyezik(f.id, x.id)).sort((p, q) => (q.adhato - p.adhato) || (Number(p.id) - Number(q.id)))[0];
         if (!t) { allapot("piac_nincs_targy"); return; }
         if (!t.adhato) { allapot("piac_nem_adhato"); return; }
 
@@ -8145,7 +8148,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
        eladas utan a sor visszaesik hianyba, amig a kesz termek meg nem jon. */
     function faEladasraNyit(id, db, cimzett) {
         const t = eladKeszlet().find(x => x.id === String(id)) ||
-                  eladKeszlet().find(x => eladAlapEgyezik(id, x.id));
+                  eladKeszlet().filter(x => eladAlapEgyezik(id, x.id)).sort((p, q) => (q.adhato - p.adhato) || (Number(p.id) - Number(q.id)))[0];
         if (!t) { allapot("piac_nincs_targy"); return; }
         if (!t.adhato) { allapot("piac_nem_adhato"); return; }
         eladNezet.mezok[t.id] = {
