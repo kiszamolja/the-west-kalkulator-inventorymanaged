@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Munkaruha-választó
 // @namespace    the-west-munkaruha
-// @version      1.0.3
+// @version      1.0.4
 // @description  Gombok a munkaablakban: egy kattintással a legtöbb munkapontot, tapasztalatot, terméket vagy szerencsét adó ruha, a munka fokozatát is figyelembe véve; villám gomb a leggyorsabb ruhához az úthoz; zZ gomb a hotelben a legjobb regenerációs ruhához.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -66,7 +66,7 @@
     'use strict';
 
     var NEV = 'Munkaruha-választó';
-    var VERZIO = '1.0.3';
+    var VERZIO = '1.0.4';
     var TESZT = false;
 
     var WEBOLDAL = 'https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/';
@@ -86,8 +86,7 @@
     // visszaper nelkul). A ket jelolo sor nem valtozhat.
     /* VALTOZASOK KEZDETE */
     var VALTOZASOK = [
-        "Vill\u00e1m gomb az Eszk\u00f6z\u00f6k ablak\u00e1ban \u00e9s az \u00fatmutat\u00f3 t\u00e1bl\u00e1n is",
-        "A kalandoszt\u00f3n\u00e1l a vill\u00e1m a S\u00e9ta gomb mell\u00e9 ker\u00fclt, a hotelben a zZ az Alv\u00e1s gomb mell\u00e9"
+        "Jav\u00edtva: ha egy m\u00e1sik script hib\u00e1t dob \u00f6lt\u00f6z\u00e9s k\u00f6zben, a karakter \u00e9s a munkaablak akkor is friss\u00fcl"
     ];
     /* VALTOZASOK VEGE */
 
@@ -1955,6 +1954,81 @@
     // Csak azokat a slotokat valtjuk, ahol mas darab kell. Levetni nem vetkoztetunk.
     // sorrend: ha meg van adva, ebben a slotsorrendben cserel (munkasor vedelme).
     // Ha a szerver elutasit egy cseret, megall, es a hibauzenetet visszaadja.
+    // Az oltozes vegen a jatek kepernyojenek frissitese a szerver utolso valaszabol.
+    // Merve (2026-10-10): egy masik script altal becsomagolt Bag.updateChanges hibat dobott
+    // ("Crafting.recipes[itemID].resources is not iterable"), es mivel a lepesek egy
+    // blokkban futottak, a bonuszpontok, a sebesseg, a wear_changed jelzes es a karakterkep
+    // frissitese elmaradt (a karakter nem frissult F5-ig). A nativ ruhacserenel is jott.
+    // Ezert minden lepes kulon fut: egy hiba csak a sajat lepeset hagyja ki (t28).
+    function lezarasAlkalmaz(valasz, felvettek, levettek)
+    {
+        var hibak = [];
+
+        function lepes(nev, fv)
+        {
+            try
+            {
+                fv();
+            }
+            catch (e)
+            {
+                hibak.push(nev);
+                hiba(e, 'oltoztet / lezaras / ' + nev);
+            }
+        }
+        lepes('szettbonusz', function ()
+        {
+            WearSet.setUpItems(valasz.setItems);
+            WearSet.workPointBonus = valasz.workPointBonus;
+        });
+        lepes('levetel', function ()
+        {
+            for (var a = 0; a < levettek.length; a++)
+            {
+                Wear.remove(levettek[a].type);
+                if (levettek[a].type === 'right_arm') EventHandler.signal('character_weapon_changed', [levettek[a]]);
+            }
+        });
+        lepes('felvetel', function ()
+        {
+            for (var r = 0; r < felvettek.length; r++)
+            {
+                Wear.add(felvettek[r].item_id);
+                if (felvettek[r].type === 'right_arm') EventHandler.signal('character_weapon_changed', [felvettek[r]]);
+            }
+        });
+        lepes('taska', function ()
+        {
+            Bag.updateChanges(valasz.changes, 'wear');
+        });
+        lepes('bonuszpontok', function ()
+        {
+            CharacterSkills.updateAllBonuspoints(valasz.bonus.allBonuspoints);
+        });
+        lepes('sebesseg', function ()
+        {
+            Character.setSpeed(valasz.speed);
+        });
+        lepes('eletero', function ()
+        {
+            Character.calcMaxHealth();
+            EventHandler.signal('health', [Character.health, Character.maxHealth]);
+        });
+        lepes('jelzes', function ()
+        {
+            EventHandler.signal('wear_changed', [
+            {
+                added: felvettek,
+                removed: levettek
+            }]);
+        });
+        lepes('karakterkep', function ()
+        {
+            if (wman.getById(Wear.uid)) Wear.renderWear();
+        });
+        return hibak;
+    }
+
     function oltoztet(idk, kesz, sorrend)
     {
         var cel = {};
@@ -1986,32 +2060,7 @@
         function lezarasErvenyesites()
         {
             if ($.isEmptyObject(utolsoValasz)) return;
-
-            WearSet.setUpItems(utolsoValasz.setItems);
-            WearSet.workPointBonus = utolsoValasz.workPointBonus;
-
-            for (var a = 0; a < levettek.length; a++)
-            {
-                Wear.remove(levettek[a].type);
-                if (levettek[a].type === 'right_arm') EventHandler.signal('character_weapon_changed', [levettek[a]]);
-            }
-            for (var r = 0; r < felvettek.length; r++)
-            {
-                Wear.add(felvettek[r].item_id);
-                if (felvettek[r].type === 'right_arm') EventHandler.signal('character_weapon_changed', [felvettek[r]]);
-            }
-
-            Bag.updateChanges(utolsoValasz.changes, 'wear');
-            CharacterSkills.updateAllBonuspoints(utolsoValasz.bonus.allBonuspoints);
-            Character.setSpeed(utolsoValasz.speed);
-            Character.calcMaxHealth();
-            EventHandler.signal('health', [Character.health, Character.maxHealth]);
-            EventHandler.signal('wear_changed', [
-            {
-                added: felvettek,
-                removed: levettek
-            }]);
-            if (wman.getById(Wear.uid)) Wear.renderWear();
+            lezarasAlkalmaz(utolsoValasz, felvettek, levettek);
         }
 
         function kesleltet(fuggveny)
