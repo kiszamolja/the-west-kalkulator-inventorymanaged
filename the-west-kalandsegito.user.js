@@ -109,7 +109,8 @@
     /* VALTOZASOK KEZDETE */
     const VALTOZASOK = [
         "Munkaterv: a kalandnevek a Kalandsorok f\u00fclre visznek (a r\u00e9szhez, Vissza gombbal), nem a tw-calc-ra.",
-        "Munkaterv: a lead\u00e1s \u00e9s felv\u00e9tel l\u00e9p\u00e9sein\u00e9l jel mutatja, mi k\u00e9sz (\u2713), mi tehet\u0151 meg most, \u00e9s mi nem k\u00e9sz m\u00e9g (\u2717), kinyitva az okkal."
+        "Munkaterv: a lead\u00e1s \u00e9s felv\u00e9tel l\u00e9p\u00e9sein\u00e9l jel mutatja, mi k\u00e9sz (\u2713), mi tehet\u0151 meg most, \u00e9s mi nem k\u00e9sz m\u00e9g (\u2717), kinyitva az okkal.",
+        "A Kereskedelmi csere ism\u00e9telhet\u0151 kalandsork\u00e9nt l\u00e1tszik: csak a felvett cser\u00e9i, felvett n\u00e9lk\u00fcl elt\u0171nik."
     ];
     /* VALTOZASOK VEGE */
 
@@ -8932,7 +8933,15 @@ const RECEPT_TEKERCS = {
     }
     /* t87g (Terv 47) */
     let ksIsmIdHalmaz = null, ksIsmIdForras = null;
+    /* t87z (MrA, 2026-10-11, "Igen, vegyük fel, és viselkedjen úgy mint a
+       többi ismételhető"): MAS NEVEN ISMETELHETO KALANDSOROK. Kereskedelmi
+       csere: Angus McGuffin utan 46 csere-resz (Könnyű csere, Tapasztalat
+       bájital, Bónusz medál, Különleges csere, Easy exchange, nev nelkuliek),
+       napokhoz es "várnod kell N nap" szabalyhoz kotve; nem egymasra epulnek.
+       (A Targgyal indulo listabol a t66 ota kimarad: KS_TGY_KIHAGY.) */
+    const KS_ISM_SOROK = new Set([220]);
     function ksIsmSorE(g, felvIdk, cim) {
+        if (KS_ISM_SOROK.has(Number(g))) return true;
         const nev = ksCsoportCim(g) || String(cim || "");
         if (/^\s*Ismételhető/i.test(nev)) return true;
         const d = ksDbAdat();
