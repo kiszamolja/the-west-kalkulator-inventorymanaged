@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Kereskedőpult
 // @namespace    the-west-beszerzo-ingame
-// @version      1.0.0
+// @version      1.0.1
 // @description  Gyűjtés és piac a játékon belül: kinek, miből mennyit gyűjtesz, és egy helyen adhatsz el, vehetsz és vehetsz át a játék piacán.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -67,7 +67,7 @@
 (function () {
     "use strict";
 
-    const VERZIO = "1.0.0";
+    const VERZIO = "1.0.1";
 
     /* A fajlnev ALLANDO, nem tartalmaz verziot: igy a repoban mindig ugyanaz
        a fajl frissul, es a Tampermonkey kovetni tudja. A verzio csak a
@@ -94,10 +94,9 @@
        A ket jelolo sor nem valtozhat. */
     /* VALTOZASOK KEZDETE */
     const VALTOZASOK = [
-        "V\u00e9teli k\u00e9r\u00e9sek: felad\u00e1s, a saj\u00e1t k\u00e9r\u00e9seid, m\u00e1sok k\u00e9r\u00e9seinek teljes\u00edt\u00e9se azonnal vagy aj\u00e1nlattal.",
-        "Az \u00c1tv\u00e9tel h\u00e1rom n\u00e9zetre bomlik: V\u00e1s\u00e1rl\u00e1saim, Elad\u00e1saim, V\u00e9teli k\u00e9r\u00e9seim; a j\u00e1t\u00e9k saj\u00e1t \u00e1tv\u00e9tele ut\u00e1n mag\u00e1t\u00f3l friss\u00fcl.",
-        "Az Elad\u00e1s gyorsabban t\u00f6lt, ABC vagy legut\u00f3bbi sorrendben, a minimum\u00e1r a teljes mennyis\u00e9gre figyel.",
-        "A visszajelz\u0151 sorok: a z\u00f6ld 3 m\u00e1sodperc m\u00falva elt\u0171nik, a piros marad."
+        "A K\u00edn\u00e1lat \u00e9s a M\u00e1sok k\u00e9r\u00e9sei oldalank\u00e9nt t\u00f6lt, mint a j\u00e1t\u00e9k piaca, \u00edgy j\u00f3val kevesebb k\u00e9r\u00e9s megy a szervernek.",
+        "A keres\u00e9s, a kateg\u00f3ria \u00e9s a rendez\u00e9s a szerveren fut, a keres\u00e9sn\u00e9l az \u00e9kezet nem sz\u00e1m\u00edt.",
+        "A K\u00e9szletem 100 t\u00e1rgyank\u00e9nt lapoz, nagy t\u00e1sk\u00e1n\u00e1l sem lassul."
     ];
     /* VALTOZASOK VEGE */
     /* A TESZT-epito ide irja a belyeget. Kiadasi alakban ures. */
@@ -2265,6 +2264,16 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
 .kfej2 .krend.aktiv{ font-weight:600 }
 .kinalatlista{ border:1px solid var(--line); border-radius:8px; background:var(--panel);
   overflow-y:auto; overflow-x:hidden }
+/* t92: a natív lapozo a lista alatt, jobbra */
+.lapozo{ display:flex; justify-content:flex-end; align-items:center; gap:4px; min-height:26px; padding-top:6px }
+.lapozo:empty{ display:none }
+.lapozo .lny{ min-width:26px; height:22px; padding:0 5px; border:1px solid var(--line); border-radius:4px;
+  background:var(--panel); color:var(--ink); font-size:11px; cursor:pointer; line-height:1 }
+.lapozo .lny:hover:not(:disabled){ border-color:var(--ink) }
+.lapozo .lny:disabled{ opacity:.45; cursor:default }
+.lapozo .lszam{ min-width:44px; height:22px; display:inline-flex; align-items:center; justify-content:center;
+  border:1px solid var(--line); border-radius:4px; font-weight:600; font-variant-numeric:tabular-nums }
+.kfej2 .krendki{ cursor:default; padding:0; font-size:11px; color:var(--faint) }
 .ksor2{ padding:5px 10px; border-bottom:1px solid var(--line); font-size:12.5px; color:var(--ink) }
 .ksor2:last-child{ border-bottom:0 }
 .ksor2[hidden]{ display:none }
@@ -4005,22 +4014,308 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
     }
 
     /* -----------------------------------------------------------------
-       VETEL / KINALAT - LETOLTES (t4).
-       MERT tenyek (2026-09-15, lehallgato):
-         building_market / search, a natív ablak pontos parameterei;
-         reszletenkent 31 sor, az elso nav "first" page 1, a tobbi
-         nav "next" es eggyel nagyobb page; a vegen next: false.
-       Csak olvas, penzt nem kolt. Egyszerre egy hivas megy, a reszletek
-       kozott KINALAT_SZUNET szunettel. Az ismetlodo sorokat a
-       market_offer_id SZOVEGKENT szuri, mert a fetch_bids szovegkent,
-       a search szamkent adja.
+       t92: LAPOZO PIAC (Kinalat es Masok keresei).
+       MERVE 2026-10-11 (a natív piac lehallgatasa es konzol):
+         building_market / search egyszerre 31 sort ad, a next jelzi a
+         folytatast; nav first / next / prev es az oldal szama.
+         A szerver SZUR: pattern = egybefuggo reszlet a targy NEVEBEN
+         (a szokozzel egyutt, kis- es nagybetu mindegy, az EKEZETRE
+         ERZEKENY, a leirasban nem keres); type = targytipus, egyszerre
+         egy (yield, recipe, head ...). Vasarlasi kerelmekre is
+         (direction_buy) ugyanigy mukodik.
+         A szerver RENDEZ: sort = article (nev), buynow (azonnali ar),
+         bid (licit), timeto (lejarat), vendor (elado), distance
+         (tavolsag); order asc / desc. Egysegar szerint nem tud.
+       A fejleszto dontese (2026-10-11): a teljes piac egyszerre
+       letoltese megszunik (a szerver egyszer ki is dobott 3-4 gyors
+       frissites utan); oldalanként 31, a natív lapozoval; a Viselet
+       egyben marad (tipusonkent 1 keres, LAP_SZUNET szunettel); Recept
+       nezetben mesterseg valasztasakor a receptek MINDEN oldala jon le
+       (csak a receptek), a mestersegszuro es a szint szerinti sorrend
+       ott helyben marad.
        ----------------------------------------------------------------- */
-    /* 100 ms: a fejleszto dontese (2026-09-15), kesobb vissza kell kerdezni,
-       elfogadja-e. A 300 ms-os valtozat 12 reszletnel 4,0 mp volt. */
-    const KINALAT_SZUNET = 100;
-    const KINALAT_MAX_RESZLET = 50;
-    const KINALAT_IDOKORLAT = 15000;
+    const LAP_SZUNET = 300;
+    const LAP_IDOKORLAT = 15000;
+    const LAP_RECEPT_MAX = 30;
+    const LAP_VALTOZAT_MAX = 4;
+    const LAP_FORRAS_MAX = 12;
+    const LAP_RENDEZ = { nev: "article", azonnal: "buynow", licit: "bid", ajanlat: "bid",
+                         lejar: "timeto", elado: "vendor", kero: "vendor", hely: "distance" };
+    const LAP_RENDEZ_CIMKE = { nev: "név", azonnal: "azonnali ár", licit: "licit", ajanlat: "ajánlat",
+                               lejar: "lejárat", elado: "eladó", kero: "kérő", hely: "távolság",
+                               egyseg: "egységár", nalam: "nálam" };
 
+    function lapAllapotUj() {
+        return { kerdes: null, forrasok: [], lepes: [], hist: [], oldal: 1, keresDb: 0,
+                 mentes: null, osszes: false, oldalak: 0, csonka: false, minta: [] };
+    }
+    function lapTipusok(kat) {
+        if (kat === "termek") return ["yield"];
+        if (kat === "recept") return ["recipe"];
+        if (kat === "viselet") return PIAC_VISELET.slice();
+        return [""];
+    }
+    /* Egy karakter ekezet nelkul; csak az egy karakterre kepzodot fogadjuk el,
+       hogy a beirt szoveg es a nev helyei megfeleljenek egymasnak. */
+    function lapEkKar(c) { const x = ekNelkul(c); return x.length === 1 ? x : null; }
+    /* A beirt szovegbol a szervernek valo minta(k): a szerver ekezetre
+       erzekeny, a mi keresonk nem. A jatek targyneveibol vesszuk az eredeti,
+       ekezetes alakot ("gyapju" -> "gyapjú"); ha tobb alak is van,
+       mindegyik kulon minta (legfeljebb LAP_VALTOZAT_MAX). Ha egyik nevben
+       sincs benne, a beirt szoveg megy ki. */
+    function mintaValtozatok(beirt) {
+        const nyers = String(beirt == null ? "" : beirt).replace(/\s+/g, " ").trim();
+        if (!nyers) return [""];
+        const q = Array.from(nyers.toLowerCase()).map(c => lapEkKar(c) || c).join("");
+        const db = new Map();
+        try {
+            const all = jatek().ItemManager.getAll() || {};
+            Object.keys(all).forEach(k => {
+                const n = all[k] && all[k].name;
+                if (!n) return;
+                const kis = Array.from(String(n).toLowerCase());
+                const norm = kis.map(lapEkKar);
+                if (norm.some(x => x == null)) return;
+                const i = norm.join("").indexOf(q);
+                if (i < 0) return;
+                const v = kis.slice(i, i + q.length).join("");
+                db.set(v, (db.get(v) || 0) + 1);
+            });
+        } catch (e) { /* a beirt szoveg megy ki */ }
+        if (!db.size) return [nyers];
+        return [...db.entries()].sort((a, b) => b[1] - a[1]).slice(0, LAP_VALTOZAT_MAX).map(x => x[0]);
+    }
+    function lapParam(f, oldal, nav, cfg, kerdes) {
+        const r = kerdes.rendez && LAP_RENDEZ[kerdes.rendez];
+        return {
+            pattern: f.pattern, nav, page: oldal,
+            sort: r || "buynow", order: r && kerdes.irany < 0 ? "desc" : "asc", type: f.type,
+            level_range_min: "0", level_range_max: "",
+            usable: false, has_effect: false, visibility: 2,
+            direction_sell: cfg.irany !== "BUY", direction_buy: cfg.irany === "BUY"
+        };
+    }
+    function lapMasol(L) {
+        return {
+            sorok: L.sorok.slice(), kerdes: Object.assign({}, L.kerdes), ido: L.ido,
+            forrasok: L.forrasok.map(f => Object.assign({}, f)), lepes: L.lepes.map(x => Object.assign({}, x)),
+            hist: L.hist.map(h => h.map(x => Object.assign({}, x))), oldal: L.oldal, keresDb: L.keresDb,
+            osszes: L.osszes, oldalak: L.oldalak, csonka: L.csonka, minta: L.minta.slice()
+        };
+    }
+    function lapVisszaallit(L, m) {
+        Object.assign(L, m);
+        L.allapot = "kesz";
+        L.uzenet = "";
+    }
+    /* Egy lepes. mod: "uj" (uj kerdes, felulir: a valtozo reszek),
+       "eleje" (ugyanaz a kerdes az 1. oldalrol), "kov", "elozo",
+       "ujra" (az aktualis oldal ujra). Minden keres sorban, LAP_SZUNET
+       szunettel; egy lepes rendszerint 1 keres. */
+    function lapLep(L, cfg, mod, felulir) {
+        if (L.allapot === "tolt") return;
+        const A = jatek().Ajax;
+        if (mod === "uj" || !L.kerdes) {
+            const regi = L.kerdes || {
+                kereses: "", kat: cfg.nezet().kategoria, rendez: cfg.nezet().rendez,
+                irany: cfg.nezet().irany, mes: cfg.nezet().mesterseg || null
+            };
+            L.kerdes = Object.assign({}, regi, felulir || {});
+            L.kerdes.kereses = String(L.kerdes.kereses || "").replace(/\s+/g, " ").trim();
+            const tip = lapTipusok(L.kerdes.kat);
+            let valt = mintaValtozatok(L.kerdes.kereses);
+            if (valt.length * tip.length > LAP_FORRAS_MAX) valt = valt.slice(0, 1);
+            L.minta = valt;
+            L.forrasok = [];
+            valt.forEach(p => tip.forEach(t => L.forrasok.push({ pattern: p, type: t, next: true })));
+            L.osszes = !!(cfg.osszesE && cfg.osszesE(L.kerdes));
+            mod = "eleje";
+        }
+        let cel;
+        const regiHist = L.hist.map(h => h.slice());
+        if (mod === "eleje") {
+            L.hist = [];
+            cel = L.forrasok.map((f, i) => ({ i, page: 1, nav: "first" }));
+        } else if (mod === "kov") {
+            cel = L.lepes.filter(x => L.forrasok[x.i] && L.forrasok[x.i].next).map(x => ({ i: x.i, page: x.page + 1, nav: "next" }));
+            if (!cel.length) return;
+            L.hist.push(L.lepes.map(x => Object.assign({}, x)));
+        } else if (mod === "elozo") {
+            const h = L.hist.pop();
+            if (!h) return;
+            cel = h.map(x => ({ i: x.i, page: x.page, nav: "prev" }));
+        } else {
+            cel = L.lepes.map(x => ({ i: x.i, page: x.page, nav: x.page === 1 ? "first" : "next" }));
+            if (!cel.length) cel = L.forrasok.map((f, i) => ({ i, page: 1, nav: "first" }));
+        }
+        const futas = ++L.futas;
+        L.allapot = "tolt";
+        L.uzenet = "";
+        L.keresDb = 0;
+        L.csonka = false;
+        L.oldalak = 0;
+        const ujak = [];
+        const lattam = new Set();
+        const sor = cel.slice();
+        const kesz = cel.slice();
+        const hiba = sz => {
+            if (futas !== L.futas) return;
+            L.hist = regiHist;
+            L.allapot = "hiba";
+            L.uzenet = sz;
+            cfg.vege();
+        };
+        const vege = () => {
+            if (futas !== L.futas) return;
+            /* Tobb forras (Viselet, tobb ekezetes alak) sorait a kert
+               szempont szerint fesuljuk ossze; egy forrasnal a szerver
+               sorrendje marad. */
+            let sorok = ujak;
+            if (!L.osszes && cel.length > 1) {
+                const k = L.kerdes.rendez || "azonnal";
+                const ir = L.kerdes.rendez ? L.kerdes.irany : 1;
+                sorok = ujak.map((s, i) => ({ s, i, v: cfg.rendezoErtek(s, k) }))
+                    .sort((a, b) => {
+                        const au = a.v == null || a.v === "", bu = b.v == null || b.v === "";
+                        if (au !== bu) return au ? 1 : -1;
+                        let d = 0;
+                        if (!au) d = typeof a.v === "string" ? a.v.localeCompare(b.v, "hu") : a.v - b.v;
+                        return d ? d * ir : a.i - b.i;
+                    }).map(x => x.s);
+            }
+            L.sorok = sorok;
+            L.lepes = kesz.map(x => ({ i: x.i, page: x.page }));
+            L.oldal = L.hist.length + 1;
+            L.ido = Date.now();
+            L.allapot = "kesz";
+            cfg.vege();
+        };
+        if (!A || typeof A.remoteCall !== "function") { hiba("a játék Ajax.remoteCall hívása nem érhető el."); return; }
+        const egy = () => {
+            if (futas !== L.futas) return;
+            const x = sor.shift();
+            if (!x) { vege(); return; }
+            const f = L.forrasok[x.i];
+            let megjott = false;
+            const ora = setTimeout(() => {
+                if (megjott || futas !== L.futas) return;
+                megjott = true;
+                hiba("nem jött válasz " + (LAP_IDOKORLAT / 1000) + " másodpercen belül.");
+            }, LAP_IDOKORLAT);
+            try {
+                A.remoteCall("building_market", "search", lapParam(f, x.page, x.nav, cfg, L.kerdes), valasz => {
+                    if (megjott || futas !== L.futas) return;
+                    megjott = true;
+                    clearTimeout(ora);
+                    const msg = valasz && valasz.msg;
+                    if (!valasz || valasz.error || !msg || !Array.isArray(msg.search_result)) {
+                        hiba((valasz && typeof valasz.msg === "string" && valasz.msg) || "váratlan válasz a szervertől.");
+                        return;
+                    }
+                    L.keresDb++;
+                    L.oldalak++;
+                    f.next = !!msg.next;
+                    msg.search_result.forEach(s => {
+                        const k = String(s && s.market_offer_id);
+                        if (lattam.has(k)) return;
+                        lattam.add(k);
+                        /* t84 (C): a sajat veteli keres nem latszik a Masok
+                           kereseiben (a kereses a sajatot is visszaadja). */
+                        if (cfg.irany === "BUY" && sajatJatekosE(s && s.seller_player_id)) return;
+                        ujak.push(s);
+                    });
+                    if (L.osszes && f.next) {
+                        if (x.page < LAP_RECEPT_MAX) sor.unshift({ i: x.i, page: x.page + 1, nav: "next" });
+                        else L.csonka = true;
+                    }
+                    cfg.kiir();
+                    if (sor.length) setTimeout(egy, LAP_SZUNET); else vege();
+                });
+            } catch (e) {
+                if (megjott) return;
+                megjott = true;
+                clearTimeout(ora);
+                hiba("a hívás kivételt dobott: " + (e && e.message ? e.message : e));
+            }
+        };
+        cfg.kiir();
+        egy();
+    }
+    function lapVanKov(L) {
+        return !L.osszes && L.allapot !== "tolt" && L.lepes.some(x => L.forrasok[x.i] && L.forrasok[x.i].next);
+    }
+    /* A natív lapozo: 1. oldalon a jobbra nyil; a 2. oldaltol dupla balra
+       (elso oldal), balra (elozo), jobbra (kovetkezo); az utolso oldalon
+       nincs jobbra nyil. Betoltes kozben a gombok tiltva. */
+    function lapozoHTML(L, attr) {
+        if (L.osszes || !L.kerdes) return "";
+        const tolt = L.allapot === "tolt";
+        const gomb = (mit, jel, cim) => `<button type="button" class="lny" data-${attr}="${mit}" title="${cim}"${tolt ? " disabled" : ""}>${jel}</button>`;
+        const vissza = L.hist.length > 0;
+        return (vissza ? gomb("eleje", "&#9664;&#9664;", "Első oldal") + gomb("elozo", "&#9664;", "Előző oldal") : "")
+            + `<span class="lszam">${L.oldal}</span>`
+            + (lapVanKov(L) || (tolt && L.lepes.some(x => L.forrasok[x.i] && L.forrasok[x.i].next)) ? gomb("kov", "&#9654;", "Következő oldal") : "");
+    }
+    function lapMikor(L) {
+        const mp = L.ido ? (Date.now() - L.ido) / 1000 : 0;
+        return mp < 60 ? "betöltve most" : `betöltve ${kinalatIdo(mp)} ezelőtt`;
+    }
+    function lapAllapotSzoveg(L, cfg) {
+        if (L.allapot === "tolt") return "Betöltés…";
+        if (L.allapot === "hiba") return "Hiba: " + L.uzenet;
+        if (!L.kerdes) return "Még nincs letöltve.";
+        const n = L.sorok.length, fn = cfg.fonev;
+        const k = L.kerdes;
+        if (L.osszes) {
+            const nz = cfg.nezet();
+            const mes = (mestersegLista().find(m => m.id === nz.mesterseg) || {}).nev || "";
+            const rk = nz.rendez ? LAP_RENDEZ_CIMKE[nz.rendez] + (nz.irany < 0 ? " ↓" : " ↑") : "szint ↑";
+            return `${mes ? mes + " receptjei" : "Receptek"}${k.kereses ? ` („${L.minta.join(" / ")}”)` : ""}: ${n} ${fn}, ${L.oldalak} oldal${L.csonka ? ", NEM teljes" : ""} · rendezés: ${rk} · ${L.keresDb} kérés · ${lapMikor(L)}`;
+        }
+        const rk = k.rendez ? LAP_RENDEZ_CIMKE[k.rendez] + (k.irany < 0 ? " ↓" : " ↑") : "azonnali ár ↑";
+        let eleje;
+        if (k.kereses) eleje = `„${L.minta.join(" / ")}” keresés: ${L.oldal}. oldal, ${n} ${fn}`;
+        else if (k.kat === "viselet") eleje = `Viselet: ${lapTipusok("viselet").length} típus ${L.oldal}. oldala, ${n} ${fn}`;
+        else eleje = `${L.oldal}. oldal, ${n} ${fn}`;
+        return `${eleje} · rendezés: ${rk} · ${L.keresDb} kérés · ${lapMikor(L)}`;
+    }
+    /* A kereses elkuldese (Enter vagy Frissites): uj kerdes a beirt
+       szoveggel. Ha eddig nem volt kereses, a mostani lista elmentodik,
+       hogy a kereso torlesekor keres nelkul visszajojjon. */
+    function lapKeresKuld(L, cfg, szoveg) {
+        const uj = String(szoveg || "").replace(/\s+/g, " ").trim();
+        if (L.kerdes && !L.kerdes.kereses && uj && L.allapot === "kesz") L.mentes = lapMasol(L);
+        if (!uj) L.mentes = null;
+        lapLep(L, cfg, "uj", { kereses: uj });
+    }
+    /* A kereso torlese: a kereses elotti lista vissza, keres nelkul, ha
+       ugyanarra a kategoriara es rendezesre szolt; kulonben uj kerdes. */
+    function lapKeresTorol(L, cfg) {
+        const m = L.mentes;
+        L.mentes = null;
+        if (L.allapot === "tolt") L.futas++;
+        if (m && L.kerdes && m.kerdes.kat === L.kerdes.kat && m.kerdes.rendez === L.kerdes.rendez
+            && m.kerdes.irany === L.kerdes.irany && (m.kerdes.mes || null) === (L.kerdes.mes || null)) {
+            lapVisszaallit(L, m);
+            cfg.vege();
+            return;
+        }
+        L.allapot = L.allapot === "tolt" ? "kesz" : L.allapot;
+        lapLep(L, cfg, "uj", { kereses: "" });
+    }
+    /* A lapozo gombjai: delegalt kattintas a tartalyon. */
+    function lapozoKotes(id, attr, L, cfg) {
+        const t = gyoker && gyoker.getElementById(id);
+        if (!t || t.dataset.kotve) return;
+        t.dataset.kotve = "1";
+        t.addEventListener("click", e => {
+            const g = e.target.closest && e.target.closest("[data-" + attr + "]");
+            if (!g || g.disabled) return;
+            lapLep(L, cfg, g.getAttribute("data-" + attr));
+        });
+    }
+
+    /* VETEL / KINALAT (t4; t92: lapozo, lasd fent). */
     const kinalat = {
         allapot: "ures",   /* ures | tolt | kesz | hiba | csonka */
         sorok: [],
@@ -4031,9 +4326,10 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         veg: 0,
         futas: 0,
         ido: 0,           /* a LATHATO lista ideje, a lejarat ehhez merve */
-        tolIdo: 0,        /* a legutobb letoltott reszlet ideje */
-        regi: null        /* rendezett nezetnel frissites kozben ez latszik */
+        tolIdo: 0,
+        regi: null        /* t92: mar nem hasznalt, mindig null */
     };
+    Object.assign(kinalat, lapAllapotUj());
 
     /* A nezet allapota. Nem kerul tarolba, a munkamenet vegeig el. */
     const kinalatNezet = { kereses: "", kategoria: "mind", rendez: null, irany: 1, fuggo: false,
@@ -4072,40 +4368,9 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
     function kinalatSzintRend() {
         return !kinalatNezet.rendez && kinalatNezet.kategoria === "recept" && !!kinalatNezet.mesterseg;
     }
-    function kinalatRendAktiv() {
-        return !!kinalatNezet.rendez || kinalatSzintRend();
-    }
-
-    function kinalatParam(oldal) {
-        return {
-            pattern: "", nav: oldal === 1 ? "first" : "next", page: oldal,
-            sort: "bid", order: "asc", type: "",
-            level_range_min: "0", level_range_max: "",
-            usable: false, has_effect: false, visibility: 2,
-            direction_sell: true, direction_buy: false
-        };
-    }
 
     function kinalatAllapotSzoveg() {
-        const k = kinalat;
-        const mp = k.veg && k.kezd ? ((k.veg - k.kezd) / 1000).toFixed(1).replace(".", ",") : "";
-        const dupla = `Kisz\u0171rt ism\u00E9tl\u0151d\u00E9s: ${k.dupla}.`;
-        switch (k.allapot) {
-            case "tolt":
-                return (kinalatRendAktiv()
-                    ? (k.regi ? "(Az el\u0151z\u0151 lista l\u00E1tszik, az \u00FAj a v\u00E9g\u00E9n cser\u00E9l\u0151dik.) "
-                              : "(A rendez\u00E9s a bet\u00F6lt\u00E9s v\u00E9g\u00E9n \u00E1ll be.) ")
-                    : "") + `Bet\u00F6lt\u00E9s: ${k.reszlet + 1}. r\u00E9szlet, eddig ${k.sorok.length} aj\u00E1nlat\u2026`;
-            case "kesz":
-                return `K\u00E9sz: ${k.sorok.length} aj\u00E1nlat, ${k.reszlet} r\u00E9szlet, ${mp} mp. ${dupla}`;
-            case "csonka":
-                return `Meg\u00E1llt ${k.reszlet} r\u00E9szletn\u00E9l, a lista NEM teljes (${k.sorok.length} aj\u00E1nlat). ${dupla}`;
-            case "hiba":
-                return `Hiba a ${k.reszlet + 1}. r\u00E9szletn\u00E9l: ${k.uzenet}`
-                    + (k.sorok.length ? ` Addig ${k.sorok.length} aj\u00E1nlat j\u00F6tt le.` : "");
-            default:
-                return "M\u00E9g nincs let\u00F6ltve.";
-        }
+        return lapAllapotSzoveg(kinalat, KIN_CFG);
     }
 
     /* Csak az allapotsort irja at, ha latszik. Betoltes kozben nem rajzolunk
@@ -4115,111 +4380,42 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         if (el) el.textContent = kinalatAllapotSzoveg();
     }
 
-    /* A vegen NEM rajzolunk ujra mindent: a keresomezoben allo kurzor es a
-       gorgetes maradjon. Csak az allapotsor, a gomb, es ha kozben rendezest
-       kertek, a lista torzse frissul. */
-    function kinalatVege(futas) {
-        if (futas !== kinalat.futas) return;
-        kinalat.veg = Date.now();
-        if (kinalat.regi) {
-            kinalat.regi = null;
-            kinalat.ido = kinalat.tolIdo || kinalat.ido;
-            kinalatNezet.fuggo = true;
-        }
+    /* t92: a lapozo motor beallitasai a Kinalathoz. */
+    const KIN_CFG = {
+        irany: "SELL", fonev: "aj\u00E1nlat",
+        nezet: () => kinalatNezet,
+        osszesE: k => k.kat === "recept" && !!k.mes,
+        rendezoErtek: (s, k) => kinalatRendezoErtek(s, k),
+        kiir: () => {
+            kinalatKiir();
+            const g = gyoker && gyoker.querySelector("[data-kinalat-friss]");
+            if (g) g.disabled = kinalat.allapot === "tolt";
+            kinalatLapozoKiir();
+        },
+        vege: () => kinalatLapVege()
+    };
+    /* A lepes vegen: allapotsor, gomb, lista, lapozo. A keresomezo foksza
+       marad, mert csak a lista torzse es a lapozo cserelodik. */
+    function kinalatLapVege() {
         kinalatKiir();
         const g = gyoker && gyoker.querySelector("[data-kinalat-friss]");
-        if (g) g.disabled = false;
-        if (kinalatNezet.fuggo) {
-            kinalatNezet.fuggo = false;
+        if (g) g.disabled = kinalat.allapot === "tolt";
+        if (kinalat.allapot === "kesz") {
+            if (kinalatNezet.valasztott && !kinalat.sorok.some(x => String(x.market_offer_id) === kinalatNezet.valasztott)) kinalatNezet.valasztott = null;
             kinalatListaUjra();
+            const lista = gyoker && gyoker.getElementById("kinalatLista");
+            if (lista) lista.scrollTop = 0;
         }
+        kinalatLapozoKiir();
         kinalatUresJelzes();
     }
-
+    function kinalatLapozoKiir() {
+        const el = gyoker && gyoker.getElementById("kinalatLapozo");
+        if (el) el.innerHTML = lapozoHTML(kinalat, "klap");
+    }
+    /* Elso megnyitas: uj kerdes; kesobb (cimsav frissito) az aktualis oldal. */
     function kinalatTolt() {
-        if (kinalat.allapot === "tolt") return;
-        const A = jatek().Ajax;
-        const futas = ++kinalat.futas;
-        kinalat.allapot = "tolt";
-        /* Rendezett nezetnel az uj lista csak a vegen rendezheto, ezert
-           addig a regi marad lathato, hogy ne legyen ures a panel. */
-        kinalat.regi = kinalatRendAktiv() && kinalat.sorok.length ? kinalat.sorok : null;
-        kinalat.sorok = [];
-        kinalat.reszlet = 0;
-        kinalat.dupla = 0;
-        kinalat.uzenet = "";
-        kinalat.kezd = Date.now();
-        kinalat.veg = 0;
-        const lattam = new Set();
-
-        if (!A || typeof A.remoteCall !== "function") {
-            kinalat.allapot = "hiba";
-            kinalat.uzenet = "a j\u00E1t\u00E9k Ajax.remoteCall h\u00EDv\u00E1sa nem \u00E9rhet\u0151 el.";
-            kinalatVege(futas);
-            return;
-        }
-
-        function kovetkezo(oldal) {
-            if (futas !== kinalat.futas) return;
-            if (oldal > KINALAT_MAX_RESZLET) {
-                kinalat.allapot = "csonka";
-                kinalatVege(futas);
-                return;
-            }
-            let megjott = false;
-            const ora = setTimeout(() => {
-                if (megjott || futas !== kinalat.futas) return;
-                megjott = true;
-                kinalat.allapot = "hiba";
-                kinalat.uzenet = "nem j\u00F6tt v\u00E1lasz " + (KINALAT_IDOKORLAT / 1000) + " m\u00E1sodpercen bel\u00FCl.";
-                kinalatVege(futas);
-            }, KINALAT_IDOKORLAT);
-
-            try {
-                A.remoteCall("building_market", "search", kinalatParam(oldal), valasz => {
-                    if (megjott || futas !== kinalat.futas) return;
-                    megjott = true;
-                    clearTimeout(ora);
-                    const msg = valasz && valasz.msg;
-                    if (!valasz || valasz.error || !msg || !Array.isArray(msg.search_result)) {
-                        kinalat.allapot = "hiba";
-                        kinalat.uzenet = (valasz && typeof valasz.msg === "string" && valasz.msg)
-                            || "v\u00E1ratlan v\u00E1lasz a szervert\u0151l.";
-                        kinalatVege(futas);
-                        return;
-                    }
-                    kinalat.reszlet = oldal;
-                    kinalat.tolIdo = Date.now();
-                    if (!kinalat.regi) kinalat.ido = kinalat.tolIdo;
-                    const ujak = [];
-                    msg.search_result.forEach(sor => {
-                        const kulcs = String(sor && sor.market_offer_id);
-                        if (lattam.has(kulcs)) { kinalat.dupla++; return; }
-                        lattam.add(kulcs);
-                        kinalat.sorok.push(sor);
-                        ujak.push(sor);
-                    });
-                    kinalatHozzafuz(ujak);
-                    if (msg.next) {
-                        kinalatKiir();
-                        setTimeout(() => kovetkezo(oldal + 1), KINALAT_SZUNET);
-                    } else {
-                        kinalat.allapot = "kesz";
-                        kinalatVege(futas);
-                    }
-                });
-            } catch (e) {
-                if (megjott) return;
-                megjott = true;
-                clearTimeout(ora);
-                kinalat.allapot = "hiba";
-                kinalat.uzenet = "a h\u00EDv\u00E1s kiv\u00E9telt dobott: " + (e && e.message ? e.message : e);
-                kinalatVege(futas);
-            }
-        }
-
-        kinalatKiir();
-        kovetkezo(1);
+        lapLep(kinalat, KIN_CFG, kinalat.kerdes ? "ujra" : "uj");
     }
 
     /* KINALAT LISTA (t5).
@@ -4302,8 +4498,11 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
     }
 
     function kinalatRendezett() {
+        /* t92: lapozva a szerver rendez (vagy a motor fesuli ossze);
+           helyben csak a mesterseg szerinti teljes recept-listan. */
+        if (!kinalat.osszes) return kinalat.sorok;
         const k = kinalatNezet.rendez;
-        const forras = kinalat.regi || kinalat.sorok;
+        const forras = kinalat.sorok;
         if (!k && kinalatSzintRend()) {
             /* Mesterseg szerint: szint novekvo, azonos szinten abc. */
             return forras
@@ -4326,17 +4525,12 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             .map(x => x.s);
     }
 
+    /* t92: a keresest es a kategoriat a szerver szuri; helyben csak a
+       teljes recept-lista mestersegszuroje marad. */
     function kinalatLathatoE(s) {
-        const q = piacNormal(kinalatNezet.kereses);
-        if (q && !piacNormal(targyNev(s.item_id)).includes(q)) return false;
-        if (kinalatNezet.kategoria !== "mind") {
-            const it = itemObj(s.item_id);
-            const tipus = it ? (it.getType ? it.getType() : it.type) : "";
-            if (piacKategoria(tipus) !== kinalatNezet.kategoria) return false;
-            if (kinalatNezet.kategoria === "recept" && kinalatNezet.mesterseg) {
-                const r = receptAdat(s.item_id);
-                if (!r || r.mes !== kinalatNezet.mesterseg) return false;
-            }
+        if (kinalat.osszes && kinalatNezet.mesterseg) {
+            const r = receptAdat(s.item_id);
+            if (!r || r.mes !== kinalatNezet.mesterseg) return false;
         }
         return true;
     }
@@ -4369,6 +4563,9 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
        (odaut). A felirat a nev elejehez igazodik, a megjegyzesjel moge. */
     function kinalatFejlecHTML() {
         const gomb = o => {
+            /* t92: egysegar szerint a szerver nem rendez; csak a teljes
+               recept-listan (helyben) kattinthato. */
+            if (o.kulcs === "egyseg" && !kinalat.osszes) return `<span class="krend jobb krendki">${o.cimke}</span>`;
             const a = kinalatNezet.rendez === o.kulcs;
             const nyil = a ? (kinalatNezet.irany > 0 ? " \u25B2" : " \u25BC") : "";
             return `<button type="button" class="krend${o.jobb ? " jobb" : ""}${a ? " aktiv" : ""}"
@@ -4378,17 +4575,6 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             <div></div>${KINALAT_OSZLOPOK.filter(o => !o.csoport).map(gomb).join("")}
             <div class="knevhely">${KINALAT_OSZLOPOK.filter(o => o.csoport === "nevhely").map(gomb).join(`<span class="kelv">,</span>`)}</div>
           </div>`;
-    }
-
-    /* Uj reszlet erkezett. Alap sorrendnel a lista aljara fuzzuk, ez a
-       szerver sorrendje. Rendezett nezetnel a vegen rendezunk ujra, hogy a
-       sorok ne mozogjanak gorgetes kozben. */
-    function kinalatHozzafuz(ujak) {
-        const lista = gyoker && gyoker.getElementById("kinalatLista");
-        if (!lista || !ujak.length) return;
-        if (kinalatRendAktiv()) { kinalatNezet.fuggo = true; return; }
-        lista.insertAdjacentHTML("beforeend", ujak.map(kinalatSorHTML).join(""));
-        kinalatUresJelzes();
     }
 
     function kinalatListaUjra() {
@@ -4403,29 +4589,14 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         kinalatUresJelzes();
     }
 
-    /* Szures ujrarajzolas nelkul, hogy a keresomezo foksza maradjon. */
-    function kinalatSzur() {
-        const q = piacNormal(kinalatNezet.kereses);
-        const kat = kinalatNezet.kategoria;
-        const mes = kat === "recept" && kinalatNezet.mesterseg ? String(kinalatNezet.mesterseg) : "";
-        gyoker.querySelectorAll("#kinalatLista .ksor2").forEach(sor => {
-            const jo = (!q || (sor.getAttribute("data-knev") || "").includes(q))
-                && (kat === "mind" || sor.getAttribute("data-kkat") === kat)
-                && (!mes || sor.getAttribute("data-kmes") === mes);
-            sor.hidden = !jo;
-        });
-        if (kinalatNezet.valasztott) kinalatSavFrissit();
-        kinalatUresJelzes();
-    }
-
     function kinalatUresJelzes() {
         const ures = gyoker && gyoker.getElementById("kinalatUres");
         if (!ures) return;
         const van = !!gyoker.querySelector("#kinalatLista .ksor2:not([hidden])");
-        ures.hidden = van || kinalat.allapot === "tolt" && !kinalat.sorok.length;
+        ures.hidden = van || kinalat.allapot === "tolt" || kinalat.allapot === "ures";
         ures.textContent = kinalat.sorok.length
             ? "Nincs a sz\u0171r\u00E9snek megfelel\u0151 aj\u00E1nlat."
-            : (kinalat.allapot === "tolt" ? "" : "Nincs aj\u00E1nlat.");
+            : "Nincs aj\u00E1nlat.";
     }
 
 
@@ -4758,6 +4929,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             ${kinalatFejlecHTML()}
             <div class="kinalatlista" id="kinalatLista">${kinalatRendezett().map(kinalatSorHTML).join("")}</div>
             <p class="ures" id="kinalatUres" hidden></p>
+            <div class="lapozo" id="kinalatLapozo">${lapozoHTML(kinalat, "klap")}</div>
           </div>`;
     }
 
@@ -4768,24 +4940,13 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
                 if (kinalatNezet.rendez !== k) { kinalatNezet.rendez = k; kinalatNezet.irany = 1; }
                 else if (kinalatNezet.irany > 0) kinalatNezet.irany = -1;
                 else { kinalatNezet.rendez = null; kinalatNezet.irany = 1; }
-                if (kinalat.allapot === "tolt") {
-                    kinalatNezet.fuggo = true;
-                    if (!kinalatRendAktiv() && kinalat.regi) {
-                        /* Alapra valtott: a regi lista helyett az uj sorok
-                           latszanak, es innen mar hozzafuzunk. */
-                        kinalat.regi = null;
-                        kinalat.ido = kinalat.tolIdo || kinalat.ido;
-                        kinalatNezet.fuggo = false;
-                        kinalatListaUjra();
-                        kinalatKiir();
-                        return;
-                    }
-                    const fej = gyoker.querySelector(".kfej2");
-                    if (fej) { fej.outerHTML = kinalatFejlecHTML(); kinalatFejlecKotes(); }
-                    kinalatKiir();
-                    return;
-                }
-                kinalatListaUjra();
+                /* t92: a teljes recept-listan helyben; lapozva a szerver
+                   rendez, az 1. oldaltol (1 keres). */
+                if (kinalat.osszes) { kinalatListaUjra(); kinalatKiir(); return; }
+                if (kinalat.allapot === "tolt") return;
+                lapLep(kinalat, KIN_CFG, "uj", { rendez: kinalatNezet.rendez, irany: kinalatNezet.irany });
+                const fej = gyoker.querySelector(".kfej2");
+                if (fej) { fej.outerHTML = kinalatFejlecHTML(); kinalatFejlecKotes(); }
             });
         });
     }
@@ -4801,47 +4962,36 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         });
     }
 
-    /* A szint szerinti sorrend be- vagy kikapcsolt. Betoltes kozben a
-       fejlec-rendezes mintajara: a vegen all be. */
-    function kinalatSorrendValtozott() {
-        if (kinalat.allapot === "tolt") {
-            kinalatNezet.fuggo = true;
-            if (!kinalatRendAktiv() && kinalat.regi) {
-                kinalat.regi = null;
-                kinalat.ido = kinalat.tolIdo || kinalat.ido;
-                kinalatNezet.fuggo = false;
-                kinalatListaUjra();
-            } else kinalatSzur();
-            kinalatKiir();
-            return;
-        }
-        kinalatListaUjra();
-    }
-
     function kinalatKotes() {
-        const g = gyoker.querySelector("[data-kinalat-friss]");
-        if (g) g.addEventListener("click", () => {
-            if (kinalat.allapot === "tolt") return;
-            kinalat.allapot = "ures";
-            kinalatTolt();
-            rajzol();
-        });
         const be = gyoker.getElementById("kKereses");
         const torlo = gyoker.querySelector("[data-ktorol]");
-        if (be) be.addEventListener("input", () => {
-            kinalatNezet.kereses = be.value;
-            if (torlo) torlo.hidden = !be.value;
-            kinalatSzur();
-        });
+        /* t92: a kereses Frissitesre vagy Enterre megy ki, gepeles kozben
+           nem. Ha a beirt szoveg az elkuldottel egyezik, a Frissites az
+           aktualis oldalt keri ujra. */
+        const kuld = () => {
+            if (kinalat.allapot === "tolt") return;
+            const uj = String(kinalatNezet.kereses || "").replace(/\s+/g, " ").trim();
+            if (!kinalat.kerdes || uj !== kinalat.kerdes.kereses) lapKeresKuld(kinalat, KIN_CFG, uj);
+            else lapLep(kinalat, KIN_CFG, "ujra");
+        };
+        const g = gyoker.querySelector("[data-kinalat-friss]");
+        if (g) g.addEventListener("click", kuld);
+        if (be) {
+            be.addEventListener("input", () => {
+                kinalatNezet.kereses = be.value;
+                if (torlo) torlo.hidden = !be.value;
+            });
+            be.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); kuld(); } });
+        }
         if (torlo) torlo.addEventListener("click", () => {
             kinalatNezet.kereses = "";
             if (be) { be.value = ""; be.focus(); }
             torlo.hidden = true;
-            kinalatSzur();
+            if (kinalat.kerdes && kinalat.kerdes.kereses) lapKeresTorol(kinalat, KIN_CFG);
         });
         gyoker.querySelectorAll("[data-kkatv]").forEach(b => {
             b.addEventListener("click", () => {
-                const voltSzint = kinalatSzintRend();
+                if (kinalat.allapot === "tolt") return;
                 kinalatNezet.kategoria = b.getAttribute("data-kkatv");
                 /* A Receptbol kilepve a mesterseg is torlodik. */
                 if (kinalatNezet.kategoria !== "recept") kinalatNezet.mesterseg = null;
@@ -4851,18 +5001,31 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
                     x.setAttribute("aria-pressed", a ? "true" : "false");
                 });
                 kinalatMesterFrissit();
-                if (voltSzint !== kinalatSzintRend()) kinalatSorrendValtozott();
-                else kinalatSzur();
+                lapLep(kinalat, KIN_CFG, "uj", { kat: kinalatNezet.kategoria, mes: kinalatNezet.mesterseg });
+                const fej = gyoker.querySelector(".kfej2");
+                if (fej) { fej.outerHTML = kinalatFejlecHTML(); kinalatFejlecKotes(); }
             });
         });
         gyoker.querySelectorAll(".kmester [data-kmes]").forEach(b => {
             b.addEventListener("click", () => {
+                if (kinalat.allapot === "tolt") return;
                 const id = Number(b.getAttribute("data-kmes"));
                 kinalatNezet.mesterseg = kinalatNezet.mesterseg === id ? null : id;
                 kinalatMesterFrissit();
-                kinalatSorrendValtozott();
+                /* Ha mar a teljes recept-lista van kint, a masik mesterseg
+                   helyben szur, keres nelkul. */
+                if (kinalat.osszes && kinalatNezet.mesterseg) {
+                    kinalat.kerdes.mes = kinalatNezet.mesterseg;
+                    kinalatListaUjra();
+                    kinalatKiir();
+                    return;
+                }
+                lapLep(kinalat, KIN_CFG, "uj", { mes: kinalatNezet.mesterseg });
+                const fej = gyoker.querySelector(".kfej2");
+                if (fej) { fej.outerHTML = kinalatFejlecHTML(); kinalatFejlecKotes(); }
             });
         });
+        lapozoKotes("kinalatLapozo", "klap", kinalat, KIN_CFG);
         kinalatFejlecKotes();
         kinalatListaKotes();
         kinalatSavFrissit();
@@ -4876,9 +5039,13 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             const stage = gyoker.getElementById("stage");
             const lista = gyoker.getElementById("kinalatLista");
             if (!stage || !lista) return;
-            const also = 40;
+            /* t92: a lapozo a lista alatt van, annak is hely kell. */
+            const also = 74;
             const h = stage.clientHeight - (lista.offsetTop - stage.offsetTop) - also;
             lista.style.maxHeight = Math.max(120, h) + "px";
+            /* t93: kulso gorgetosav helyett a lista rovidul. */
+            const tul = stage.scrollHeight - stage.clientHeight;
+            if (tul > 0) lista.style.maxHeight = Math.max(120, h - tul) + "px";
         } catch (e) { /* marad a sajat magassaga */ }
     }
 
@@ -4900,11 +5067,14 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
        nem tudtuk merni, ezert a sav gombjai tiltva vannak.
        ----------------------------------------------------------------- */
     const kerelmek = {
-        allapot: "ures",   /* ures | tolt | kesz | hiba | csonka */
-        sorok: [], reszlet: 0, dupla: 0, uzenet: "", kezd: 0, veg: 0, futas: 0, ido: 0
+        allapot: "ures",   /* ures | tolt | kesz | hiba */
+        sorok: [], uzenet: "", futas: 0, ido: 0
     };
+    Object.assign(kerelmek, lapAllapotUj());
+    /* t92: a "Nalam van" szuro kikerult (a fejleszto dontese: minden keres
+       latszik, mint a natív ablakban; a Nalam oszlop marad). */
     const kerelemNezet = { kereses: "", kategoria: "mind", rendez: null, irany: 1,
-                           valasztott: null, nalam: false, uzenet: "", uzenetHiba: false };
+                           valasztott: null, uzenet: "", uzenetHiba: false };
 
     const KERELEM_OSZLOPOK = [
         { kulcs: "nev", cimke: "T\u00E1rgy", jobb: false },
@@ -4915,16 +5085,6 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         { kulcs: "kero", cimke: "K\u00E9r\u0151", jobb: false, csoport: "nevhely" },
         { kulcs: "hely", cimke: "hely", jobb: false, csoport: "nevhely" }
     ];
-
-    function kerelemParam(oldal) {
-        return {
-            pattern: "", nav: oldal === 1 ? "first" : "next", page: oldal,
-            sort: "bid", order: "asc", type: "",
-            level_range_min: "0", level_range_max: "",
-            usable: false, has_effect: false, visibility: 2,
-            direction_sell: false, direction_buy: true
-        };
-    }
 
     function sajatJatekosE(id) {
         try { const sajat = Number(jatek().Character.playerId); return sajat > 0 && Number(id) === sajat; }
@@ -4950,16 +5110,27 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         return s.current_bid != null ? Number(s.current_bid) : null;
     }
 
-    function kerelemAllapotSzoveg() {
-        const k = kerelmek;
-        const mp = k.veg && k.kezd ? ((k.veg - k.kezd) / 1000).toFixed(1).replace(".", ",") : "";
-        switch (k.allapot) {
-            case "tolt": return `Bet\u00F6lt\u00E9s: ${k.reszlet + 1}. r\u00E9szlet, eddig ${k.sorok.length} k\u00E9r\u00E9s\u2026`;
-            case "kesz": return `${k.sorok.length} k\u00E9r\u00E9s, ${k.reszlet} r\u00E9szletben, ${mp} mp.`;
-            case "csonka": return `Megszak\u00EDtva ${KINALAT_MAX_RESZLET} r\u00E9szlet ut\u00E1n, ${k.sorok.length} k\u00E9r\u00E9s.`;
-            case "hiba": return "Hiba: " + k.uzenet;
-            default: return "M\u00E9g nincs let\u00F6ltve.";
+    /* t92: a lapozo motor beallitasai a Masok kereseihez. */
+    const KER_CFG = {
+        irany: "BUY", fonev: "k\u00E9r\u00E9s",
+        nezet: () => kerelemNezet,
+        osszesE: () => false,
+        rendezoErtek: (s, k) => kerelemRendezoErtek(s, k),
+        kiir: () => { kerelemKiir(); kerelemLapozoKiir(); },
+        vege: () => {
+            kerelemKiir();
+            if (kerelmek.allapot === "kesz") {
+                if (kerelemNezet.valasztott && !kerelmek.sorok.some(x => String(x.market_offer_id) === kerelemNezet.valasztott)) kerelemNezet.valasztott = null;
+                kerelemListaUjra();
+                const lista = gyoker && gyoker.getElementById("kerelemLista");
+                if (lista) lista.scrollTop = 0;
+            }
+            kerelemLapozoKiir();
+            kerelemUresJelzes();
         }
+    };
+    function kerelemAllapotSzoveg() {
+        return lapAllapotSzoveg(kerelmek, KER_CFG);
     }
     function kerelemKiir() {
         const el = gyoker && gyoker.getElementById("kerelemAllapot");
@@ -4967,101 +5138,12 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         const g = gyoker && gyoker.querySelector("[data-kerelem-friss]");
         if (g) g.disabled = kerelmek.allapot === "tolt";
     }
-
-    function kerelemTolt() {
-        if (kerelmek.allapot === "tolt") return;
-        const A = jatek().Ajax;
-        const futas = ++kerelmek.futas;
-        kerelmek.allapot = "tolt";
-        kerelmek.sorok = [];
-        kerelmek.reszlet = 0;
-        kerelmek.dupla = 0;
-        kerelmek.uzenet = "";
-        kerelmek.kezd = Date.now();
-        kerelmek.veg = 0;
-        const lattam = new Set();
-
-        const vege = () => {
-            if (futas !== kerelmek.futas) return;
-            kerelmek.veg = Date.now();
-            kerelemKiir();
-            kerelemListaUjra();
-        };
-
-        if (!A || typeof A.remoteCall !== "function") {
-            kerelmek.allapot = "hiba";
-            kerelmek.uzenet = "a j\u00E1t\u00E9k Ajax.remoteCall h\u00EDv\u00E1sa nem \u00E9rhet\u0151 el.";
-            vege();
-            return;
-        }
-
-        function kovetkezo(oldal) {
-            if (futas !== kerelmek.futas) return;
-            if (oldal > KINALAT_MAX_RESZLET) { kerelmek.allapot = "csonka"; vege(); return; }
-            let megjott = false;
-            const ora = setTimeout(() => {
-                if (megjott || futas !== kerelmek.futas) return;
-                megjott = true;
-                kerelmek.allapot = "hiba";
-                kerelmek.uzenet = "nem j\u00F6tt v\u00E1lasz " + (KINALAT_IDOKORLAT / 1000) + " m\u00E1sodpercen bel\u00FCl.";
-                vege();
-            }, KINALAT_IDOKORLAT);
-            try {
-                A.remoteCall("building_market", "search", kerelemParam(oldal), valasz => {
-                    if (megjott || futas !== kerelmek.futas) return;
-                    megjott = true;
-                    clearTimeout(ora);
-                    const msg = valasz && valasz.msg;
-                    if (!valasz || valasz.error || !msg || !Array.isArray(msg.search_result)) {
-                        kerelmek.allapot = "hiba";
-                        kerelmek.uzenet = (valasz && typeof valasz.msg === "string" && valasz.msg)
-                            || "v\u00E1ratlan v\u00E1lasz a szervert\u0151l.";
-                        vege();
-                        return;
-                    }
-                    kerelmek.reszlet = oldal;
-                    kerelmek.ido = Date.now();
-                    msg.search_result.forEach(sor => {
-                        const kulcs = String(sor && sor.market_offer_id);
-                        if (lattam.has(kulcs)) { kerelmek.dupla++; return; }
-                        lattam.add(kulcs);
-                        /* t84 (C): a sajat keres a Kereseim nezetben van
-                           (MERVE: a kereses a sajatot is visszaadja). */
-                        if (sajatJatekosE(sor && sor.seller_player_id)) return;
-                        kerelmek.sorok.push(sor);
-                    });
-                    if (msg.next) {
-                        kerelemKiir();
-                        kerelemListaUjra();
-                        setTimeout(() => kovetkezo(oldal + 1), KINALAT_SZUNET);
-                    } else {
-                        kerelmek.allapot = "kesz";
-                        vege();
-                    }
-                });
-            } catch (e) {
-                if (megjott) return;
-                megjott = true;
-                clearTimeout(ora);
-                kerelmek.allapot = "hiba";
-                kerelmek.uzenet = "a h\u00EDv\u00E1s kiv\u00E9telt dobott: " + (e && e.message ? e.message : e);
-                vege();
-            }
-        }
-        kerelemKiir();
-        kovetkezo(1);
+    function kerelemLapozoKiir() {
+        const el = gyoker && gyoker.getElementById("kerelemLapozo");
+        if (el) el.innerHTML = lapozoHTML(kerelmek, "mklap");
     }
-
-    function kerelemLathatoE(s) {
-        const q = piacNormal(kerelemNezet.kereses);
-        if (q && !piacNormal(targyNev(s.item_id)).includes(q)) return false;
-        if (kerelemNezet.kategoria !== "mind") {
-            const it = itemObj(s.item_id);
-            const tipus = it ? (it.getType ? it.getType() : it.type) : "";
-            if (piacKategoria(tipus) !== kerelemNezet.kategoria) return false;
-        }
-        if (kerelemNezet.nalam && !kerelemEleg(s)) return false;
-        return true;
+    function kerelemTolt() {
+        lapLep(kerelmek, KER_CFG, kerelmek.kerdes ? "ujra" : "uj");
     }
 
     function kerelemRendezoErtek(s, kulcs) {
@@ -5076,21 +5158,9 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             default: return null;
         }
     }
+    /* t92: a szerver rendez (vagy a motor fesuli ossze a Viseletet). */
     function kerelemRendezett() {
-        const sorok = kerelmek.sorok.filter(kerelemLathatoE);
-        const k = kerelemNezet.rendez;
-        if (!k) return sorok;
-        const ir = kerelemNezet.irany;
-        return sorok
-            .map((s, i) => ({ s, i, v: kerelemRendezoErtek(s, k) }))
-            .sort((a, b) => {
-                const au = a.v == null || a.v === "", bu = b.v == null || b.v === "";
-                if (au !== bu) return au ? 1 : -1;
-                let d = 0;
-                if (!au) d = typeof a.v === "string" ? a.v.localeCompare(b.v, "hu") : a.v - b.v;
-                return d ? d * ir : a.i - b.i;
-            })
-            .map(x => x.s);
+        return kerelmek.sorok;
     }
 
     function kerelemSorHTML(s) {
@@ -5115,6 +5185,8 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
 
     function kerelemFejlecHTML() {
         const gomb = o => {
+            /* t92: a Nalam szerint a szerver nem rendez (a taskadat nem ismeri). */
+            if (o.kulcs === "nalam") return `<span class="krend jobb krendki">${o.cimke}</span>`;
             const a = kerelemNezet.rendez === o.kulcs;
             const nyil = a ? (kerelemNezet.irany > 0 ? " \u25B2" : " \u25BC") : "";
             return `<button type="button" class="krend${o.jobb ? " jobb" : ""}${a ? " aktiv" : ""}"
@@ -5262,10 +5334,10 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         const ures = gyoker && gyoker.getElementById("kerelemUres");
         if (!ures) return;
         const van = !!gyoker.querySelector("#kerelemLista .mksor");
-        ures.hidden = van || (kerelmek.allapot === "tolt" && !kerelmek.sorok.length);
-        ures.textContent = kerelmek.sorok.length
+        ures.hidden = van || kerelmek.allapot === "tolt" || kerelmek.allapot === "ures";
+        ures.textContent = kerelmek.kerdes && (kerelmek.kerdes.kereses || kerelmek.kerdes.kat !== "mind")
             ? "Nincs a sz\u0171r\u00E9snek megfelel\u0151 k\u00E9r\u00E9s."
-            : (kerelmek.allapot === "tolt" ? "" : "Nincs veteli k\u00E9r\u00E9s a piacon.");
+            : "Nincs veteli k\u00E9r\u00E9s a piacon.";
     }
 
     function kerelemListaUjra() {
@@ -5294,11 +5366,6 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
                 ${PIAC_KATEGORIAK.map(k => `<button type="button" class="pkat${kerelemNezet.kategoria === k.kulcs ? " aktiv" : ""}"
                   data-mkkat="${k.kulcs}" aria-pressed="${kerelemNezet.kategoria === k.kulcs ? "true" : "false"}">${k.cimke}</button>`).join("")}
               </span>
-              <span class="pkatvalaszto" role="group" aria-label="Sz\u0171r\u00E9s a k\u00E9szletedre">
-                <button type="button" class="pkat${kerelemNezet.nalam ? " aktiv" : ""}" data-mknalam
-                  aria-pressed="${kerelemNezet.nalam ? "true" : "false"}"
-                  title="Csak azok a k\u00E9r\u00E9sek, amikhez van el\u00E9g t\u00E1rgyad">N\u00E1lam van</button>
-              </span>
               <button type="button" class="gomb" data-kerelem-friss
                 ${kerelmek.allapot === "tolt" ? "disabled" : ""}>Friss\u00EDt\u00E9s</button>
             </div>
@@ -5309,6 +5376,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             ${kerelemFejlecHTML()}
             <div class="kinalatlista" id="kerelemLista">${kerelemRendezett().map(kerelemSorHTML).join("")}</div>
             <p class="ures" id="kerelemUres" hidden></p>
+            <div class="lapozo" id="kerelemLapozo">${lapozoHTML(kerelmek, "mklap")}</div>
             <p class="labj">M\u00E1sok v\u00E9teli k\u00E9r\u00E9sei. A sorra kattintva ny\u00EDlik az elad\u00E1si s\u00E1v.
               A ${"\u2605"} azt a sort jel\u00F6li, ahol a te aj\u00E1nlatod a legjobb.</p>
           </div>`;
@@ -5317,54 +5385,56 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
     function kerelemFejlecKotes() {
         gyoker.querySelectorAll(".mkfej2 [data-mkrend]").forEach(g => {
             g.addEventListener("click", () => {
+                if (kerelmek.allapot === "tolt") return;
                 const k = g.getAttribute("data-mkrend");
                 if (kerelemNezet.rendez !== k) { kerelemNezet.rendez = k; kerelemNezet.irany = 1; }
                 else if (kerelemNezet.irany > 0) kerelemNezet.irany = -1;
                 else { kerelemNezet.rendez = null; kerelemNezet.irany = 1; }
-                kerelemListaUjra();
+                /* t92: a szerver rendez, az 1. oldaltol (1 keres). */
+                lapLep(kerelmek, KER_CFG, "uj", { rendez: kerelemNezet.rendez, irany: kerelemNezet.irany });
+                const fej = gyoker.querySelector(".mkfej2");
+                if (fej) { fej.outerHTML = kerelemFejlecHTML(); kerelemFejlecKotes(); }
             });
         });
     }
 
     function kerelemKotes() {
-        const g = gyoker.querySelector("[data-kerelem-friss]");
-        if (g) g.addEventListener("click", () => {
-            if (kerelmek.allapot === "tolt") return;
-            kerelemNezet.valasztott = null;
-            kerelmek.allapot = "ures";
-            kerelemTolt();
-            kerelemKiir();
-        });
         const be = gyoker.getElementById("mkKereses");
         const torlo = gyoker.querySelector("[data-mktorol]");
-        if (be) be.addEventListener("input", () => {
-            kerelemNezet.kereses = be.value;
-            if (torlo) torlo.hidden = !be.value;
-            kerelemListaUjra();
-        });
+        /* t92: mint a Kinalatban: a kereses Frissitesre vagy Enterre megy ki. */
+        const kuld = () => {
+            if (kerelmek.allapot === "tolt") return;
+            kerelemNezet.valasztott = null;
+            const uj = String(kerelemNezet.kereses || "").replace(/\s+/g, " ").trim();
+            if (!kerelmek.kerdes || uj !== kerelmek.kerdes.kereses) lapKeresKuld(kerelmek, KER_CFG, uj);
+            else lapLep(kerelmek, KER_CFG, "ujra");
+        };
+        const g = gyoker.querySelector("[data-kerelem-friss]");
+        if (g) g.addEventListener("click", kuld);
+        if (be) {
+            be.addEventListener("input", () => {
+                kerelemNezet.kereses = be.value;
+                if (torlo) torlo.hidden = !be.value;
+            });
+            be.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); kuld(); } });
+        }
         if (torlo) torlo.addEventListener("click", () => {
             kerelemNezet.kereses = "";
             if (be) { be.value = ""; be.focus(); }
             torlo.hidden = true;
-            kerelemListaUjra();
+            if (kerelmek.kerdes && kerelmek.kerdes.kereses) lapKeresTorol(kerelmek, KER_CFG);
         });
         gyoker.querySelectorAll("[data-mkkat]").forEach(b => {
             b.addEventListener("click", () => {
+                if (kerelmek.allapot === "tolt") return;
                 kerelemNezet.kategoria = b.getAttribute("data-mkkat");
                 gyoker.querySelectorAll("[data-mkkat]").forEach(x => {
                     const a = x === b;
                     x.classList.toggle("aktiv", a);
                     x.setAttribute("aria-pressed", a ? "true" : "false");
                 });
-                kerelemListaUjra();
+                lapLep(kerelmek, KER_CFG, "uj", { kat: kerelemNezet.kategoria });
             });
-        });
-        const n = gyoker.querySelector("[data-mknalam]");
-        if (n) n.addEventListener("click", () => {
-            kerelemNezet.nalam = !kerelemNezet.nalam;
-            n.classList.toggle("aktiv", kerelemNezet.nalam);
-            n.setAttribute("aria-pressed", kerelemNezet.nalam ? "true" : "false");
-            kerelemListaUjra();
         });
         const lista = gyoker.getElementById("kerelemLista");
         if (lista && !lista.dataset.kotve) {
@@ -5379,6 +5449,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
                 kerelemSavFrissit();
             });
         }
+        lapozoKotes("kerelemLapozo", "mklap", kerelmek, KER_CFG);
         kerelemFejlecKotes();
         kerelemSavFrissit();
         kerelemUresJelzes();
@@ -6988,8 +7059,14 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             const stage = gyoker.getElementById("stage");
             const lista = gyoker.getElementById(id);
             if (!stage || !lista) return;
-            const h = stage.clientHeight - (lista.offsetTop - stage.offsetTop) - 60;
+            /* t92: ha a lista alatt lapozo van, annak is hely kell. */
+            const lap = lista.parentElement && lista.parentElement.querySelector(":scope > .lapozo");
+            const h = stage.clientHeight - (lista.offsetTop - stage.offsetTop) - 60 - (lap ? 34 : 0);
             lista.style.maxHeight = Math.max(120, h) + "px";
+            /* t93: ha a panel igy is tulcsordul (kulso gorgetosav jelenne
+               meg), a lista annyival rovidebb. */
+            const tul = stage.scrollHeight - stage.clientHeight;
+            if (tul > 0) lista.style.maxHeight = Math.max(120, h - tul) + "px";
         } catch (e) { /* marad */ }
     }
 
@@ -7220,6 +7297,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
 
     const eladNezet = {
         kereses: "", kategoria: "mind", rendez: null, irany: 1, valasztott: null,
+        oldal: 0, lapJel: "",   /* t92: 100-as oldalak; a jel valtozasa az 1. oldalra visz */
         sorrend: beall.eladSorrend === "leg" ? "leg" : "abc",
         uzenet: "", uzenetHiba: false,
         napok: beall.eladNapok, jog: beall.eladJog, megjegyzes: "",
@@ -7614,10 +7692,11 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
                   data-ekatv="${k.kulcs}" aria-pressed="${eladNezet.kategoria === k.kulcs ? "true" : "false"}">${k.cimke}</button>`).join("")}
               </span>
             </div>
-            <div style="height:8px"></div>
+            <div class="kallapot" id="eladLapAllapot" style="margin:6px 0 4px"></div>
             ${eladUzenetHTML()}
             ${eladFejlecHTML()}
             <div class="kinalatlista" id="eladLista"></div>
+            <div class="lapozo" id="eladLapozo"></div>
             <p class="labj">Sorra kattintva ny\u00EDlik a felad\u00E1si s\u00E1v. Minden felad\u00E1s k\u00E9t kattint\u00E1s.
               ${esc(taskaLabjegyzet(t))}</p>
           </div>`;
@@ -7630,12 +7709,28 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
        Uj ujraepites a futot leallitja (eladRajzFutas). A feladosav csak
        akkor nyilik, ha a kivalasztott sor mar kint van. */
     const ELAD_ELSO = 60, ELAD_ADAG = 120;
+    /* t92: a Keszletem 100-as oldalakkal (a fejleszto dontese, 2026-10-11:
+       nagy taskanal se terhelje a gepet). A kereses, a szuro es a
+       sorrend az egesz taskan dolgozik, az eredmeny lapozodik; szerverkeres
+       nincs. */
+    const ELAD_LAP = 100;
     let eladRajzFutas = 0;
+    let eladLapOssz = 0;
     function eladListaUjra() {
         const lista = gyoker && gyoker.getElementById("eladLista");
         if (!lista) return;
-        const sorok = eladRendezett(eladKeszlet());
-        if (eladNezet.valasztott && !sorok.some(t => t.id === eladNezet.valasztott && t.adhato)) eladNezet.valasztott = null;
+        const mind = eladRendezett(eladKeszlet());
+        if (eladNezet.valasztott && !mind.some(t => t.id === eladNezet.valasztott && t.adhato)) eladNezet.valasztott = null;
+        const jel = [eladNezet.kereses, eladNezet.kategoria, eladNezet.rendez, eladNezet.irany, eladNezet.sorrend].join("|");
+        if (jel !== eladNezet.lapJel) { eladNezet.lapJel = jel; eladNezet.oldal = 0; }
+        /* A kivalasztott sor oldalara lepunk (pl. a Gyujtes Piacra gombja). */
+        const vi0 = eladNezet.valasztott ? mind.findIndex(t => t.id === eladNezet.valasztott) : -1;
+        if (vi0 >= 0) eladNezet.oldal = Math.floor(vi0 / ELAD_LAP);
+        eladLapOssz = Math.max(1, Math.ceil(mind.length / ELAD_LAP));
+        if (eladNezet.oldal >= eladLapOssz) eladNezet.oldal = eladLapOssz - 1;
+        if (eladNezet.oldal < 0) eladNezet.oldal = 0;
+        const sorok = mind.slice(eladNezet.oldal * ELAD_LAP, (eladNezet.oldal + 1) * ELAD_LAP);
+        eladLapKiir(sorok.length, mind.length);
         const futas = ++eladRajzFutas;
         if (!sorok.length) {
             lista.innerHTML = `<div class="piacures">Nincs tal\u00E1lat a k\u00E9szletedben.</div>`;
@@ -7657,6 +7752,34 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             if (i < sorok.length) requestAnimationFrame(tovabb);
         };
         if (i < sorok.length) requestAnimationFrame(tovabb);
+    }
+
+    /* t92: a Keszletem allapotsora es lapozoja. */
+    function eladLapKiir(db, ossz) {
+        const a = gyoker && gyoker.getElementById("eladLapAllapot");
+        if (a) a.textContent = `${eladNezet.oldal + 1}. oldal, ${db} t\u00E1rgy (${ossz} t\u00E1rgyb\u00F3l) \u00B7 nincs szerverk\u00E9r\u00E9s`;
+        const l = gyoker && gyoker.getElementById("eladLapozo");
+        if (!l) return;
+        const gomb = (mit, jel, cim) => `<button type="button" class="lny" data-elap="${mit}" title="${cim}">${jel}</button>`;
+        l.innerHTML = (eladNezet.oldal > 0 ? gomb("eleje", "&#9664;&#9664;", "Els\u0151 oldal") + gomb("elozo", "&#9664;", "El\u0151z\u0151 oldal") : "")
+            + `<span class="lszam">${eladNezet.oldal + 1}</span>`
+            + (eladNezet.oldal + 1 < eladLapOssz ? gomb("kov", "&#9654;", "K\u00F6vetkez\u0151 oldal") : "");
+    }
+    function eladLapozoKotes() {
+        const l = gyoker && gyoker.getElementById("eladLapozo");
+        if (!l || l.dataset.kotve) return;
+        l.dataset.kotve = "1";
+        l.addEventListener("click", e => {
+            const g = e.target.closest && e.target.closest("[data-elap]");
+            if (!g) return;
+            const mit = g.getAttribute("data-elap");
+            eladNezet.oldal = mit === "eleje" ? 0 : (mit === "elozo" ? eladNezet.oldal - 1 : eladNezet.oldal + 1);
+            /* Lapozaskor a nyitott sav bezarul, kulonben visszahuzna. */
+            eladNezet.valasztott = null;
+            eladListaUjra();
+            const lista = gyoker.getElementById("eladLista");
+            if (lista) lista.scrollTop = 0;
+        });
     }
 
     /* Csak a keszlet szamait irja at, a sav mezoihez nem nyul. */
@@ -8308,6 +8431,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
 
     function keszletemKotes() {
         eladHelyGombKotes();
+        eladLapozoKotes();
         const be = gyoker.getElementById("eKereses");
         const torlo = gyoker.querySelector("[data-etorol]");
         /* Kereseskor a rendezes alapra all (a kezdodo talalatok elore),
