@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Kereskedőpult
 // @namespace    the-west-beszerzo-ingame
-// @version      1.0.1
+// @version      1.0.2
 // @description  Gyűjtés és piac a játékon belül: kinek, miből mennyit gyűjtesz, és egy helyen adhatsz el, vehetsz és vehetsz át a játék piacán.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -67,7 +67,7 @@
 (function () {
     "use strict";
 
-    const VERZIO = "1.0.1";
+    const VERZIO = "1.0.2";
 
     /* A fajlnev ALLANDO, nem tartalmaz verziot: igy a repoban mindig ugyanaz
        a fajl frissul, es a Tampermonkey kovetni tudja. A verzio csak a
@@ -94,9 +94,7 @@
        A ket jelolo sor nem valtozhat. */
     /* VALTOZASOK KEZDETE */
     const VALTOZASOK = [
-        "A K\u00edn\u00e1lat \u00e9s a M\u00e1sok k\u00e9r\u00e9sei oldalank\u00e9nt t\u00f6lt, mint a j\u00e1t\u00e9k piaca, \u00edgy j\u00f3val kevesebb k\u00e9r\u00e9s megy a szervernek.",
-        "A keres\u00e9s, a kateg\u00f3ria \u00e9s a rendez\u00e9s a szerveren fut, a keres\u00e9sn\u00e9l az \u00e9kezet nem sz\u00e1m\u00edt.",
-        "A K\u00e9szletem 100 t\u00e1rgyank\u00e9nt lapoz, nagy t\u00e1sk\u00e1n\u00e1l sem lassul."
+        "\u00daj Minimum\u00e1r kapcsol\u00f3 az Elad\u00e1sban: az Azonnali \u00e1r mag\u00e1t\u00f3l a minimumra \u00e1ll."
     ];
     /* VALTOZASOK VEGE */
     /* A TESZT-epito ide irja a belyeget. Kiadasi alakban ures. */
@@ -2347,6 +2345,19 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
 /* UJ ELADAS FUL (t15) */
 .ehely{ display:flex; align-items:center; gap:8px; margin:0 0 8px; font-size:13px; color:var(--ink) }
 .ehelybal{ flex:1 1 auto; min-width:0 }
+/* t95: Minimumar kapcsolo */
+/* t97: a kapcsolo sajat .pkatvalaszto keretben, igy betumerete, magassaga
+   es kerete ugyanaz, mint az ABC / Legutobbi szegmense (a fejleszto kerese). */
+.ehely .ekapcskeret{ margin:0 0 0 8px }
+/* t98: a gomb ugyanugy blokk, mint az ABC / Legutobbi (nem flex), igy az
+   alapvonaluk es a keretuk pixelre egy vonalban van (Chromiumban merve).
+   A doboz negativ margoval nem novel magassagot. */
+.ekapcs:focus{ outline:none }
+.ekapcs:focus-visible{ outline:2px solid var(--line); outline-offset:-2px }
+.ekapcs .edoboz{ display:inline-block; box-sizing:border-box; width:9px; height:9px; margin:-2px 5px -2px 0;
+  vertical-align:middle; position:relative; top:-1px; border:1px solid currentColor; border-radius:2px;
+  font-size:9px; line-height:7px; text-align:center }
+.ekapcs.aktiv .edoboz{ color:var(--green) }
 .ehely .halvany{ color:var(--faint) }
 .efej, .esor{ grid-template-columns:30px minmax(0,1fr) 54px 84px 86px; gap:8px }
 .esor .eertek{ text-align:right; white-space:nowrap; color:var(--dim) }
@@ -7301,7 +7312,10 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         sorrend: beall.eladSorrend === "leg" ? "leg" : "abc",
         uzenet: "", uzenetHiba: false,
         napok: beall.eladNapok, jog: beall.eladJog, megjegyzes: "",
-        mezok: {}          /* targy -> { licit, azonnali, menny, aukcio } szovegkent */
+        mezok: {},         /* targy -> { licit, azonnali, menny, aukcio } szovegkent */
+        /* t95: a Minimumar kapcsolo mar kitoltotte ezeknek az Azonnali arat
+           (targyankent egyszer; az Alap utan sem tolti ujra). */
+        minAutoKesz: new Set()
     };
     let eladKuldes = false;
 
@@ -7379,8 +7393,13 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
     }
     function eladSorrendHTML() {
         const ak = k => !eladNezet.rendez && eladNezet.sorrend === k;
+        /* t95: Minimumar kapcsolo (a fejleszto dontese 2026-10-12: az ABC /
+           Legutobbi mellett, alapbol kikapcsolva, csak az Azonnali arat tolti). */
+        const mb = !!beall.eladMinAuto;
         return `<span class="pkatvalaszto esorrend" role="group" aria-label="Sorrend">${[["abc", "ABC"], ["leg", "Legut\u00F3bbi"]].map(([k, c]) =>
-            `<button type="button" class="pkat${ak(k) ? " aktiv" : ""}" data-esorrend="${k}" aria-pressed="${ak(k) ? "true" : "false"}"${k === "leg" ? ` title="Ahogy a t\u00E1ska: az utolj\u00E1ra megszerzett el\u00F6l"` : ""}>${c}</button>`).join("")}</span>`;
+            `<button type="button" class="pkat${ak(k) ? " aktiv" : ""}" data-esorrend="${k}" aria-pressed="${ak(k) ? "true" : "false"}"${k === "leg" ? ` title="Ahogy a t\u00E1ska: az utolj\u00E1ra megszerzett el\u00F6l"` : ""}>${c}</button>`).join("")}</span>`
+            + `<span class="pkatvalaszto ekapcskeret"><button type="button" class="pkat ekapcs${mb ? " aktiv" : ""}" data-eminauto aria-pressed="${mb ? "true" : "false"}"
+                title="A felad\u00F3s\u00E1v megnyit\u00E1sakor az Azonnali \u00E1r a j\u00E1t\u00E9k minimum\u00E1ra \u00E1ll"><span class="edoboz">${mb ? "\u2713" : ""}</span>Minimum\u00E1r</button></span>`;
     }
     function eladSorrendJel() {
         if (!gyoker) return;
@@ -7424,6 +7443,15 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             eladSorrendJel();
             eladListaUjra();
         }));
+        const mk = gyoker && gyoker.querySelector("#eladHely [data-eminauto]");
+        if (mk) mk.addEventListener("click", () => {
+            beall.eladMinAuto = !beall.eladMinAuto;
+            beallMent();
+            eladNezet.minAutoKesz = new Set();
+            eladHelyKiir();
+            /* Bekapcsolaskor a nyitott sav is kitoltodik. */
+            if (beall.eladMinAuto && eladNezet.valasztott) eladSavFrissit();
+        });
         const g = gyoker && gyoker.querySelector("[data-ehely-friss]");
         if (g) g.addEventListener("click", () => { if (!g.disabled) eladHelyTolt(); });
         const m = gyoker && gyoker.querySelector("[data-emind]");
@@ -8146,6 +8174,18 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         mezo("eMenny", "menny");
         mezo("eAukcio", "aukcio");
         mezo("eMegj", "megj");
+        /* t95: Minimumar kapcsolo: az ures Azonnali ar a minimumra all,
+           pontosan ugy, mintha a $-ra kattintottal volna (koveti a
+           mennyiseget, kezi atiras utan nem nyul hozza). Targyankent egyszer,
+           igy az Alap utan ures marad. Ahol nincs minimum, ures marad. */
+        if (beall.eladMinAuto && !eladNezet.minAutoKesz.has(t.id)) {
+            const az = gyoker.getElementById("eAzonnali");
+            if (az && az.value.trim() === "" && az.placeholder) {
+                eladNezet.minAutoKesz.add(t.id);
+                beir("eAzonnali", az.placeholder);
+                eladMezok(t.id).azonnaliDollar = true;
+            }
+        }
 
         const maxG = sav.querySelector("[data-emax]");
         if (maxG) maxG.addEventListener("click", () => {
