@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Kalandsegítő
 // @namespace    the-west-kalandsegito
-// @version      1.0.11
+// @version      1.0.12
 // @description  A felvett kalandok munkái és sétái egy helyen: melyik munkát hány kaland kéri, mennyi van még hátra, és egy kattintással megnyitja a munkát vagy megmutatja a helyet a térképen.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -82,7 +82,7 @@
     const setTimeout = (f, ms, ...a) => window.setTimeout(f, ksVarIdo(ms), ...a);
     const setInterval = (f, ms, ...a) => window.setInterval(f, ksVarIdo(ms), ...a);
 
-    const VERZIO = "1.0.11";
+    const VERZIO = "1.0.12";
     /* A TESZT-epito ide irja a belyeget. Kiadasi alakban ures. */
     const EPITES = "";
 
@@ -108,9 +108,8 @@
        visszaper nelkul (JSON-kent olvassuk). A ket jelolo sor nem valtozhat. */
     /* VALTOZASOK KEZDETE */
     const VALTOZASOK = [
-        "Kaland felv\u00e9tel\u00e9hez k\u00e9rt t\u00e1rgyakn\u00e1l a wiki szerint l\u00e1tszik, mit kell viselned \u00e9s mi el\u00e9g, ha n\u00e1lad van (pl. A m\u00edtosz, \u00dcveg: a Tiszta homokot fel kell venni; A k\u00e9zm\u0171ves k\u00e9szs\u00e9gek megt\u00e9r\u00fclnek: a t\u00e1rgy el\u00e9g a t\u00e1sk\u00e1ban).",
-        "Ha egy kalandr\u00e9sz felv\u00e9tel\u00e9hez sok t\u00e1rgy hi\u00e1nyzik, a fejl\u00e9cben csak a darabsz\u00e1m \u00e1ll (pl. \u201eel\u0151bb vedd fel: 7 t\u00e1rgy\u201d), a teljes lista a bubor\u00e9kban; \u00edgy a sor nem l\u00f3g ki, \u00e9s a Megb\u00edz\u00f3hoz gomb a hely\u00e9n marad.",
-        "A Kalandsorok f\u00fcl tetej\u00e9n a kalandsorok sz\u00e1ma egyezik a l\u00e1that\u00f3 k\u00e1rty\u00e1kkal (eddig a felvett r\u00e9sz n\u00e9lk\u00fcli ism\u00e9telhet\u0151 kalandokat is besz\u00e1molta)."
+        "Ha a j\u00e1t\u00e9k egy kalandsort m\u00e1r lez\u00e1rtnak tekint, a Kalandsorok f\u00fcl is k\u00e9sznek veszi, \u00e9s leveszi a list\u00e1r\u00f3l (eddig egy m\u00e1sik kalandsorban hozott d\u00f6nt\u00e9s miatt el\u00e9rhetetlen r\u00e9sz fent tarthatta, pl. A kaland h\u00edv\u00f3 szava).",
+        "A Kalandseg\u00edt\u0151 ikonja telefonon is elh\u00fazhat\u00f3 ujjal, \u00e9s ott marad, ahov\u00e1 teszed; a k\u00e9perny\u0151r\u0151l nem tolhat\u00f3 ki."
     ];
     /* VALTOZASOK VEGE */
 
@@ -6199,6 +6198,10 @@ const RECEPT_TEKERCS = {
                 try {
                     const jl = ksJutLancok((agAdat || {})[s.group] || ksDbSor(s.group));
                     if (jl.length && jl.every(l => ksJutLancAll(l).kesz)) return false;
+                    /* t88j: a jatek szerint lezart sor azonnal eltunik, ha
+                       nincs nyitott jutalomlanca (nem csak a kovetkezo
+                       egyeztetesnel, amikor a tarolasbol is torlodik) */
+                    if (s.jatekLezart && !(jl.length && jl.some(l => !ksJutLancAll(l).kesz))) return false;
                 } catch (e) { /* marad */ }
             }
             return true;
@@ -7561,6 +7564,8 @@ const RECEPT_TEKERCS = {
             if (i >= elso || kesz.has(id) || felvett.has(id) || ki.has(id) || R.get(id).i) return;
             if (!felt(R.get(id)).some(c => c.ids.some(x => R.has(x)))) kesz.add(id);
         });
+        /* t88j: a jatek szerint lezart sor (felvett resz nelkul): ami nem kesz, kiesik */
+        if (ctx.sorLezart && !felvett.size) R.forEach(r => { if (!kesz.has(r.id)) ki.add(r.id); });
         const allapot = new Map();
         R.forEach(r => allapot.set(r.id, kesz.has(r.id) ? "kesz" : felvett.has(r.id) ? "felvett" : ki.has(r.id) ? "ki" : "hatra"));
         /* t16b (MrA): ismetelheto kalandkeszletbol csak a felvett latszik. */
@@ -7826,16 +7831,49 @@ const RECEPT_TEKERCS = {
        munkamenetben EGYSZER ujra kerjuk (legfeljebb +1 keres a jatekszerverre). */
     const KS_LEZART_VAR = 30000;
     let ksLezartUjra = false;
-    function ksLezartGyujt(o, ki, mely) {
+    function ksLezartGyujt(o, ki, mely, kulcs) {
         if (!o || typeof o !== "object" || mely > 6) return;
-        if (o.quests && typeof o.quests === "object" && !Array.isArray(o.quests)) Object.keys(o.quests).forEach(k => { if (/^\d+$/.test(k)) ki.add(Number(k)); });
-        Object.keys(o).forEach(k => { if (k !== "quests") ksLezartGyujt(o[k], ki, mely + 1); });
+        if (o.quests && typeof o.quests === "object" && !Array.isArray(o.quests)) {
+            Object.keys(o.quests).forEach(k => { if (/^\d+$/.test(k)) ki.add(Number(k)); });
+            /* t88j: a "quests"-et tartalmazo objektum kulcsa a kalandsor (NEM
+               MERT a valasz szerkezete; a QuestLog.solved_group kulcsai MERTEK) */
+            if (/^\d+$/.test(String(kulcs || ""))) ksLezartSorKert.add(Number(kulcs));
+        }
+        Object.keys(o).forEach(k => { if (k !== "quests") ksLezartGyujt(o[k], ki, mely + 1, k); });
+    }
+    /* t88j (MrA, 2026-10-23, "kezdheted a javítást"): A JATEK SZERINT LEZART
+       KALANDSOR KESZ. MERT: A kaland hivo szava (105) leadva, a jatek
+       lezart-listajaban szerepel (QuestLog.solved_group[105]), a szkript megis
+       "1 hátravan"-t mutatott: az Egy oreg barat (1794) az Az Elors masik
+       "A döntés" agara var (1800 / 1801 kizarja egymast; az Az Elors nincs
+       lezarva, igy az agvalasztas a szkript elott ismeretlen). Szabaly: ha a
+       jatek lezartnak tartja a sort, es nincs belole felvett kaland, a meg
+       nem kesz reszei kiesnek (ksSzamol ctx.sorLezart). Keres nincs: a
+       QuestLog.solved_group minden hivaskor a jatek memoriajabol. */
+    const ksLezartSorKert = new Set();
+    /* MERT (proba-t86, MrA dontese t86): az esemenyes sor evente ujraindul,
+       a tavalyi lezaras nem jelenti, hogy most kesz; ezekre nem hat. */
+    function ksSorEsemenyes(n) {
+        if (KS_ESEMENY_SOROK.has(n)) return true;
+        try {
+            const es = ksEsemAdat();
+            return !!(es && Object.keys(es.esemenyek || {}).some(k => (es.esemenyek[k] || []).some(x => Number(x && x.id) === n)));
+        } catch (e) { return false; }
+    }
+    function ksSorLezartJatek(g) {
+        const n = Number(g);
+        if (!(n > 0) || ksSorEsemenyes(n)) return false;
+        if (ksLezartSorKert.has(n)) return true;
+        try {
+            const sg = jatek().QuestLog && jatek().QuestLog.solved_group;
+            return !!(sg && typeof sg === "object" && Object.prototype.hasOwnProperty.call(sg, String(n)));
+        } catch (e) { return false; }
     }
     function ksLezartOlvas(csakHelyi) {
         if (ksLezart) return ksLezart;
         try {
             const sg = jatek().QuestLog && jatek().QuestLog.solved_group;
-            if (sg && Object.keys(sg).length) { const ki = new Set(); ksLezartGyujt(sg, ki, 0); if (ki.size) { ksLezart = ki; return ksLezart; } }
+            if (sg && Object.keys(sg).length) { const ki = new Set(); ksLezartGyujt(sg, ki, 0, ""); if (ki.size) { ksLezart = ki; return ksLezart; } }
         } catch (e) { /* tovabb */ }
         if (ksLezartKert || csakHelyi) return null;
         ksLezartKert = true;
@@ -7852,7 +7890,7 @@ const RECEPT_TEKERCS = {
             jatek().Ajax.remoteCallMode("building_quest", "get_solved_groups", {}, json => {
                 valasz = true;
                 const ki = new Set();
-                ksLezartGyujt(json, ki, 0);
+                ksLezartGyujt(json, ki, 0, "");
                 if (ki.size) { ksLezart = ki; ksMegbizoJelol(); if (latszik && (beall.ful === "sor" || beall.ful === "ossz" || beall.ful === "terv")) frissitKesobb(); }
             });
         } catch (e) { /* marad a regi viselkedes */ }
@@ -7962,7 +8000,7 @@ const RECEPT_TEKERCS = {
             const meg = new Set(R.filter(r => kulso.has(Number(r.id))).map(r => Number(r.id)));
             if (!meg.size) return;
             let e;
-            try { e = ksSzamol(s, { felvett: new Set(), megoldott: meg, prof, kulso, felvMind }); } catch (x) { return; }
+            try { e = ksSzamol(s, { felvett: new Set(), megoldott: meg, prof, kulso, felvMind, sorLezart: ksSorLezartJatek(g) }); } catch (x) { return; }
             if (e.kesz) return;
             const most = R.filter(r => e.most.has(r.id) && !(e.kulso && e.kulso.get(r.id)));
             if (!most.length || most.every(r => /várnod kell/.test(String(r.x || "")))) return;
@@ -8129,7 +8167,7 @@ const RECEPT_TEKERCS = {
             st2.m = 1;
             const felvettMost = ksFelvettek().get(g) || [];
             if (!felvettMost.length && a2.sorok[g]) {
-                const e = ksSzamol(a2.sorok[g], { felvett: new Set(), megoldott, prof });
+                const e = ksSzamol(a2.sorok[g], { felvett: new Set(), megoldott, prof, sorLezart: ksSorLezartJatek(g) });
                 /* t87t: a kesz sor marad, amig a jutalomlanca nincs kesz */
                 if (e.kesz && !ksJutLancHatra(a2.sorok[g])) ksTorol(g, a2, l2, jatekos);
             }
@@ -8281,7 +8319,7 @@ const RECEPT_TEKERCS = {
                 const felvettMost = (ksFelvettek().get(g) || []);
                 if (!felvettMost.length && feladva.length) ksTorol(g, a2, l2, jatekos);
                 else if (!felvettMost.length && a2.sorok[g]) {
-                    const e = ksSzamol(a2.sorok[g], { felvett: new Set(), megoldott, prof });
+                    const e = ksSzamol(a2.sorok[g], { felvett: new Set(), megoldott, prof, sorLezart: ksSorLezartJatek(g) });
                     if (e.kesz && !ksJutLancHatra(a2.sorok[g])) ksTorol(g, a2, l2, jatekos);
                 }
                 ksIr(ksAdatKulcs(), a2);
@@ -8290,7 +8328,7 @@ const RECEPT_TEKERCS = {
                    ha a lanc nem kesz (feladott kalandnal nincs ugras) */
                 const leadott = eltunt.filter(id => megoldott.has(id));
                 if (leadott.length && a2.sorok[g] && l2.sorok[g] && (a2.sorok[g].reszek || []).length) {
-                    const e2 = ksSzamol(a2.sorok[g], { felvett: new Set(felvettMost), megoldott, prof });
+                    const e2 = ksSzamol(a2.sorok[g], { felvett: new Set(felvettMost), megoldott, prof, sorLezart: ksSorLezartJatek(g) });
                     if (!e2.kesz) ksLeadasJelolt(g, leadott);
                 }
                 /* t74 (MrA, A szellemvaros / Ruha teszi a gazdag embert, MERT:
@@ -9798,7 +9836,7 @@ const RECEPT_TEKERCS = {
             };
             s.reszek.forEach(r => { r.n = nevOf(r); });
             const st = all.sorok[g] || {};
-            const e = ksSzamol(s, { felvett: new Set(felv.get(g) || []), megoldott: new Set(st.s || []), prof, kulso: kulsoKesz, felvMind });
+            const e = ksSzamol(s, { felvett: new Set(felv.get(g) || []), megoldott: new Set(st.s || []), prof, kulso: kulsoKesz, felvMind, sorLezart: ksSorLezartJatek(g) });
             /* t87g (MrA, Terv 47, 2026-10-09): ISMETELHETO KALANDSOR. MERT:
                Globalizacio 10173, csoport 62, groupTitle "Ismetelheto kalandok";
                a tw-calc 275 reszebol 6-ot nem jelol ismetelhetonek, ezert a sor
@@ -9948,7 +9986,7 @@ const RECEPT_TEKERCS = {
             const felvS = reszek.filter(r => r.allapot === "felvett");
             felvS.forEach(r => { r.lejart = lejartK.get(Number(r.id)) || ""; });
             const sorLejart = felvS.length > 0 && felvS.every(r => r.lejart);
-            sorok.push({ group: g, cim: s.cim, wikiCim: ksCsoportCim(g) || s.cim, reszek, kesz: ismSor ? false : e.kesz, hiba: ksHiba[g] || "", idoKorlat, korlat: sorKorlat.get(Number(g)) || "", lejart: sorLejart, ismSor });
+            sorok.push({ group: g, cim: s.cim, wikiCim: ksCsoportCim(g) || s.cim, reszek, kesz: ismSor ? false : e.kesz, jatekLezart: ksSorLezartJatek(g), hiba: ksHiba[g] || "", idoKorlat, korlat: sorKorlat.get(Number(g)) || "", lejart: sorLejart, ismSor });
             sorIdo.set(g, idoKorlat);
             if (sorLejart) return;
             /* t34 (MrA): a masik kalandsor feltetele (t25) a helyeknel is, hogy
@@ -11270,36 +11308,74 @@ span.kicsikep.ures{background:transparent}
             const s = JSON.parse(GM_getValue(GOMB_POS, "null"));
             if (s && typeof s.top === "number") p = s;
         } catch (e) { /* alap */ }
+        /* t88l (MrA, 2026-10-23, "mehet a programozás"): telefonon az ikon nem
+           volt huzhato (csak egeresemenyek), es tobb jatekgomb ala ragadt.
+           Most pointer-esemenyek (eger, erintes, toll); touch-action:none, hogy
+           huzas kozben ne gorogjon az oldal; a koppintas (mozgas nelkul) nyit,
+           mint a kattintas. Az ikon a kepernyon belul marad (huzaskor,
+           betolteskor es atmeretezeskor, pl. a telefon elforgatasa); a mentett
+           hely csak huzas utan valtozik. */
+        const MERET = 32;
+        const korlat = (top, right) => ({
+            top: Math.max(0, Math.min(Number(top) || 0, Math.max(0, (window.innerHeight || 0) - MERET))),
+            right: Math.max(0, Math.min(Number(right) || 0, Math.max(0, (window.innerWidth || 0) - MERET)))
+        });
+        if (window.innerHeight > MERET && window.innerWidth > MERET) p = Object.assign({}, p, korlat(p.top, p.right));
         b.style.cssText = [
             "position:fixed", "z-index:2147483001",
             "right:" + p.right + "px", "top:" + p.top + "px",
             "width:32px", "height:32px", "display:flex", "align-items:center", "justify-content:center",
             "background:#2f261d", "border:1px solid #b8863b", "border-radius:6px",
             "color:#d5a13a", "font:700 18px/1 \"Segoe UI Symbol\",\"Noto Sans Symbols 2\",sans-serif",
-            "padding:0", "cursor:pointer", "user-select:none", "appearance:none",
+            "padding:0", "cursor:pointer", "user-select:none", "appearance:none", "touch-action:none",
             "box-shadow:0 1px 4px rgba(0,0,0,.6)"
         ].join(";");
         b.addEventListener("mouseenter", () => { b.style.color = "#f2c45c"; });
         b.addEventListener("mouseleave", () => { b.style.color = "#d5a13a"; });
-        let huz = false, mozgott = false, y0 = 0, x0 = 0, t0 = 0, r0 = 0;
-        b.addEventListener("mousedown", e => {
-            huz = true; mozgott = false; y0 = e.clientY; x0 = e.clientX;
+        let huz = false, mozgott = false, y0 = 0, x0 = 0, t0 = 0, r0 = 0, pid = null;
+        const le = (tipus, f) => b.addEventListener(tipus, f);
+        const PE = typeof window.PointerEvent === "function";
+        const kezd = e => {
+            if (e.button != null && e.button !== 0 && e.pointerType !== "touch") return;
+            huz = true; mozgott = false; y0 = e.clientY; x0 = e.clientX; pid = e.pointerId != null ? e.pointerId : null;
             t0 = parseInt(b.style.top) || 0; r0 = parseInt(b.style.right) || 0;
+            try { if (pid != null && b.setPointerCapture) b.setPointerCapture(pid); } catch (x) { /* nem baj */ }
             e.preventDefault();
-        });
-        document.addEventListener("mousemove", e => {
+        };
+        const mozog = e => {
             if (!huz) return;
             const dy = e.clientY - y0, dx = e.clientX - x0;
             if (Math.abs(dy) > 3 || Math.abs(dx) > 3) mozgott = true;
-            b.style.top = Math.max(0, t0 + dy) + "px";
-            b.style.right = Math.max(0, r0 - dx) + "px";
-        });
-        document.addEventListener("mouseup", () => {
+            if (!mozgott) return;
+            const k = korlat(t0 + dy, r0 - dx);
+            b.style.top = k.top + "px";
+            b.style.right = k.right + "px";
+            if (e.cancelable) e.preventDefault();
+        };
+        const vege = () => {
             if (!huz) return;
             huz = false;
+            try { if (pid != null && b.releasePointerCapture) b.releasePointerCapture(pid); } catch (x) { /* nem baj */ }
+            pid = null;
             if (mozgott) {
                 try { GM_setValue(GOMB_POS, JSON.stringify({ top: parseInt(b.style.top) || 0, right: parseInt(b.style.right) || 0 })); } catch (e) { /* nem baj */ }
             }
+        };
+        if (PE) {
+            le("pointerdown", kezd);
+            document.addEventListener("pointermove", mozog);
+            document.addEventListener("pointerup", vege);
+            document.addEventListener("pointercancel", vege);
+        } else {
+            le("mousedown", kezd);
+            document.addEventListener("mousemove", mozog);
+            document.addEventListener("mouseup", vege);
+        }
+        window.addEventListener("resize", () => {
+            if (huz) return;
+            const k = korlat(parseInt(b.style.top) || 0, parseInt(b.style.right) || 0);
+            b.style.top = k.top + "px";
+            b.style.right = k.right + "px";
         });
         b.addEventListener("click", () => {
             if (mozgott) { mozgott = false; return; }
