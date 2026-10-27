@@ -16,6 +16,133 @@ A korábbi bejegyzések szövegét nem írtam át. Ott az akkori állapot szerep
 
 ---
 
+## 1.2.8 - 2026-10-27
+
+Javítások: zárolt köztes termék a láncban, és két telefonos hiba.
+
+### Munkalap
+
+- **Zárolt köztes termék a láncban.** Ha egy recept láncában olyan köztes
+  termékből kellene gyártani, amelynek receptje zárolt, a panel eddig ezt nem
+  vette figyelembe: kiírta a zöld Max számot, felajánlotta a Gyártás gombot, a
+  játék pedig elutasította a gyártást. Mérve az Arany zenedobozon: 4
+  Órásmester szerszámai kell hozzá, 1 volt meg, a recept zárolva volt.
+- Mostantól ilyenkor a Max szám és a Gyártás gomb helyén ez áll: „Most nem
+  gyártható: a köztes termék nincs meg.” Ez akkor jelenik meg, ha a zárolt
+  köztes termék éppen zárolva van, vagy ha egynél többet kellene belőle
+  gyártani, mert zárolt receptből egyszerre csak egy indítható.
+- A készültségi gyűrű és a robbantott ábra nem változott: azok azt mutatják,
+  mennyi alapanyagod van, és az továbbra is igaz.
+- A köztes terméket külön gyártod le: a robbantott ábrában a nevére kattintva
+  átugrasz rá.
+
+### Telefon
+
+- **A nyitógomb telefonon is húzható.** Eddig csak egérrel lehetett
+  mozgatni, és a gépen elmentett hely telefonon a képernyőn kívülre vagy a
+  játék gombjai alá eshetett. Mostantól ujjal is húzható, koppintásra nyit,
+  és mindig a képernyőn belül marad, a telefon elforgatásakor is.
+- **A receptlista nem ugrik vissza a tetejére.** iPhone-on (Safari) a
+  receptre koppintva a bal oldali lista mindig a tetejére ugrott. Mostantól
+  ott marad, ahol voltál.
+
+A kör új kérést nem küld a játéknak.
+
+---
+
+## 1.2.7 - 2026-09-22
+
+Karakterenkénti tárolás, darabszám az ugrásnál, és a frissítésablak
+mostantól kiírja, mi változott.
+
+### Karakterenként külön
+
+- **Minden karakter a saját terveit és megbízásait látja**, világonként
+  külön. Eddig egy böngészőben minden karakter és minden világ ugyanazt a
+  listát látta: a másik karakter megbízása beleszámított a te raktáradba (ha
+  a beszámítás be volt kapcsolva), és a terveiket egymás helyére is fel
+  lehetett írni.
+- **A beállítások, a nyitógomb helye és a frissítésértesítés közös maradt**,
+  mert azok a te szokásaid, nem a karakteredé.
+- **Figyelem, ha több karakterrel játszol egy böngészőből:** a régi tervek
+  és megbízások annál a karakternél maradnak, amelyikkel a frissítés után
+  ELŐSZÖR belépsz. A többi karakter üres listával indul. A régi adatok nem
+  vesznek el, a panel megőrzi őket.
+- A panel a karaktert a játék belső azonosítójáról ismeri fel, nem a
+  nevéről, tehát átnevezés után is megtalálja a sajátját.
+
+### Munkalap
+
+- **A tervsor nevéről ugorva a tervezett darabszám is átjön.** Ha a tervben
+  50 Markolat áll, a recept 50-nel nyílik meg, és a Gyártás gombbal rögtön
+  indíthatod. A robbantott ábráról ugorva továbbra is 1 darab.
+- **Egycélú nézetben a robbantott ábra legfelső sora nem ugró többé.** Oda
+  kattintva ugyanarra a receptre ugrott volna. Többtételes tervben a legfelső
+  sorok továbbra is kattinthatók.
+
+### Frissítésablak
+
+- **Az ablak mostantól kiírja, mi változott**, a panel nyelvén (ha azon
+  nincs, angolul, végül magyarul). Mivel a listát a már telepített változat
+  olvassa, **ez a frissítés még lista nélkül szól**; a lista a következő
+  frissítéstől jelenik meg.
+- Az ablak tartalma kitölti a teljes szélességet, és az aláírásban piros a
+  szív.
+
+A kör új kérést nem küld a játéknak.
+
+---
+
+## 1.2.6 - 2026-09-19
+
+Kényelmi kör: a funkciók alapból bekapcsolva, kattintható Max, és a mentett
+tervek végre felülírhatók és elnevezhetők.
+
+### Alapból bekapcsolva
+
+- **Négy funkció mostantól alapból be van kapcsolva:** a Munkaóra-jelzés, a
+  Hatásszűrő, a Megtanulom gomb és a Gyártás gomb. Eddig mindegyiket
+  külön kellett bekapcsolni a Beállításokban.
+- **Figyelem, a frissítés EGYSZER mindenkinél bekapcsolja ezt a négyet**,
+  akkor is, ha korábban szándékosan kikapcsoltad valamelyiket. A panel nem
+  tudja megkülönböztetni, hogy valaki tudatosan kapcsolt ki valamit, vagy
+  sosem nyúlt hozzá. Ha valamelyikre nincs szükséged, kapcsold ki újra: ez
+  a döntésed onnantól megmarad, a panel többé nem nyúl hozzá.
+- **A Termékbeszerzők beszámítása kikapcsolva marad.** Ez nem funkció, hanem
+  számítási mód: azt dönti el, hogy a beszerzőknél leadott megbízások
+  levonódnak-e a szükségletből. Ha a frissítés bekapcsolná, a megszokott
+  számok egyik napról a másikra megváltoznának.
+
+### Munkalap
+
+- **A zöld Max szám kattintható.** Az egycélú nézetben, a saját
+  mesterséged receptjénél a zöld "Max: N"-re kattintva a darabszám beíródik
+  a léptetőbe, és a Gyártás gomb már a teljes mennyiséget ajánlja. Zárolt
+  receptnél 1-et ír be, mert egyszerre egy indítható. A réz színű szám
+  (másik mesterség, hiányzó köztes lépés) nem kattintható.
+
+### Mentett tervek
+
+- **Felülírás és Mentés újként.** Eddig a mentett tervet a tartalma
+  azonosította, ezért egy darabszám átírása mindig új tervet hozott létre.
+  Mostantól ha megnyitsz egy mentett tervet és módosítod, két gomb jelenik
+  meg: a **Felülírás** a megnyitott terv helyére ment, a **Mentés újként**
+  mellé tesz egy újat. Amíg nem módosítottál, a gomb "Mentve" feliratú.
+- **A fejléc mutatja, melyik terv van megnyitva** ("Megnyitva: ..."), és
+  kiírja, ha módosítottad. A Tervek listában a megnyitott terv jelölve van.
+- **A tervnek saját neve is lehet.** A fejlécben a névre kattintva
+  átírhatod: Enter vagy máshová kattintás ment, Esc visszaáll, üresre
+  törölve visszajön az automatikus név. A saját nevű terv sora a listában
+  kétsoros: a név, alatta a tartalom. Felülírásnál a saját név megmarad.
+- **A régi mentett terveid megmaradnak**, az első betöltéskor belső
+  azonosítót kapnak, a tartalmuk nem változik.
+
+A kör új kérést nem küld a játéknak. A bekapcsolt Munkaóra-jelzés
+ugyanazzal a védelemmel kér adatot, mint eddig: csak nyitott panelnél, csak
+ha hiányzik, és percenként legfeljebb egyszer.
+
+---
+
 ## 1.2.5 - 2026-09-18
 
 Kis kör a recept-tekercsek körül: a kijelölt sor ikonja, a szöveges másolás,

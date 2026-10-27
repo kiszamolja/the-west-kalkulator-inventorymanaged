@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Crafting Calculator
 // @namespace    the-west-kalkulator-ingame
-// @version      1.2.7
+// @version      1.2.8
 // @description  Crafting calculator inside the game, in a movable window. Reads only data already loaded in the browser.
 // @updateURL    https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/the-west-panel.user.js
 // @downloadURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/the-west-panel.user.js
@@ -29,7 +29,7 @@
 // ==/UserScript==
 
 /* =======================================================================
-   Mesterség-kalkulátor - játékbeli panel, 1.2.7
+   Mesterség-kalkulátor - játékbeli panel, 1.2.8
 
    Mit tud:
      · mozgatható ablak a játék saját ablakkeretében
@@ -1005,6 +1005,7 @@ const SZOVEG = {
   leptető_tobb: ["Több","More","Mehr","Więcej"],
   max_cim: ["Ennyit tudsz most legyártani a készletedből.","How many you can craft right now from your stock.","So viele kannst du jetzt aus deinem Bestand herstellen.","Tyle możesz teraz wytworzyć ze swoich zapasów."],
   max_cim_zarolt: ["Alapanyagod {n} darabra van, de a zárolás miatt egyszerre egyet gyárthatsz.","You have materials for {n}, but the lockout allows only one at a time.","Du hast Material für {n} Stück, wegen der Sperre kannst du aber nur eines auf einmal herstellen.","Masz surowce na {n} szt., ale blokada pozwala wytworzyć tylko jedną naraz."],
+  zar_koztes: ["Most nem gyártható: a köztes termék nincs meg.","Cannot be crafted right now: an intermediate product is missing.","Derzeit nicht herstellbar: ein Zwischenprodukt fehlt.","Teraz nie można wytworzyć: brakuje produktu pośredniego."],
   max_nincs: ["{nev} kell hozzá, azt nem te gyártod","{nev} is needed, and you cannot craft it","{nev} wird benötigt, das stellst du nicht selbst her","Potrzebny jest {nev}, a tego nie wytwarzasz"],
   max_szam_cimke: ["Max:","Max:","Max:","Max:"],
   max_katt: ["Kattints rá, és beírja ezt a darabszámot.","Click to fill in this quantity.","Klicken, um diese Menge einzutragen.","Kliknij, aby wpisać tę ilość."],
@@ -1163,7 +1164,7 @@ const SZOVEG = {
 (function () {
     "use strict";
 
-    const VERZIO = "1.2.7";
+    const VERZIO = "1.2.8";
     /* Építésbélyeg. NEM kerül a @version sorba, tehát a frissítésellenőrzést
        nem érinti: az csak a @version sort olvassa. Csak arra való, hogy a
        tesztképernyőképekről egyértelmű legyen, melyik építés látszik.
@@ -1181,10 +1182,10 @@ const SZOVEG = {
        fajlban az ELSO, a kiolvaso a legelso elofordulast keresi. */
     /* VALTOZASOK KEZDETE */
     const VALTOZASOK = {
-        "hu": ["Minden karakter a saját terveit és megbízásait látja, világonként külön.", "A tervsor nevéről ugorva a tervezett darabszám is átjön, így rögtön gyárthatsz.", "A frissítésablak mostantól kiírja, mi változott."],
-        "en": ["Each character now sees its own plans and commissions, separately on each world.", "Jumping from a plan row now carries the planned quantity, so you can craft right away.", "The update window now lists what has changed."],
-        "de": ["Jeder Charakter sieht jetzt seine eigenen Pläne und Aufträge, getrennt für jede Welt.", "Beim Sprung aus einer Planzeile wird die geplante Menge übernommen, so kannst du sofort herstellen.", "Das Update-Fenster zeigt jetzt, was sich geändert hat."],
-        "pl": ["Każda postać widzi teraz własne plany i zlecenia, osobno na każdym świecie.", "Przejście z wiersza planu przenosi zaplanowaną ilość, więc możesz od razu wytwarzać.", "Okno aktualizacji pokazuje teraz, co się zmieniło."]
+        "hu": ["Ha a láncban egy zárolt köztes termékből kellene gyártani, a panel nem ajánlja fel a gyártást, hanem kiírja, hogy most nem gyártható.", "A nyitógomb telefonon is húzható, és mindig a képernyőn belül marad.", "Telefonon a receptlista választás után nem ugrik vissza a tetejére."],
+        "en": ["If a locked intermediate product would have to be crafted in the chain, the panel no longer offers crafting and shows that it cannot be crafted right now.", "The open button can now be dragged on phones too, and it always stays on screen.", "On phones, the recipe list no longer jumps back to the top after a selection."],
+        "de": ["Wenn in der Kette ein gesperrtes Zwischenprodukt hergestellt werden müsste, bietet das Panel die Herstellung nicht an und zeigt, dass sie gerade nicht möglich ist.", "Der Öffnen-Knopf lässt sich jetzt auch am Handy verschieben und bleibt immer im Bildschirm.", "Am Handy springt die Rezeptliste nach einer Auswahl nicht mehr nach oben."],
+        "pl": ["Jeśli w łańcuchu trzeba by wytworzyć zablokowany produkt pośredni, panel nie proponuje wytwarzania, tylko pokazuje, że teraz nie można wytworzyć.", "Przycisk otwierania można teraz przesuwać także na telefonie i zawsze pozostaje na ekranie.", "Na telefonie lista receptur po wyborze nie przeskakuje już na górę."]
     };
     /* VALTOZASOK VEGE */
     /* t74: a TESZT-epito true-ra allitja: a Beallitasokban megjelenik a
@@ -2471,6 +2472,8 @@ h1{ font-family:"Rye",Georgia,serif; font-size:19px; font-weight:400; line-heigh
    rendes allapotban (halvany "Max:", zold szam). Eloszor mindkettot rezre
    vettem, az megtorte a bevalt nyelvet. */
 .maxj.varakozik b{ color:var(--brass) }
+/* t77: zarolt koztes termek miatt most nem gyarthato. Rozsda, mert akadaly. */
+.maxj.zarkoztes{ color:var(--rust); font-weight:600; white-space:normal }
 
 /* t48: UGRÁS A KÖZTES RECEPTRE.
 
@@ -3904,11 +3907,22 @@ li.collapsed > .node > .toggle::before{ content:"+" }
 
         /* Elválasztó CSAK akkor, ha mindkét csoportban van találat. Ha az
            egyik üres, sima lista megy, ahogy eddig. */
-        $("rlist").innerHTML = hozzavalora.length
+        /* t77: A GORGETES HELYE MEGMARAD. Chrome-ban a lista lecserelesekor
+           magatol is megmarad (merve), iPhone Safarin viszont a fejleszto
+           szerint valasztas utan mindig a tetejere ugrott. Elmentjuk es
+           visszairjuk; a tul nagy erteket a bongeszo a lista vegehez igazitja,
+           ugyanugy, mint eddig. Egy hasabos (fiokos) elrendezesben a bal
+           oszlop gorget, ezert azt is. */
+        const rl = $("rlist");
+        const balOszlop = rl.closest ? rl.closest(".col") : null;
+        const gorgL = rl.scrollTop, gorgB = balOszlop ? balOszlop.scrollTop : 0;
+        rl.innerHTML = hozzavalora.length
             ? nevre.map(sorHTML).join("")
               + `<li class="valaszto">${esc(T("kereso_ehhez_kell"))}</li>`
               + hozzavalora.map(sorHTML).join("")
             : lista.map(sorHTML).join("");
+        if (rl.scrollTop !== gorgL) rl.scrollTop = gorgL;
+        if (balOszlop && balOszlop.scrollTop !== gorgB) balOszlop.scrollTop = gorgB;
 
         /* A soron kattintás MEGNYITJA a receptet; a tervbe csak a + gomb rakja. */
         $("rlist").querySelectorAll("button[data-id]").forEach(b => b.addEventListener("click", () => {
@@ -4091,8 +4105,18 @@ li.collapsed > .node > .toggle::before{ content:"+" }
     }
 
     /* Kijön-e n darab az adott készletből? A készletet másolatban fogyasztjuk. */
-    function kijon(id, n, keszletMasolat) {
+    /* t77: ZAROLT KOZTES TERMEK. A jatek gyartasa a hianyzo koztes termeket
+       is legyartja, de zarolt receptbol csak egyet, es csak ha nincs eppen
+       zarolva. MERVE (MrA, Arany zenedoboz): 4 Orasmester szerszamai kell,
+       1 volt, a recept zarolva - a panel Max 1-et es Gyartas gombot adott,
+       a jatek pedig elutasitotta. Ezert a KOZTES zarolt recept: most zarolva
+       (vagy zarolt, de nem tudjuk meddig) 0 gyartas, kulonben az egesz
+       lancban osszesen legfeljebb 1. A gyoker zarolasat tovabbra is a
+       gyartKapu es a maxJelzo kezeli. A zarNelkul a regi viselkedes, csak
+       az akadaly felismeresehez (zaroltKoztesAkadaly). */
+    function kijon(id, n, keszletMasolat, zarNelkul) {
         const k = keszletMasolat;
+        const zarDb = {};
         const jar = (mit, mennyi, ut) => {
             if (mennyi <= 0) return true;
             const van = Math.min(k[mit] || 0, mennyi);
@@ -4102,9 +4126,27 @@ li.collapsed > .node > .toggle::before{ content:"+" }
             const r = recipeMap.get(mit);
             /* nincs recept, nem te gyártod, vagy körkörös: itt elakad */
             if (!r || !magadGyartod(r) || ut.includes(mit)) return false;
+            if (!zarNelkul && r.t && ut.length > 0) {
+                if (zarVeg(mit) > Date.now() || zaroltDeIsmeretlen(mit)) return false;
+                zarDb[mit] = (zarDb[mit] || 0) + marad;
+                if (zarDb[mit] > 1) return false;
+            }
             return r.g.every(([gid, q]) => jar(gid, q * marad, [...ut, mit]));
         };
         return jar(id, n, []);
+    }
+
+    /* t77: igaz, ha a sajat receptedet MOST csak egy zarolt koztes termek
+       miatt nem gyarthatod: zarolas nelkul legalabb egy kijonne, vele egy
+       sem. Ilyenkor a munkalap Max es Gyartas gomb helyett egy mondatot mutat
+       (a fejleszto dontese, 2026-10-27). */
+    function zaroltKoztesAkadaly(id) {
+        const r = recipeMap.get(id);
+        if (!r || !magadGyartod(r)) return false;
+        const alap = Object.assign({}, raktar);
+        delete alap[id];
+        if (kijon(id, 1, Object.assign({}, alap))) return false;
+        return kijon(id, 1, Object.assign({}, alap), true);
     }
 
     /* A legnagyobb darabszám, ami még kijön. 0, ha egy sem. */
@@ -4821,8 +4863,9 @@ li.collapsed > .node > .toggle::before{ content:"+" }
                 <button data-tdec="${r.i}" aria-label="${T("leptető_kevesebb")}">−</button>
                 <input data-tq="${r.i}" inputmode="numeric" maxlength="4" value="${t.q}" aria-label="${esc(T("darabszam_aria", { nev: nameOf(r.i) }))}">
                 <button data-tinc="${r.i}" aria-label="${T("leptető_tobb")}">+</button>
-                ${maxJelzo(r.i)}
-                ${gyartGomb(r.i, t.q)}
+                ${zaroltKoztesAkadaly(r.i)
+                    ? `<span class="maxj zarkoztes">${esc(T("zar_koztes"))}</span>`
+                    : maxJelzo(r.i) + gyartGomb(r.i, t.q)}
               </div>
               <label class="excl${van ? "" : " tehetetlen"}">
                 <input type="checkbox" data-tx="${r.i}" ${t.x !== false ? "checked" : ""} ${van ? "" : "disabled"}>
@@ -8745,33 +8788,57 @@ li.collapsed > .node > .toggle::before{ content:"+" }
             if (s && typeof s.top === "number") pos = s;
         } catch (e) { /* marad az alapérték */ }
 
+        /* t77 (MrA, 2026-10-27): telefonon a gomb nem volt huzhato (csak
+           egeresemenyek), es a gepen mentett hely jatekgombok ala vagy a
+           kepernyon kivulre esett. A Kalandsegito t88l megoldasa: pointer-
+           esemenyek (eger, erintes, toll), regi bongeszon egeresemenyek;
+           touch-action:none, hogy huzas kozben ne gorogjon az oldal; a
+           koppintas (mozgas nelkul) nyit; a gomb a kepernyon belul marad
+           (huzaskor, betolteskor, atmeretezeskor); a mentett hely csak huzas
+           utan valtozik. A gomb 30 px + 2 x 1 px keret. */
+        const MERET = 32;
+        const korlat = (top, right) => ({
+            top: Math.max(0, Math.min(Number(top) || 0, Math.max(0, (window.innerHeight || 0) - MERET))),
+            right: Math.max(0, Math.min(Number(right) || 0, Math.max(0, (window.innerWidth || 0) - MERET)))
+        });
+        if (window.innerHeight > MERET && window.innerWidth > MERET) pos = Object.assign({}, pos, korlat(pos.top, pos.right));
+
         b.style.cssText = [
             "position:fixed", "z-index:2147483001",
             "right:" + pos.right + "px", "top:" + pos.top + "px",
             "width:30px", "height:30px", "line-height:30px", "text-align:center",
             "background:#2f261d", "border:1px solid #c8593a", "border-radius:5px",
             "cursor:pointer", "font-size:15px", "color:#c8593a", "user-select:none",
+            "-webkit-user-select:none", "touch-action:none",
             "box-shadow:0 1px 4px rgba(0,0,0,.6)"
         ].join(";");
 
-        let huz = false, mozgott = false, y0 = 0, x0 = 0, t0 = 0, r0 = 0;
-        b.addEventListener("mousedown", e => {
+        let huz = false, mozgott = false, y0 = 0, x0 = 0, t0 = 0, r0 = 0, pid = null;
+        const kezd = e => {
+            if (e.button != null && e.button !== 0 && e.pointerType !== "touch") return;
             huz = true; mozgott = false;
             y0 = e.clientY; x0 = e.clientX;
+            pid = e.pointerId != null ? e.pointerId : null;
             t0 = parseInt(b.style.top) || 0;
             r0 = parseInt(b.style.right) || 0;
+            try { if (pid != null && b.setPointerCapture) b.setPointerCapture(pid); } catch (x) { /* nem baj */ }
             e.preventDefault();
-        });
-        document.addEventListener("mousemove", e => {
+        };
+        const mozog = e => {
             if (!huz) return;
             const dy = e.clientY - y0, dx = e.clientX - x0;
             if (Math.abs(dy) > 3 || Math.abs(dx) > 3) mozgott = true;
-            b.style.top = Math.max(0, t0 + dy) + "px";
-            b.style.right = Math.max(0, r0 - dx) + "px";
-        });
-        document.addEventListener("mouseup", () => {
+            if (!mozgott) return;
+            const k = korlat(t0 + dy, r0 - dx);
+            b.style.top = k.top + "px";
+            b.style.right = k.right + "px";
+            if (e.cancelable) e.preventDefault();
+        };
+        const vege = () => {
             if (!huz) return;
             huz = false;
+            try { if (pid != null && b.releasePointerCapture) b.releasePointerCapture(pid); } catch (x) { /* nem baj */ }
+            pid = null;
             if (mozgott) {
                 try {
                     GM_setValue(GOMB_POS, JSON.stringify({
@@ -8780,6 +8847,22 @@ li.collapsed > .node > .toggle::before{ content:"+" }
                     }));
                 } catch (e) { /* nem baj */ }
             }
+        };
+        if (typeof window.PointerEvent === "function") {
+            b.addEventListener("pointerdown", kezd);
+            document.addEventListener("pointermove", mozog);
+            document.addEventListener("pointerup", vege);
+            document.addEventListener("pointercancel", vege);
+        } else {
+            b.addEventListener("mousedown", kezd);
+            document.addEventListener("mousemove", mozog);
+            document.addEventListener("mouseup", vege);
+        }
+        window.addEventListener("resize", () => {
+            if (huz) return;
+            const k = korlat(parseInt(b.style.top) || 0, parseInt(b.style.right) || 0);
+            b.style.top = k.top + "px";
+            b.style.right = k.right + "px";
         });
         b.addEventListener("click", () => {
             if (mozgott) { mozgott = false; return; }
