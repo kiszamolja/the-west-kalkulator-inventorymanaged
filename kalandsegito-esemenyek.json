@@ -1,7 +1,7 @@
 {
  "v": 1,
- "forras": "InnoGames tudásbázis 2026-10-06 + MrA jelölései",
- "keszult": "2026-10-06T12:59:40.742Z",
+ "forras": "InnoGames tudásbázis 2026-10-06 + MrA jelölései + MrA besorolása (14 ünnepi kalandsor, 2026-10-07; 237 Húsvéti leszámolás, 2026-10-29)",
+ "keszult": "2026-10-29T21:36:44.000Z",
  "jatekKulcs": {
   "DayOfDead": "Halottak napja",
   "Octoberfest": "Oktoberfest"
@@ -87,6 +87,10 @@
    {
     "id": 324,
     "nev": "Vadnyugati sportjátékok"
+   },
+   {
+    "id": 92,
+    "nev": "Christopher parádéja"
    }
   ],
   "Húsvéti leszámolás": [
@@ -146,6 +150,10 @@
    {
     "id": 238,
     "nev": "Ringo a városban tartózkodik"
+   },
+   {
+    "id": 237,
+    "nev": "Húsvéti leszámolás titkos küldetései"
    }
   ],
   "Valentin-nap": [
@@ -193,6 +201,10 @@
    {
     "id": 197,
     "nev": "A kötelék ami összetart"
+   },
+   {
+    "id": 139,
+    "nev": "Egy bolond Romeo"
    }
   ],
   "Halottak napja": [
@@ -231,6 +243,10 @@
    {
     "id": 287,
     "nev": "A Baljós Út: Mictlan kilenc szintje"
+   },
+   {
+    "id": 113,
+    "nev": "Egy Vadnyugati Lidércnyomás"
    },
    {
     "id": 248,
@@ -336,6 +352,10 @@
    {
     "id": 195,
     "nev": "A mikulás kísérete"
+   },
+   {
+    "id": 122,
+    "nev": "Új év előestéje"
    }
   ],
   "Születésnap": [
@@ -380,6 +400,10 @@
    {
     "id": 325,
     "nev": "A forradalom visszhangjai"
+   },
+   {
+    "id": 149,
+    "nev": "West Point"
    }
   ],
   "Aratási idő": [
@@ -424,6 +448,10 @@
     "id": 243,
     "nev": "Aratási idő (Ismételhető)",
     "ism": true
+   },
+   {
+    "id": 108,
+    "nev": "Munka Napja"
    }
   ],
   "Szent Patrik-nap": [
@@ -469,6 +497,47 @@
    {
     "id": 249,
     "nev": "2021-es Tökvadászat"
+   },
+   {
+    "id": 33,
+    "nev": "Hálaadás"
+   }
+  ],
+  "Egyéb": [
+   {
+    "id": 124,
+    "nev": "Aranyláz",
+    "ho": "január"
+   },
+   {
+    "id": 180,
+    "nev": "A tartományi orvos",
+    "ho": "február"
+   },
+   {
+    "id": 81,
+    "nev": "Diéta-ellenes hét",
+    "ho": "május"
+   },
+   {
+    "id": 80,
+    "nev": "A Wogonok támadása",
+    "ho": "május"
+   },
+   {
+    "id": 97,
+    "nev": "Barátság hete",
+    "ho": "július"
+   },
+   {
+    "id": 107,
+    "nev": "Egy alom kiscica",
+    "ho": "augusztus"
+   },
+   {
+    "id": 116,
+    "nev": "A tökéletes rablás",
+    "ho": "november"
    }
   ]
  },
