@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Kalandsegítő
 // @namespace    the-west-kalandsegito
-// @version      1.0.15
+// @version      1.0.16
 // @description  A felvett kalandok munkái és sétái egy helyen: melyik munkát hány kaland kéri, mennyi van még hátra, és egy kattintással megnyitja a munkát vagy megmutatja a helyet a térképen.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -82,7 +82,7 @@
     const setTimeout = (f, ms, ...a) => window.setTimeout(f, ksVarIdo(ms), ...a);
     const setInterval = (f, ms, ...a) => window.setInterval(f, ksVarIdo(ms), ...a);
 
-    const VERZIO = "1.0.15";
+    const VERZIO = "1.0.16";
     /* A TESZT-epito ide irja a belyeget. Kiadasi alakban ures. */
     const EPITES = "";
 
@@ -108,10 +108,12 @@
        visszaper nelkul (JSON-kent olvassuk). A ket jelolo sor nem valtozhat. */
     /* VALTOZASOK KEZDETE */
     const VALTOZASOK = [
-        "Az Elakadt kalandsorok k\u00f6z\u00f6tt fut\u00f3 esem\u00e9ny idej\u00e9n az esem\u00e9nysorok is megjelennek az esem\u00e9ny nev\u00e9vel (pl. Halottak napja), ha a k\u00f6vetkez\u0151 r\u00e9sz\u00fcket a megb\u00edz\u00f3 most k\u00edn\u00e1lja. A K\u00f6vet\u00e9s gombbal visszavehet\u0151k, az esem\u00e9ny ut\u00e1n elt\u0171nnek.",
-        "Az Elakadt blokk a r\u00e9szek magyar nev\u00e9t mutatja az angol helyett (pl. Egy p\u00f3kerj\u00e1t\u00e9k).",
-        "Az Id\u0151z\u00edtett f\u00fcl tetej\u00e9n a fut\u00f3 esem\u00e9ny magyar n\u00e9ven \u00e1ll (pl. Most fut: Halottak napja).",
-        "A m\u00e9g n\u00e9vtelen j\u00f6v\u0151beli kalandsorok \u201eundefined\u201d helyett \u201eM\u00e9g n\u00e9vtelen kalandsor #346 (2026.11.18-t\u00f3l)\u201d n\u00e9ven l\u00e1tszanak."
+        "A panel m\u00e1r nem k\u00e9rdezi folyamatosan a j\u00e1t\u00e9k szerver\u00e9t, ha egy megb\u00edz\u00f3 nem ad list\u00e1t; megsz\u0171nt a g\u00f6rget\u00e9skor \u00e9rezhet\u0151 akad\u00e1s.",
+        "Az esem\u00e9nysorok r\u00e9szei csak akkor most felvehet\u0151k, ha az esem\u00e9ny\u00fck fut vagy a d\u00e1tumuk szerint most van (pl. Christopher par\u00e1d\u00e9ja most nem); a gomb ilyenkor nem jelenik meg.",
+        "A T\u00e1rggyal indul\u00f3 kalandsorok k\u00f6z\u00f6tt az esem\u00e9nysorok a hi\u00e1nyz\u00f3 kezd\u0151 t\u00e1rggyal is l\u00e1tszanak, am\u00edg az esem\u00e9ny el\u00e9rhet\u0151 (pl. Halloween).",
+        "A Halloween befejez\u00e9se k\u00e9t \u00fatk\u00e9nt l\u00e1tszik (Henry \u00e9s Maria egy-egy r\u00e9sze); a 609 ut\u00e1n a 612 is megmarad.",
+        "Felvett r\u00e9sz ut\u00e1n es\u0151 t\u00e1rgyn\u00e1l (pl. Halottak napi k\u00f6r\u00f6mvir\u00e1gok) a forr\u00e1s b\u00e1rmelyik munka, nem ismeretlen.",
+        "A legend\u00e1s arany szablya: napi 04:00-10:00 ablak, a h\u00e1rom lehet\u0151s\u00e9gb\u0151l egy v\u00e1laszthat\u00f3, a Term\u00e9kek list\u00e1j\u00e1t viselni kell."
     ];
     /* VALTOZASOK VEGE */
 
@@ -1334,6 +1336,22 @@ const RECEPT_TEKERCS = {
         if (viselJutalom(g.id)) return jutalomJelHTML(g.id) + piac;
         const mk = masikKalandHTML(g.id);
         if (mk) return mk + piac;
+        /* t88v (MrA, 2026-10-29 19:35, "javítsd"): FELVETT RESZ FELVETEL UTANI
+           FORRASA. MERT (MrA kepe 19:30): Vendég Kolumbiából / Virágok (3908)
+           felveve, Halottak napi körömvirágok: "forrás ismeretlen", pedig az
+           adatbazis r.fu-ja szerint barmelyik munkabol esik. A t88p (Terv 81)
+           csak a felvetel ELOTT mutatta; felvetel utan a szokasos forraskeresesre
+           bizta, ami a "barmelyik munka"-t nem ismeri. Most: ha mas forras nincs
+           es a kero resz fel van veve: "bármelyik munka" (gomb nelkul), konkret
+           munkanal Munkára gomb arra a munkara. Keres nincs. */
+        try {
+            const fv = ksFelvettFuForras(g.id);
+            if (fv) {
+                if (fv.some(x => !x.munkak.length)) return `<span class="fuforras" data-bub="${esc(ksFelvettFuBub(fv))}">bármelyik munka</span>` + piac;
+                const jid = Number(fv[0].munkak[0]);
+                return `<button type="button" class="gomb" data-munka="${jid}" data-bub="${esc(ksFelvettFuBub(fv))}">Munkára ▸</button>` + piac;
+            }
+        } catch (e) { /* marad a regi felirat */ }
         /* t25 (MrA): ahol semmilyen forras nincs, ne hallgassunk */
         return `<span class="elobb" data-bub="${esc("Sem a játék, sem a tw-calc, sem a saját táblánk nem ad forrást ehhez a tárgyhoz." + twcOkSzoveg(g.id) + " Ha a Union Pacific boltban kapható, a bolt egy megnyitása után felismerem.")}">forrás ismeretlen</span>` + piac;
     }
@@ -3228,7 +3246,7 @@ const RECEPT_TEKERCS = {
                     const nev0 = x[1].replace(/\s+/g, " ");
                     const nev = KS_EGYEB_NEV[nev0] || nev0;
                     if (!m.has(nev)) m.set(nev, []);
-                    m.get(nev).push({ group: s.group, cim: s.cim, reszNev: r.nev, resz: r.id, tav: r.tav, elobbFel: (r.felvElobb || []).join(", "), zart: r.tav === 0 ? ksElAblakZartTxt(r) : "", db: Number(x[2].replace(/[.\s]/g, "")) });
+                    m.get(nev).push({ group: s.group, cim: s.cim, reszNev: r.nev, resz: r.id, tav: r.tav, elobbFel: (r.felvElobb || []).join(", "), zart: r.tav === 0 ? ((ksReszEsemZart(r) || {}).txt || ksElAblakZartTxt(r)) : "", db: Number(x[2].replace(/[.\s]/g, "")) });
                 });
             }));
             m.forEach(l => l.sort((a, b) => a.tav - b.tav || String(a.cim).localeCompare(String(b.cim), "hu")));
@@ -3872,7 +3890,11 @@ const RECEPT_TEKERCS = {
     }
     function megbLeker(kulcsok, kenyszer) {
         if (ksMegbFut) return;
-        const kell = kulcsok.filter(k => kenyszer || ksMegbElavult || !ksMegbLim.has(k) || Date.now() - ksMegbLim.get(k).ido >= KS_MEGB_KOZ);
+        /* t88w: biztositek minden hivonak: hibas valaszu megbizot 10 percen
+           belul nem ker ujra (eddig a hibas nem kerult a ksMegbLim-be, ezert
+           minden hivasnal ujra kerte) */
+        const most = Date.now();
+        const kell = kulcsok.filter(k => kenyszer || ksMegbElavult || (ksMegbLHiba.has(k) ? most - ksMegbLHiba.get(k) >= KS_MEGB_KOZ : (!ksMegbLim.has(k) || most - ksMegbLim.get(k).ido >= KS_MEGB_KOZ)));
         ksMegbElavult = false;
         if (!kell.length) return;
         const A = jatek().Ajax;
@@ -4018,6 +4040,123 @@ const RECEPT_TEKERCS = {
     /* t88u (Terv 84): a most futo esemenyek csoportnevei (Set); "mind", ha
        fut olyan esemeny, amelynek a kulcsa nincs a tablaban; null, ha nem fut
        esemeny (vagy a jatek nem adja). Keres nincs. */
+    /* t88y (MrA, 2026-10-30 00:01, 6. tegla, "programozhatsz"): ESEMENYES
+       RESZ ELERHETOSEGE (6a: Kalandsorok ful, kereso, Osszesito "hol kell").
+       MERT (MrA kepe, 10-29 23:13): Christopher paradeja (92, Foci/Sport
+       esemeny) "most felvehető · helyben", Helyhez gombokkal, a fejlec
+       szamaban is, oktoberben; a tw-calc datuma: 22. Jun 2021 - 29. Jun 2021.
+       MrA szabalya (10-29): az eseményes resz akkor "most felvehető", ha
+       elerheto: fut az esemenye (Game.sesData, jatekKulcs), vagy a tw-calc
+       datuma idenre vetitve most van; elore jelzes nincs. A nem eseményes
+       sorok (704 datumos resz, pl. Lovag, A Fold Oriasa) NEM valtoznak
+       ("alapbol latszik minden nap, amig meg nem csinalom"). Csak a datummal
+       (tobbnapos tw-calc Datum vagy az esemenylista "ho" honapja) biro resz
+       valtozik; a datum nelkuli eseményes reszek kulon szabalya a 6c.
+       Visszaad: null (nincs korlat, a regi viselkedes) vagy
+       { txt, bub } (most nem elerheto). Keres nincs. */
+    const KS_HO_NEV = ["január", "február", "március", "április", "május", "június", "július", "augusztus", "szeptember", "október", "november", "december"];
+    const KS_HO_BAN = ["januárban", "februárban", "márciusban", "áprilisban", "májusban", "júniusban", "júliusban", "augusztusban", "szeptemberben", "októberben", "novemberben", "decemberben"];
+    const ksEvRag = ev => ev + "-" + (["as", "es", "es", "as", "es", "ös", "os", "es", "as", "es"][Number(ev) % 10]);
+    function ksEsemCsoport(g) {
+        const es = ksEsemAdat();
+        if (!es || !es.esemenyek) return null;
+        for (const n of Object.keys(es.esemenyek)) {
+            const x = (es.esemenyek[n] || []).find(y => y && Number(y.id) === Number(g));
+            if (x) return { n, x };
+        }
+        return null;
+    }
+    function ksEsemZart(g, x) {
+        try {
+            const cs = ksEsemCsoport(g);
+            if (!cs) return null;
+            let tw = twcDatumAblak(x);
+            /* azonos napu Datum = napi idoablak (t16d), az nem datum */
+            if (tw && falHoNap(tw.kezd) === falHoNap(tw.veg) && new Date(tw.kezd).getUTCFullYear() === new Date(tw.veg).getUTCFullYear()) tw = null;
+            const ho = KS_HO_NEV.indexOf(String(cs.x.ho || "").toLowerCase());
+            if (!tw && ho < 0) return null;
+            const futo = ksFutoEsemenyCsoportok();
+            if (futo === "mind") {
+                /* ismeretlen kulcsu futo esemeny: barmelyik csoport lehet, amelyiknek nincs ismert kulcsa */
+                const ism = new Set(Object.values(ksEsemKulcsok()));
+                if (!ism.has(cs.n)) return null;
+            } else if (futo && futo.has(cs.n)) return null;
+            const most = szerverIdo().fal, ev = new Date(most).getUTCFullYear();
+            if (tw) {
+                const k0 = new Date(tw.kezd), v0 = new Date(tw.veg);
+                const vet = (e, d) => Date.UTC(e, d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes());
+                for (const e of [ev - 1, ev]) {
+                    const k = vet(e, k0);
+                    let v = vet(e + (v0.getUTCFullYear() - k0.getUTCFullYear()), v0);
+                    if (v <= k) v = vet(e + 1, v0);
+                    if (most >= k && most < v) return null;
+                }
+                const m1 = k0.getUTCMonth(), m2 = v0.getUTCMonth();
+                const txt = (m1 === m2 ? KS_HO_BAN[m1] : KS_HO_NEV[m1] + "-" + KS_HO_BAN[m2]) + " (a tw-calc " + ksEvRag(k0.getUTCFullYear()) + " dátuma szerint)";
+                return { txt, bub: "Eseménysor (" + cs.n + "): az esemény most nem fut, és a tw-calc dátuma (" + falTeljes(tw.kezd) + " - " + falTeljes(tw.veg) + ") idénre vetítve sem most van. Ha a játék idén máskor tartja, a rész akkor lesz felvehető, amikor az esemény fut." };
+            }
+            if (ho === new Date(most).getUTCMonth()) return null;
+            return { txt: KS_HO_BAN[ho] + " (az eseménylista szerint)", bub: "Eseménysor (" + cs.n + "): az eseménylista szerint " + KS_HO_BAN[ho] + " van; most nem fut." };
+        } catch (e) { return null; }
+    }
+    /* a Kalandsorok resz-objektumahoz (g, x) */
+    function ksReszEsemZart(r) { return r && r.g ? ksEsemZart(r.g, r.x) : null; }
+    /* t88za (MrA, 2026-10-30 05:24, 6b, mockup 85 / 87, "programozhatod"):
+       az eseménylista sora most ELERHETO-e (a Targgyal indulo blokk a kezdo
+       targy nelkul is mutatja): fut az esemenye, vagy a tw-calc datuma idenre
+       vetitve most van, vagy a lista "ho" honapja a mostani. Datum nelkuli
+       resz csak futo esemenynel (a 6c kulonszabalyai kesobb). */
+    function ksEsemElerhetoE(g, x) {
+        try {
+            const cs = ksEsemCsoport(g);
+            if (!cs) return false;
+            const futo = ksFutoEsemenyCsoportok();
+            if (futo === "mind") { if (!new Set(Object.values(ksEsemKulcsok())).has(cs.n)) return true; }
+            else if (futo && futo.has(cs.n)) return true;
+            const tw = twcDatumAblak(x);
+            const vanDatum = !!(tw && !(falHoNap(tw.kezd) === falHoNap(tw.veg) && new Date(tw.kezd).getUTCFullYear() === new Date(tw.veg).getUTCFullYear()));
+            const vanHo = KS_HO_NEV.indexOf(String(cs.x.ho || "").toLowerCase()) >= 0;
+            if (!vanDatum && !vanHo) return false;
+            return !ksEsemZart(g, x);
+        } catch (e) { return false; }
+    }
+    /* t88za (mockup 87): KET (VAGY TOBB) UT egy valasztasban. Ha a kolcsonos
+       kizarasok csoportja nem teljes (nem mindenki zar ki mindenkit; MERT: ma
+       csak a Halloween 609-612), az utak a kizarasi graf komplementerenek
+       komponensei (azok a reszek, amelyek nem zarjak ki egymast): Halloween
+       {609, 612} es {610, 611}. Visszaad: Map resz -> { k: csoportkulcs,
+       ut: 1-tol, utak: [[id...], ...] }. Keres nincs. */
+    function ksUtak(sor) {
+        const ki = new Map();
+        try {
+            const R = new Map(((sor && sor.reszek) || []).map(r => [Number(r.id), r]));
+            const F = r => ((r && r.e) || []).filter(c => c && (c.t === "nemkesz" || c.t === "nemfelvett"));
+            const adj = new Map();
+            const el = (a, b) => [[a, b], [b, a]].forEach(([x, y]) => { if (!adj.has(x)) adj.set(x, new Set()); adj.get(x).add(y); });
+            R.forEach(r => F(r).forEach(c => (c.ids || []).forEach(b => { b = Number(b); if (R.has(b) && b !== Number(r.id) && F(R.get(b)).some(d => (d.ids || []).map(Number).indexOf(Number(r.id)) >= 0)) el(Number(r.id), b); })));
+            const latott = new Set();
+            adj.forEach((_, x) => {
+                if (latott.has(x)) return;
+                const comp = [], st = [x];
+                while (st.length) { const y = st.pop(); if (comp.indexOf(y) >= 0) continue; comp.push(y); adj.get(y).forEach(z => st.push(z)); }
+                comp.forEach(y => latott.add(y));
+                if (comp.every(a => comp.every(b => a === b || adj.get(a).has(b)))) return;
+                const utak = [], volt = new Set();
+                comp.slice().sort((a, b) => a - b).forEach(a => {
+                    if (volt.has(a)) return;
+                    const u = [], st2 = [a];
+                    while (st2.length) { const y = st2.pop(); if (volt.has(y)) continue; volt.add(y); u.push(y); comp.forEach(z => { if (z !== y && !adj.get(y).has(z) && !volt.has(z)) st2.push(z); }); }
+                    utak.push(u.sort((p, q) => p - q));
+                });
+                if (utak.length < 2 || utak.every(u => u.length < 2)) return;
+                const k = Math.min(...comp);
+                utak.forEach((u, i) => u.forEach(y => ki.set(y, { k, ut: i + 1, utak })));
+            });
+        } catch (e) { /* ut nelkul a regi megjelenes */ }
+        return ki;
+    }
+    /* a megbizo rovid neve ("Henry Walker, a csapos" -> "Henry") */
+    const ksMegbRovid = mn => String(mn || "").split(/[ ,]/)[0] || "";
     function ksFutoEsemenyCsoportok() {
         try {
             const ses = (jatek().Game && jatek().Game.sesData) || null;
@@ -5310,6 +5449,21 @@ const RECEPT_TEKERCS = {
         if (l.some(x => felv.has(x.q))) return null;
         return l;
     }
+    /* t88v: a FELVETT kero resz felvetel utani forrasa (ksFuIndex), ha van */
+    function ksFelvettFuForras(id) {
+        const idx = ksFuIndex();
+        const l = idx && idx.get(Number(id));
+        if (!l || !l.length) return null;
+        const felv = new Set((kalandLista() || []).map(k => Number(k.id)));
+        const fl = l.filter(x => felv.has(x.q));
+        return fl.length ? fl : null;
+    }
+    function ksFelvettFuBub(l) {
+        const jk = [...new Set([].concat(...l.map(x => x.munkak)))];
+        const munka = l.some(x => !x.munkak.length) ? "bármelyik munkából esik" : jk.map(j => munkaNev(j)).join(", ") + (jk.length > 1 ? " (bármelyikből)" : "") + " munkából esik";
+        const resz = [...new Map(l.map(x => [x.q, x])).values()].slice(0, 2).map(x => x.n).join("; ");
+        return "A kalandrész fel van véve (" + resz + "): a tárgy most " + munka + ".";
+    }
     function ksFuMunkaSzoveg(l) {
         if (l.some(x => !x.munkak.length)) return "bármelyik munka";
         const jk = [...new Set([].concat(...l.map(x => x.munkak)))];
@@ -6518,7 +6672,7 @@ const RECEPT_TEKERCS = {
                 if (!tl.length) h += `<div class="osszecsuk">Nincs hiányzó, előre gyűjthető tárgy.</div>`;
                 (beall.tobbMind ? tl : tl.slice(0, TOBB)).forEach(t => {
                     /* t34 (MrA): 0 tavolsag, de masik sorbeli feltetel: "még nem felvehető", a buborekban "előbb: …" */
-                    const hol = t.helyek.map(x => ugras(x.group) + " " + (t.viselet ? "" : x.db + " ") + "(" + (x.felvett ? "felvéve" : x.tav > 0 ? "még " + x.tav + " rész" : x.elobb ? `<span class="elobbjel" data-bub="${esc("előbb: " + x.elobb)}">még nem felvehető</span>` : x.elobbFel ? `<span class="elobbjel" data-bub="${esc("előbb vedd fel: " + x.elobbFel)}">még nem felvehető</span>` : "most felvehető" + (x.helyben ? " · helyben" : "")) + ")").join(" · ");
+                    const hol = t.helyek.map(x => ugras(x.group) + " " + (t.viselet ? "" : x.db + " ") + "(" + (x.felvett ? "felvéve" : x.tav > 0 ? "még " + x.tav + " rész" : x.elobb ? `<span class="elobbjel" data-bub="${esc("előbb: " + x.elobb)}">még nem felvehető</span>` : x.elobbFel ? `<span class="elobbjel" data-bub="${esc("előbb vedd fel: " + x.elobbFel)}">még nem felvehető</span>` : x.ez ? `<span class="elobbjel" data-bub="${esc(x.ez.bub)}">${esc(x.ez.txt)}</span>` : "most felvehető" + (x.helyben ? " · helyben" : "")) + ")").join(" · ");
                     h += ksTargySorHTML({ id: t.id, db: t.kell, csak: false, jutalom: "", viselet: t.viselet, sorDb: t.sorDb }, kep, nevT, `<span class="bontas hol">${hol}</span>`);
                 });
                 if (tl.length > TOBB) h += `<div class="osszecsuk"><button type="button" class="ugras" data-tobbmind>${beall.tobbMind ? "kevesebb ▴" : "… és még " + (tl.length - TOBB) + " ▾"}</button></div>`;
@@ -6577,6 +6731,10 @@ const RECEPT_TEKERCS = {
             const kesz = R.filter(r => r.allapot === "kesz");
             const felv = R.filter(r => r.allapot === "felvett");
             const hatraOssz = R.filter(r => r.allapot === "hatra");
+            /* t88za (mockup 87): utakra bontott valasztasnal a "hátravan" egy ut (a legrovidebb el0) reszeit szamolja */
+            let utLevon = 0;
+            { const m0 = new Map(); hatraOssz.forEach(r => { if (!r.ut || !r.valaszt) return; const m = m0.get(r.ut.k) || new Map(); m.set(r.ut.ut, (m.get(r.ut.ut) || 0) + 1); m0.set(r.ut.k, m); });
+              m0.forEach(m => { if (m.size < 2) return; let o = 0; m.forEach(v => { o += v; }); utLevon += o - Math.min(...m.values()); }); }
             /* t87t (Terv 60): a kesz sort csak a jutalomlanca tartotta meg; ha
                mar minden lanca kesz, nem latszik (a bejegyzes a kovetkezo
                egyeztetesnel torlodik, mint eddig) */
@@ -6586,7 +6744,7 @@ const RECEPT_TEKERCS = {
             /* t16n (MrA): a homokora a kalandsor blokkjaban is, a jatek mondataval */
             const sorOra = s.idoKorlat ? `<span class="homokora" data-bub="${esc(s.korlat || KS_IDOSZAK_BUB)}" role="img" aria-label="Időkorlátos"></span>` : "";
             const bal = `<div class="oszlop"><span class="nev">${esc(s.cim)}${sorOra}${tu}</span><span class="alcim">${s.ismSor ? "ismételhető: csak a felvett részek" : kesz.length + " / " + R.filter(r => r.allapot !== "ki").length + " kész" + (felv.length ? " · most: " + esc(felv.map(r => r.nev).join(", ")) : "")}</span></div><div class="linkek">${wiki}${tc}</div>`;
-            h += `<div class="csoport${s.lejart ? " lejart" : ""}" id="ks-${s.group}">` + fejK(ksFejHTML(kulcs, bal, (s.ismSor ? felv.length + " felvéve" : (R.some(ksMostFelveheto) ? `<span class="jel felv">most felvehető</span> ` : "") + (s.kesz ? "kész" + (() => { try { const n = ksJutLancHatra((agAdat || {})[s.group] || ksDbSor(s.group)); return n ? ` <span class="jel jutl">a jutalomból még ${n} lépés</span>` : ""; } catch (e) { return ""; } })() : hatraOssz.length + " hátravan") + (valDbS ? ", " + valDbS + " választás" : "")) + " " + ujra));
+            h += `<div class="csoport${s.lejart ? " lejart" : ""}" id="ks-${s.group}">` + fejK(ksFejHTML(kulcs, bal, (s.ismSor ? felv.length + " felvéve" : (R.some(ksMostFelveheto) ? `<span class="jel felv">most felvehető</span> ` : "") + (s.kesz ? "kész" + (() => { try { const n = ksJutLancHatra((agAdat || {})[s.group] || ksDbSor(s.group)); return n ? ` <span class="jel jutl">a jutalomból még ${n} lépés</span>` : ""; } catch (e) { return ""; } })() : (hatraOssz.length - utLevon) + " hátravan") + (valDbS ? ", " + valDbS + " választás" : "")) + " " + ujra));
             if (ksZartE(kulcs)) { h += `</div>`; return; }
             /* t74 (Terv 28): a valasztas-csoportok (felvett ag: valF, meg nem felvett: valaszt) */
             let agI = null;
@@ -6622,6 +6780,8 @@ const RECEPT_TEKERCS = {
             const rejtett = nyitva ? [] : hatra.filter(r => r.tavH > MAXTAV);
             hatra = hatra.filter(r => rejtett.indexOf(r) < 0);
             const reszHTML = r => {
+                /* t88y (6a): eseményes resz, most nem elerheto */
+                const ez = ksReszEsemZart(r);
                 const ido = (r.ido || []).map(c => c === "időszakos" ? ` <span class="jel ido" data-bub="${esc(ksIdoszakBub(r))}">${esc(c)}</span>` : ` <span class="jel ido">${esc(c)}</span>`).join("");
                 /* t25: masik kalandsor elofeltetele hianyzik: "elobb: ..." */
                 const kulsoTxt = r.tav === 0 && r.kulso ? r.kulso.map(v => v.join(" vagy ")).join("; ") : "";
@@ -6629,7 +6789,9 @@ const RECEPT_TEKERCS = {
                 /* t57: ugyanennek a sornak egy meg fel nem vett reszet kell elobb felvenni */
                 const felvTxt = r.tav === 0 && !kulsoTxt && r.felvElobb ? r.felvElobb.join(", ") : "";
                 const eTxt = r.tav === 0 && !kulsoTxt && !felvTxt ? ksEleresHianyTxt(r, nevT) : "";
-                const tavHTML = kulsoTxt
+                const tavHTML = r.tav === 0 && ez
+                    ? `<span class="jel zarva esemzart" data-bub="${esc(ez.bub)}">${esc(ez.txt)}</span>`
+                    : kulsoTxt
                     ? (r.kulsoIds ? `<span class="jel zarva" data-bub="${esc("A tw-calc szerint előbb egy másik kalandsor részét kell befejezned: " + ksElobbSzoveg(r.kulsoIds, r.kulsoEn) + ".")}">előbb: ${ksElobbHTML(r.kulsoIds, r.kulsoEn)}</span>`
                         : `<span class="jel zarva" data-bub="${esc("A tw-calc szerint előbb egy másik kalandsor részét kell befejezned: " + kulsoTxt + ".")}">előbb: ${esc(kulsoTxt)}</span>`)
                     : felvTxt
@@ -6641,14 +6803,14 @@ const RECEPT_TEKERCS = {
                        maradnak), a "felvehető: ..." a buborekban */
                     ? `<span class="jel zarva" data-bub="${esc("Szerveridő szerint " + ksElAblakZartTxt(r).replace(/ · .*$/, "") + "; addig a megbízónál nem veheted fel.")}">${esc(ksElAblakMulva(r))}</span>` + (r.mb ? ksMegbizoHTML(r) : "")
                     : ksTavHTML(r.tav) + (r.tav === 0 ? ksHelybenHTML(r) : "") + (r.tav === 0 && r.mb ? ksMegbizoHTML(r) : "");
-                let x = `<div class="resz"><div class="reszfej szam0${r.tav === 0 && !kulsoTxt && !felvTxt && !eTxt && !ksElAblakZart(r) ? " felveheto" : ""}" data-resz="${Number(r.id)}"><span>${esc(r.nev)}${ido}${valFJel(r)}${ksLeadJelHTML(r.bek)}</span><span class="tav">${tavHTML}</span></div>`;
+                let x = `<div class="resz"><div class="reszfej szam0${r.tav === 0 && !ez && !kulsoTxt && !felvTxt && !eTxt && !ksElAblakZart(r) ? " felveheto" : ""}" data-resz="${Number(r.id)}"><span>${esc(r.nev)}${r.nevUt ? ` <span class="kis">· ${esc(r.nevUt)}</span>` : ""}${ido}${valFJel(r)}${ksLeadJelHTML(r.bek)}</span><span class="tav">${tavHTML}</span></div>`;
                 /* t50: a felvetelhez kello targyak mindig latszanak (megvan is) */
                 (r.eleresT || []).forEach(t => { x += ksTargySorHTML(t, kep, nevT, ""); });
                 /* t68 (22) */
                 x += ksKulonHTML(r.ek);
                 /* t81 (Terv 34): a leadas kulonfeltetelei */
                 x += ksKulonHTML(r.bek, true);
-                if (r.tav === 0 && r.mb && !r.kulso && !r.felvElobb && !KOCSMAI.has(ksReszKulcs(r))) megbKell = true;
+                if (r.tav === 0 && r.mb && !ez && !r.kulso && !r.felvElobb && !KOCSMAI.has(ksReszKulcs(r))) megbKell = true;
                 const tl = r.targyak.concat(r.viselet);
                 /* t52: a viselendo targy a Wear-bol (a taska a viseltet nem szamolja) */
                 const hi = tl.filter(t => t.jutalom || !ksTargyMegvan(t));
@@ -6658,7 +6820,7 @@ const RECEPT_TEKERCS = {
                 (r.szoveg || []).forEach(t => {
                     /* t16p: "Menj el ide" a megbizo kepevel, gombbal vagy "meg zarva" */
                     const mh = /^Menj el ide:\s*(.+)$/.exec(String(t));
-                    if (mh) { helyNevek.push(mh[1]); x += ksHelySorHTML(t, mh[1], ksReszKulcs(r), s.group, r.id); return; }
+                    if (mh) { helyNevek.push(mh[1]); x += ksHelySorHTML(t, mh[1], ksReszKulcs(r), s.group, r.id, !!ez); return; }
                     x += `<div class="bsor egyeb"><div class="nv"><span class="kicsikep pont">·</span><span>${esc(ksSzovegKiir(t))}</span></div><div></div><div class="jobb"></div><div class="jobb">${ksSzovegGombHTML(t)}</div></div>`;
                 });
                 r.munkak.forEach(m => {
@@ -6670,6 +6832,21 @@ const RECEPT_TEKERCS = {
             let n = 0;
             hatra.forEach(r => {
                 if (kiirt.has(r.id)) return;
+                if (r.valaszt && r.ut && hatra.filter(y => y.valaszt === r.valaszt).every(y => y.ut && y.ut.k === r.ut.k) && new Set(hatra.filter(y => y.valaszt === r.valaszt).map(y => y.ut.ut)).size > 1) {
+                    /* t88za (mockup 87): "két út, egyiket választod", utfejlecekkel, a resz mellett a megbizo */
+                    const tagok = hatra.filter(y => y.valaszt === r.valaszt).sort((a, b) => a.ut.ut - b.ut.ut || R.indexOf(a) - R.indexOf(b));
+                    n++;
+                    const utSz = [...new Set(tagok.map(y => y.ut.ut))];
+                    const db1 = tagok.filter(y => y.ut.ut === utSz[0]).length;
+                    h += `<div class="elag"><div class="elagcim"><b>${utSz.length === 2 ? "két" : utSz.length} út, egyiket választod</b> <span class="kis">(utanként ${db1} rész)</span> · ${ksTavHTML(r.tav)}</div>`;
+                    utSz.forEach(u => {
+                        const ut = tagok.filter(y => y.ut.ut === u);
+                        h += `<div class="elagcim utfej" style="padding-left:14px;font-weight:400">${u}. út: ${ut.map(y => `<b>${esc((ksMegbRovid(y.mn) ? ksMegbRovid(y.mn) + ": " : "") + y.nev)}</b>`).join(" + ")}</div>`;
+                        ut.forEach(y => { kiirt.add(y.id); const rm = ksMegbRovid(y.mn); h += agBe(reszHTML(rm ? Object.assign({}, y, { nevUt: rm }) : y), y); });
+                    });
+                    h += `</div>`;
+                    return;
+                }
                 if (r.valaszt) {
                     const tagok = hatra.filter(y => y.valaszt === r.valaszt);
                     n++;
@@ -6934,7 +7111,7 @@ const RECEPT_TEKERCS = {
     }
     /* t68 (16-17): most felveheto resz (a Kalandsorok rendezesehez es ugrasahoz) */
     function ksMostFelveheto(r) {
-        return !!r && r.allapot === "hatra" && r.tav === 0 && !r.kulso && !(r.felvElobb && r.felvElobb.length) && !ksEleresHiany(r).length && !ksKulonHiany(r.ek).length && !ksElAblakZart(r);
+        return !!r && r.allapot === "hatra" && r.tav === 0 && !r.kulso && !(r.felvElobb && r.felvElobb.length) && !ksEleresHiany(r).length && !ksKulonHiany(r.ek).length && !ksElAblakZart(r) && !ksReszEsemZart(r);
     }
     /* t79 (MrA: "An unforgettable evening" most felvehetonek latszott, pedig
        csak szombaton 18-23 kozott): a felvetel idoablaka (Eleres: Nap /
@@ -7655,6 +7832,18 @@ const RECEPT_TEKERCS = {
         R.forEach(r => { if (ksKarakterAgKivul(r) && !kesz.has(r.id) && !felvett.has(r.id)) ki.add(r.id); });
         /* valasztasok: kolcsonos nemkesz / nemfelvett */
         const szulo = new Map();
+        /* t88z (MrA, 2026-10-30 01:46, "programozhatod"): KOZVETLEN KIZARAS.
+           MERT (MrA, Halloween 56): a 609 (Henry, Édesség) utan a panel a 612-t
+           (Maria, Tréfa) nem mutatta, pedig a jatek felvetette es leadhato volt.
+           A tw-calc: 609 nemkesz 610, 611; 612 nemkesz 611, 610; 610 nemkesz 609,
+           612; 611 nemkesz 612, 609: ket par (609 + 612 vagy 610 + 611), nem
+           "egy a negybol". A csoport (szulo) lancba fuzte oket, es egy kesz tag
+           minden mast kiejtett. Most egy kesz (dontott) tag csak a kozvetlen
+           szomszedjait ejti ki. MERT: 68 valasztocsoportbol 67 teljes (mindenki
+           mindenkit kizar), azoknal az eredmeny ugyanaz; csak a Halloween mas. */
+        const szomsz = new Map();
+        const szElt = (a, b) => { [[a, b], [b, a]].forEach(([x, y]) => { if (!szomsz.has(x)) szomsz.set(x, new Set()); szomsz.get(x).add(y); }); };
+        const szomszE = (a, b) => !!(szomsz.get(a) && szomsz.get(a).has(b));
         const gyoker = x => { while (szulo.get(x) !== x) x = szulo.get(x); return x; };
         R.forEach(r => felt(r).forEach(c => {
             if (c.t !== "nemkesz" && c.t !== "nemfelvett") return;
@@ -7664,6 +7853,7 @@ const RECEPT_TEKERCS = {
                 if (!vissza) return;
                 [r.id, b].forEach(x => { if (!szulo.has(x)) szulo.set(x, x); });
                 szulo.set(gyoker(r.id), gyoker(b));
+                szElt(r.id, b);
             });
         }));
         /* t87g (MrA, Terv 48a, 2026-10-09): EGYIRANYU VALASZTAS. A The West
@@ -7686,6 +7876,7 @@ const RECEPT_TEKERCS = {
                 egyIrV.add(x.id); egyIrV.add(y);
                 [x.id, y].forEach(z => { if (!szulo.has(z)) szulo.set(z, z); });
                 szulo.set(gyoker(x.id), gyoker(y));
+                szElt(x.id, y);
             });
         }));
         /* t86c (MrA, 2026-10-07, A valtozat): IKERRESZEK. MERT (9-es adatbazis):
@@ -7718,6 +7909,7 @@ const RECEPT_TEKERCS = {
                 ids.forEach(x => iker.add(x));
                 ids.forEach(x => { if (!szulo.has(x)) szulo.set(x, x); });
                 ids.slice(1).forEach(x => szulo.set(gyoker(x), gyoker(ids[0])));
+                ids.forEach(a => ids.forEach(b => { if (a !== b) szElt(a, b); }));
             });
         }
         const csop = new Map();
@@ -7748,12 +7940,12 @@ const RECEPT_TEKERCS = {
                felvett), a tobbi kiesik */
             csop.forEach((tagok, g) => {
                 const valasztott = tagok.filter(x => kesz.has(x) || (felvDont.get(g) && felvett.has(x)));
-                if (valasztott.length) tagok.forEach(x => { if (valasztott.indexOf(x) < 0 && !kesz.has(x) && !felvett.has(x)) ad(ki, x); });
+                if (valasztott.length) tagok.forEach(x => { if (valasztott.indexOf(x) < 0 && !kesz.has(x) && !felvett.has(x) && valasztott.some(v => szomszE(v, x))) ad(ki, x); });
                 /* t36 (MERT 2026-09-30, 41: a 315 leadasa utan a 314 F5-ig a
                    naplóban maradt, a szerver mar lezarta): ha az egyik ag kesz,
                    a masik, meg felvett ag is kiesik. */
                 /* t87k: az egyiranyu parnal (t87g) a felvett ag felvett marad */
-                if (tagok.some(x => kesz.has(x)) && !tagok.some(x => egyIrV.has(x))) tagok.forEach(x => { if (!kesz.has(x) && felvett.has(x)) { felvett.delete(x); ad(ki, x); } });
+                if (tagok.some(x => kesz.has(x)) && !tagok.some(x => egyIrV.has(x))) tagok.forEach(x => { if (!kesz.has(x) && felvett.has(x) && tagok.some(k => kesz.has(k) && szomszE(k, x))) { felvett.delete(x); ad(ki, x); } });
             });
             /* t86i (MrA, 2026-10-07, jatekos jelzese: Uj fold, MERT a kepeirol):
                ELVESZETT RESZ. A "Befejezetlen kalandok: X" (nemkesz) feltetelu
@@ -8266,9 +8458,16 @@ const RECEPT_TEKERCS = {
             if (!most.length || most.every(r => /várnod kell/.test(String(r.x || "")))) return;
             /* t88u (Terv 84): eseménysornal csak a megbizo mostani listaja dont
                (a tw-calc datuma gyakran regi ev, pl. a Mictlan 2022) */
+            /* t88w (MrA, 2026-10-29 21:44, "Igen, kezdheted"): KERESHUROK
+               JAVITASA. MERT (MrA, 10 mp, Kalandsorok ful, erintes nelkul):
+               11 quest_employer keres es 11 ujrarajzolas, a gorgetes akadt.
+               Ok: hibas megbizo-valasznal ("hiba") ez az ag ujra kerte a
+               megbizot, a valasz utan ujrarajzolt, korbe-korbe. Most a t87a
+               aga szerint: hibas valasznal nem ker ujra (a sor nem latszik). */
             if (esemeny) {
-                if (!most.some(r => ksMegbNyitott(r) === true)) {
-                    most.forEach(r => { if (r.mb) ksElakadtMegbKell.add(String(r.mb)); });
+                const ellE = most.map(r => ksMegbNyitott(r));
+                if (!ellE.some(x => x === true)) {
+                    if (!ellE.some(x => x === "hiba")) most.forEach(r => { if (r.mb) ksElakadtMegbKell.add(String(r.mb)); });
                     return;
                 }
                 ki.push({ g, cim: s.cim, c: cs.get(g) || {}, kesz: meg.size, ossz: R.length, most: most.filter(r => ksMegbNyitott(r) === true), esem: esemNev.get(g) });
@@ -8369,13 +8568,14 @@ const RECEPT_TEKERCS = {
         });
         return h + `</div>`;
     }
-    function ksHelySorHTML(t, nev, elony, g, id) {
+    function ksHelySorHTML(t, nev, elony, g, id, gombNelkul) {
         const h = ksHely(nev, elony, g, id);
         const kep = h.kulcs ? `<img class="kicsikep" src="${esc(CDN + "quest/employer/" + encodeURIComponent(h.kulcs) + ".png")}" alt="">` : `<img class="kicsikep" src="${esc(HELY_IKON)}" alt="">`;
         if (h.zarva) ksZarvaJelez();
         const zarva = h.zarva ? ` <span class="jel zarva" data-bub="${esc(KS_ZARVA_BUB)}">még zárva</span>` : "";
         /* t35: "Helyhez" (a hely ablaka), ha a kulcs es a pont megvan; kulcs nelkul a regi "Terkepen" */
-        const gomb = h.pont && h.kulcs ? `<button type="button" class="gomb kisgomb" data-megbizo="${esc(h.kulcs)}" data-mx="${Number(h.pont.x)}" data-my="${Number(h.pont.y)}" data-bub="${esc(HELYHEZ_BUB)}">Helyhez ▸</button>`
+        /* t88y (6a): most nem elerheto esemenyes resznel nincs Helyhez gomb */
+        const gomb = gombNelkul ? "" : h.pont && h.kulcs ? `<button type="button" class="gomb kisgomb" data-megbizo="${esc(h.kulcs)}" data-mx="${Number(h.pont.x)}" data-my="${Number(h.pont.y)}" data-bub="${esc(HELYHEZ_BUB)}">Helyhez ▸</button>`
             : h.pont ? `<button type="button" class="gomb kisgomb" data-terkepxy="${Number(h.pont.x)},${Number(h.pont.y)}" data-hely="${esc(nev)}">Térképen ▸</button>` : "";
         return `<div class="bsor egyeb hely"><div class="nv">${kep}<span>${esc(t)}${zarva}</span></div><div></div><div class="jobb"></div><div class="jobb">${gomb}</div></div>`;
     }
@@ -9741,7 +9941,10 @@ const RECEPT_TEKERCS = {
                 const ora = oraM ? oraM[1] + "-" + oraM[2] : "";
                 const targyak = ksEleresTargyak(r, s);
                 const hiany = targyak.filter(t => !ksTargyMegvan(t));
-                if ((esemenySor || datumos) && hiany.length) return;
+                /* t88za (6b): az eseménylista sora, amig elerheto, a kezdo targy nelkul is latszik */
+                if ((esemenySor || datumos) && hiany.length && !ksEsemElerhetoE(g, x)) return;
+                /* t88za: a sajat sorban mar elveszett ag (a "Befejezetlen" feltetel resze kesz) nem latszik, nem is var */
+                if (ksFelt(r, s).some(c => c.t === "nemkesz" && (c.ids || []).some(y => R.has(Number(y)) && kesz.has(Number(y))))) return;
                 /* t88e (Terv 68 B): korabbi dontessel kizart resz */
                 const kiz = ksKizartOk(r, g, kesz);
                 if (kiz.length) {
@@ -9804,6 +10007,9 @@ const RECEPT_TEKERCS = {
                     datumos: false, esemeny: false, kh, targyNelkul: true, kezdheto: !kh.length });
             });
             reszek.sort((a, b) => R0.indexOf(a.r) - R0.indexOf(b.r));
+            /* t88za (mockup 87): utakra bontott valasztas */
+            const utM = ksUtak(s);
+            reszek.forEach(x => { const u = utM.get(Number(x.r.id)); if (u && !x.kizart) x.ut = u; });
             /* t74 (Terv 29): a "+ N tovabbi" csak a sajat soron beluli elofeltetelre varokat szamolja */
             const lat = new Set(reszek.map(x => Number(x.r.id)));
             const tobb = [...varo].filter(id => !lat.has(id)).length;
@@ -9988,17 +10194,25 @@ const RECEPT_TEKERCS = {
             ksLancSor = Number(sor.g) || 0;
             const nyit = ksTgyNyitva(sor);
             const kd = sor.reszek.filter(x => x.kezdheto).length;
-            const hi = sor.reszek.reduce((n, x) => n + x.hiany.length, 0);
+            /* t88za: utakra bontott valasztasnal egy ut szamit (a tobbi alternativa) */
+            const utKi = new Set(); { const ut0 = new Map(); sor.reszek.forEach(x => { if (!x.ut) return; const m = ut0.get(x.ut.k) || new Map(); m.set(x.ut.ut, (m.get(x.ut.ut) || []).concat([x])); ut0.set(x.ut.k, m); }); ut0.forEach(m => { if (m.size < 2) return; const elso = Math.min(...m.keys()); m.forEach((l, u) => { if (u !== elso) l.forEach(x => utKi.add(x)); }); }); }
+            const hi = sor.reszek.filter(x => !utKi.has(x)).reduce((n, x) => n + x.hiany.length, 0);
             /* t74 (Terv 29): a nem kezdheto, targy nelkuli reszek kulon jellel */
             const tn = sor.reszek.filter(x => x.targyNelkul && !x.kezdheto).length;
             const tnJel = tn ? ` <span class="jel zarva" data-bub="Tárgy nem kell hozzá, de egy feltétele még hiányzik (lásd a rész sorát).">+${tn} tárgy nélkül</span>` : "";
-            const ossz = sor.kizart ? `<span class="jel kizart" data-bub="A korábbi döntéseid miatt ennél a karakternél nem vehető fel.">nem érhető el</span>` : (kd ? `<span class="jel felv">${kd} kezdhető</span>` : `<span class="jel zarva">${sor.reszek.filter(x => !x.targyNelkul && !x.kizart).length} rész</span>` + (hi ? ` <span class="jel zarva">hiányzik ${hi} tárgy</span>` : "") + (sor.reszek.some(x => x.esemeny) ? ` <span class="jel kozos">esemény</span>` : "")) + tnJel;
+            const ossz = sor.kizart ? `<span class="jel kizart" data-bub="A korábbi döntéseid miatt ennél a karakternél nem vehető fel.">nem érhető el</span>` : (kd ? `<span class="jel felv">${kd} kezdhető</span>` : `<span class="jel zarva">${sor.reszek.filter(x => !x.targyNelkul && !x.kizart && !utKi.has(x)).length} rész</span>` + (hi ? ` <span class="jel zarva">hiányzik ${hi} tárgy</span>` : "") + (sor.reszek.some(x => x.esemeny) ? ` <span class="jel kozos">esemény</span>` : "")) + tnJel;
             h += `<div class="kmfej tgysor${sor.kizart ? " kizart" : ""}"><button type="button" class="csuk" data-tgycsuk="${sor.g}" aria-expanded="${nyit ? "true" : "false"}" aria-label="${nyit ? "Összecsukás" : "Kinyitás"}">${nyit ? "▾" : "▸"}</button><b>${esc(sor.cim)}</b> <span class="linkek"><a class="klink" href="${esc(KS_URL + sor.g + "?lang=hu")}" target="_blank" rel="noopener" data-bub="A kalandsor a TW-Calc.net oldalon" aria-label="A kalandsor a TW-Calc.net oldalon"><img class="tckep" src="${esc(CDN)}items/yield/book_plain.png" alt="TC"></a></span> <span class="jel zarva">${Number(sor.sz)}. szint</span>${sor.mn ? ` <span class="kis">${esc(sor.mn)}</span>` : ""}<span class="tgyossz">${ossz}</span></div>`;
             if (!nyit) return;
             /* 14: azonos nevu, egy-egy targyat kero, azonos jelu reszek egy fejlec alatt */
             const jelKulcs = x => [x.r.n, x.nap, x.ora, x.datumos ? 1 : 0, x.esemeny ? 1 : 0, x.kulso.join(";")].join("|");
             const csop = [];
             sor.reszek.forEach(x => {
+                /* t88za: az utakra bontott valasztas tagjai egy bejegyzesbe (ha legalabb ket ut el) */
+                if (x.ut && sor.reszek.filter(y => y.ut && y.ut.k === x.ut.k).map(y => y.ut.ut).filter((v, i, a) => a.indexOf(v) === i).length > 1) {
+                    const c = csop.find(c => c.utK === x.ut.k);
+                    if (c) c.tagok.push(x); else csop.push({ egy: false, utK: x.ut.k, kulcs: "ut" + x.ut.k, tagok: [x] });
+                    return;
+                }
                 /* t88e: a kizart resz kulon, nem vonjuk ossze */
                 if (x.kizart) { csop.push({ egy: false, kulcs: "kizart" + x.r.id, tagok: [x] }); return; }
                 const egy = x.targyak.length === 1;
@@ -10018,6 +10232,29 @@ const RECEPT_TEKERCS = {
             };
             const megbGomb = x => x.kezdheto && x.r.mb ? ksMegbizoAutoHTML(Object.assign({}, x.r, { mn: x.r.mn }), "ossz", true).replace(/^ · /, "") : "";
             csop.forEach(c => {
+                if (c.utK) {
+                    /* t88za (mockup 87): "A befejezés: két út, egyiket választod", az utak, a targyak egyszer (ha minden uton ugyanazok) */
+                    const tg = c.tagok, x0 = tg[0];
+                    const utSz = [...new Set(tg.map(x => x.ut.ut))].sort((a, b) => a - b);
+                    const utTagok = u => tg.filter(x => x.ut.ut === u);
+                    const tKulcs = u => utTagok(u).reduce((l, x) => l.concat(x.targyak.map(t => Number(t.id) + ":" + Number(t.db || 1))), []).sort().join("|");
+                    const egyforma = utSz.every(u => tKulcs(u) === tKulcs(utSz[0]));
+                    const hiT = new Set(); tg.forEach(x => x.hiany.forEach(t => hiT.add(Number(t.id))));
+                    const jelek = jelekHTML(x0);
+                    jelek.push(`<span class="jel valt" data-bub="${esc("Utanként " + utTagok(utSz[0]).length + " részt csinálsz meg; az út dönti el, melyiket.")}">${utTagok(utSz[0]).length} rész, ${utSz.length} út</span>`);
+                    if (hiT.size) jelek.push(`<span class="jel zarva">hiányzik ${egyforma ? new Set(utTagok(utSz[0]).reduce((l, x) => l.concat(x.hiany.map(t => Number(t.id))), [])).size : hiT.size} tárgy</span>`);
+                    h += `<div class="resz tgyresz" data-tgyresz="${tg.map(x => Number(x.r.id)).join(" ")}"><div class="reszfej"><span class="all">•</span><span>A befejezés: ${utSz.length === 2 ? "két" : utSz.length} út, egyiket választod</span><span class="tav">${jelek.join(" ")}</span></div>`;
+                    utSz.forEach(u => { h += `<div class="tgyfelt utsor" style="padding-left:24px">${u}. út: ${utTagok(u).map(x => `<b>${esc((ksMegbRovid(x.r.mn) ? ksMegbRovid(x.r.mn) + ": " : "") + (x.r.n || ("#" + x.r.id)))}</b>`).join(" + ")}</div>`; });
+                    if (egyforma) {
+                        h += `<div class="tgyfelt" style="padding-left:24px">${utSz.length === 2 ? "Mindkét" : "Minden"} úthoz ugyanez kell, egyszer:</div>`;
+                        utTagok(utSz[0]).forEach(x => x.targyak.forEach(t => { h += ksTargyasTargyHTML(t, kep, nevT, ""); }));
+                    } else utSz.forEach(u => {
+                        h += `<div class="tgyfelt" style="padding-left:24px">A ${u}. úthoz:</div>`;
+                        utTagok(u).forEach(x => x.targyak.forEach(t => { h += ksTargyasTargyHTML(t, kep, nevT, ""); }));
+                    });
+                    h += `</div>`;
+                    return;
+                }
                 if (c.tagok.length > 1) {
                     const x0 = c.tagok[0];
                     const jelek = jelekHTML(x0);
@@ -10056,7 +10293,7 @@ const RECEPT_TEKERCS = {
                 if (x.kezdheto) jelek.push(`<span class="jel felv">kezdhető</span>`);
                 /* t74 (Terv 29, a mockup szerint): a targy nelkuli resznel a Megbizohoz akkor is, ha egy feltetele (pl. puszta kez) meg hianyzik */
                 const gomb = (x.kezdheto || x.targyNelkul) && r.mb ? ksMegbizoAutoHTML(Object.assign({}, r, { mn: r.mn }), "ossz", true) : "";
-                h += `<div class="resz tgyresz${x.targyNelkul ? " tnelkul" : ""}" data-tgyresz="${Number(r.id)}"><div class="reszfej${x.kezdheto ? " felveheto" : ""}"><span class="all">${x.kezdheto ? "✓" : "•"}</span><span>${esc(r.n || ("#" + r.id))}${x.targyNelkul ? ` <span class="kis">· tárgy nem kell</span>` : ""}</span><span class="tav">${jelek.join(" ")}${gomb}</span></div>`;
+                h += `<div class="resz tgyresz${x.targyNelkul ? " tnelkul" : ""}" data-tgyresz="${Number(r.id)}"><div class="reszfej${x.kezdheto ? " felveheto" : ""}"><span class="all">${x.kezdheto ? "✓" : "•"}</span><span>${esc(r.n || ("#" + r.id))}${x.ut && ksMegbRovid(r.mn) ? ` <span class="kis">· ${esc(ksMegbRovid(r.mn))}</span>` : ""}${x.targyNelkul ? ` <span class="kis">· tárgy nem kell</span>` : ""}</span><span class="tav">${jelek.join(" ")}${gomb}</span></div>`;
                 x.targyak.forEach(t => { h += ksTargyasTargyHTML(t, kep, nevT, ""); });
                 h += ksKulonHTML(r.ek);
                 h += `</div>`;
@@ -10230,7 +10467,8 @@ const RECEPT_TEKERCS = {
                 });
                 return ki.length ? ki : null;
             };
-            const reszek = s.reszek.map(r => ({ id: r.id, nev: r.n, allapot: e.allapot.get(r.id), felvElobb: felvElobb(r), eh: r.eh || null,
+            const utM = ksUtak(s);
+            const reszek = s.reszek.map(r => ({ id: r.id, g: Number(g), ut: utM.get(Number(r.id)) || null, nev: r.n, allapot: e.allapot.get(r.id), felvElobb: felvElobb(r), eh: r.eh || null,
                 valaszt: e.valaszt.get(r.id) || 0, iker: !!(e.iker && e.iker.has(r.id)), valF: e.valF && e.valF.get(r.id) ? { cs: e.valF.get(r.id).cs, mas: e.valF.get(r.id).mas.map(x => (s.reszek.find(y => y.id === x) || {}).n || ("#" + x)) } : null, most: e.most.has(r.id), m: ksReszM(r), x: r.x || "", lx: (r.s || []).filter(t => /^(Nap|Szerveridő|Dátum):/.test(String(t))).join(" "), korlat: felvKorlat.get(r.id) || "", mb: r.mb || "", mn: r.mn || "", kulso: e.kulso && e.kulso.get(r.id) ? e.kulso.get(r.id).map(ids => ids.map(x => (r.en && r.en[x]) || ("#" + x))) : null, kulsoIds: e.kulso && e.kulso.get(r.id) ? e.kulso.get(r.id).map(ids => ids.slice()) : null, kulsoEn: r.en || null, kov: e.allapot.get(r.id) === "hatra" && kell(r.id).size === 0,
                 targyDb: (r.t || []).length, viseletDb: (r.w || []).length, munkaDb: (r.j || []).length,
                 tav: e.allapot.get(r.id) === "hatra" ? kellF(r.id).size : 0,
@@ -10302,7 +10540,7 @@ const RECEPT_TEKERCS = {
                 const lv = ksLeadVagy(r, s);
                 lv.t.forEach(([tid, db]) => {
                     const jut = ksJutalomBol(tid, s, r);
-                    const hely = { group: g, cim: s.cim, resz: r.id, reszNev: r.n, db, csak: ksCsakFelvetel(tid, r), jutalom: jut ? jut.n : "", tav: kellF(r.id).size, elobb: kulsoSz(r), elobbFel: (felvElobb(r) || []).join(", "), helyben: !!(r.eh && r.eh.length) };
+                    const hely = { group: g, cim: s.cim, resz: r.id, reszNev: r.n, db, csak: ksCsakFelvetel(tid, r), jutalom: jut ? jut.n : "", tav: kellF(r.id).size, elobb: kulsoSz(r), elobbFel: (felvElobb(r) || []).join(", "), ez: ksEsemZart(g, r.x), helyben: !!(r.eh && r.eh.length) };
                     if (vs) { valasztos.push(Object.assign({ targy: tid, valaszt: vs }, hely)); return; }
                     if (!targyak.has(tid)) targyak.set(tid, { targy: tid, kell: 0, helyek: [], csak: false, viselet: false });
                     const t = targyak.get(tid);
@@ -10320,7 +10558,7 @@ const RECEPT_TEKERCS = {
                     const t = targyak.get(tid);
                     t.viselet = true; t.kell = Math.max(t.kell, 1); t.csak = t.csak || cs;
                     if (jut) t.jutalom = jut.n;
-                    t.helyek.push({ group: g, cim: s.cim, resz: r.id, reszNev: r.n, db: 1, viselet: true, csak: cs, tav: kellF(r.id).size, elobb: kulsoSz(r), elobbFel: (felvElobb(r) || []).join(", "), helyben: !!(r.eh && r.eh.length) });
+                    t.helyek.push({ group: g, cim: s.cim, resz: r.id, reszNev: r.n, db: 1, viselet: true, csak: cs, tav: kellF(r.id).size, elobb: kulsoSz(r), elobbFel: (felvElobb(r) || []).join(", "), ez: ksEsemZart(g, r.x), helyben: !!(r.eh && r.eh.length) });
                 });
                 (r.j || []).forEach(j => {
                     if (!munkak.has(j)) munkak.set(j, { munka: j, most: mostKell.has(j), helyek: [] });
