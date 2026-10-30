@@ -1064,7 +1064,7 @@ const RECEPT_TEKERCS = {
                 megbizoKulcs: k.employer != null ? String(k.employer) : "",
                 korlat: typeof k.limited === "string" && k.limited.trim() ? korlatNappal(k.limited.trim(), k.group, k.id) : "",
                 /* t29 (MrA, Terv 25): a jatek datumos mondata szerint lejart */
-                lejart: lejartDatum(k.limited),
+                lejart: lejartDatum(k.limited, k),
                 megbizoHely: Array.isArray(k.employer_coords) && Array.isArray(k.employer_coords[0]) ? k.employer_coords[0] : null
             };
             /* t36 (f): helyhez kotott kaland, a jatek beragadt true-ja
@@ -3742,9 +3742,46 @@ const RECEPT_TEKERCS = {
         }
         return KS_IDOSZAK_BUB;
     }
-    function lejartDatum(limited) {
+    /* t88zd (MrA, 2026-10-30 10:38, "javítsd"): NAPI IDOABLAK DATUMMAL.
+       MERT (MrA kepe 10:31, A legendás arany szablya 2974 felveve): a jatek
+       limited mondata "Ezt a kalandot csak 30.10.2026 04:00 perctől
+       30.10.2026 10:00 percig zárhatod le.", a tw-calc ugyanennel a resznel
+       "Szerveridő: 04:00 - 10:00". MrA: minden nap 04:00-10:00 leadhato, nem
+       jar le (soft idokorlat, mint a 18-22 oras felvetel). Eddig a t29
+       (Terv 25) minden datumos mondatot vegleges hataridonek vett: "lejárt
+       10.30.", a sor a "Lejárt felvett résszel" blokkba esett, a feltetelei
+       kimaradtak a Munkak / Osszesito szamolasabol. SZABALY (osztaly, nem
+       egyedi eset; az adatbazisban 61 resz, 22 kalandsor napi "Szerveridő"
+       ablakkal): ha a jatek datumos ablaka legfeljebb egy nap, es a tw-calc
+       ugyanannal a resznel ugyanilyen orakkal "Szerveridő: OO:PP - OO:PP"
+       ablakot ad, az NAPI ablak: soha nem lejart, az Idozitett ful napi
+       ablakkent kezeli. Minden mas datumos mondat a t29 szerint (valodi
+       lejarat, pl. Macskak hete). */
+    function ksReszX(group, id) {
+        /* a kovetett sor tarolt adata, kulonben a teljes adatbazis (a nem kovetett sornal is) */
+        const keres = sor => { const r = sor && (sor.reszek || []).find(x => Number(x.id) === Number(id)); return r && r.x ? String(r.x) : ""; };
+        try {
+            const t = keres(ksOlvas(ksAdatKulcs()).sorok[group]);
+            if (t) return t;
+            const d = ksDbAdat();
+            return d && d.sorok ? keres(d.sorok[String(group)]) : "";
+        } catch (e) { return ""; }
+    }
+    function ksNapiDatumAblak(mondat, x) {
+        const d = typeof mondat === "string" ? jatekDatumAblak(mondat) : null;
+        if (!d || !(d.veg > d.kezd) || d.veg - d.kezd > 86400000) return null;
+        const t = /Szerveridő:\s*(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/.exec(String(x || ""));
+        if (!t) return null;
+        const pk = new Date(d.kezd), pv = new Date(d.veg);
+        const tol = pk.getUTCHours() * 60 + pk.getUTCMinutes(), ig = pv.getUTCHours() * 60 + pv.getUTCMinutes();
+        if (Number(t[1]) * 60 + Number(t[2]) !== tol || (Number(t[3]) * 60 + Number(t[4])) % 1440 !== ig) return null;
+        return oraAblak("", x);
+    }
+    function lejartDatum(limited, k) {
         const a = typeof limited === "string" ? jatekDatumAblak(limited) : null;
-        return a && a.veg <= szerverIdo().fal ? falHoNap(a.veg) : "";
+        if (!(a && a.veg <= szerverIdo().fal)) return "";
+        if (k && ksNapiDatumAblak(limited, ksReszX(k.group, k.id))) return "";
+        return falHoNap(a.veg);
     }
     const idoHHMM = p => ketJegy(Math.floor((p % 1440) / 60)) + ":" + ketJegy(p % 60);
     function idoTart(p) {
@@ -3777,6 +3814,9 @@ const RECEPT_TEKERCS = {
        megbizo listajabol), kulonben a tw-calc; az elmult tw-calc datum nem */
     function reszAblak(mondat, x, most) {
         if (typeof mondat === "string" && mondat) {
+            /* t88zd: a datumos mondat napi ablak, ha a tw-calc ugyanazt az orat adja */
+            const nd = ksNapiDatumAblak(mondat, x);
+            if (nd) return { datum: null, ora: nd, forras: "jatek", mondat };
             const d = jatekDatumAblak(mondat), o = /órától/.test(mondat) ? oraAblak(mondat, x) : null;
             if (d || o) return { datum: d, ora: o || (/Nap:/.test(String(x || "")) ? oraAblak("", x) : null), forras: "jatek", mondat };
         }
@@ -3936,7 +3976,7 @@ const RECEPT_TEKERCS = {
             if (!fel && !most0 && !elore) return;
             latott.add(Number(r.id));
             const k = felv.get(Number(r.id)) || null;
-            if (fel && k && lejartDatum(k.limited)) return;
+            if (fel && k && lejartDatum(k.limited, k)) return;
             let mondat;
             if (fel) mondat = k && typeof k.limited === "string" && k.limited.trim() ? korlatNappal(k.limited.trim(), k.group, k.id) : "";
             else if (KOCSMAI.has(String(r.mb))) {
@@ -3971,8 +4011,8 @@ const RECEPT_TEKERCS = {
             ki.push({ ab, id: Number(r.id), nev: r.nev, sor: ksCsoportCim(s.group) || ksCim(s.cim), megb, felvett: fel, r, k, elore, leadas, leadasJatek, group: Number(s.group) || 0 });
         }));
         felv.forEach((k, id) => {
-            if (latott.has(id) || lejartDatum(k.limited)) return;
-            const ab = reszAblak(typeof k.limited === "string" ? k.limited : "", "", most);
+            if (latott.has(id) || lejartDatum(k.limited, k)) return;
+            const ab = reszAblak(typeof k.limited === "string" ? k.limited : "", ksReszX(k.group, id), most);
             if (!ab) return;
             ki.push({ ab, id, nev: String(k.soloTitle || k.title || ("#" + id)), sor: String(k.groupTitle || ""), megb: megbCim(k.employer_name, k.employer), felvett: true, r: null, k });
         });
@@ -10335,7 +10375,7 @@ const RECEPT_TEKERCS = {
         const mostKell = new Set();
         /* t29: lejart felvett kalandok (a jatek datumos mondata szerint) */
         const lejartK = new Map();
-        (kalandLista() || []).forEach(k => { const l = lejartDatum(k.limited); if (l) lejartK.set(Number(k.id), l); });
+        (kalandLista() || []).forEach(k => { const l = lejartDatum(k.limited, k); if (l) lejartK.set(Number(k.id), l); });
         (kalandLista() || []).forEach(k => (k.requirements || []).forEach(r => {
             if (lejartK.has(Number(k.id))) return;
             if (r && r.jsInfo && r.jsInfo.type === "task-finish-job" && !r.solved) mostKell.add(Number(r.jsInfo.id));
