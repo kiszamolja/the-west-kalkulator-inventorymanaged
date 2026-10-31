@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Kalandsegítő
 // @namespace    the-west-kalandsegito
-// @version      1.0.16
+// @version      1.0.17
 // @description  A felvett kalandok munkái és sétái egy helyen: melyik munkát hány kaland kéri, mennyi van még hátra, és egy kattintással megnyitja a munkát vagy megmutatja a helyet a térképen.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -82,7 +82,7 @@
     const setTimeout = (f, ms, ...a) => window.setTimeout(f, ksVarIdo(ms), ...a);
     const setInterval = (f, ms, ...a) => window.setInterval(f, ksVarIdo(ms), ...a);
 
-    const VERZIO = "1.0.16";
+    const VERZIO = "1.0.17";
     /* A TESZT-epito ide irja a belyeget. Kiadasi alakban ures. */
     const EPITES = "";
 
@@ -108,13 +108,8 @@
        visszaper nelkul (JSON-kent olvassuk). A ket jelolo sor nem valtozhat. */
     /* VALTOZASOK KEZDETE */
     const VALTOZASOK = [
-        "A panel m\u00e1r nem k\u00e9rdezi folyamatosan a j\u00e1t\u00e9k szerver\u00e9t, ha egy megb\u00edz\u00f3 nem ad list\u00e1t; megsz\u0171nt a g\u00f6rget\u00e9skor \u00e9rezhet\u0151 akad\u00e1s.",
-        "Az esem\u00e9nysorok r\u00e9szei csak akkor most felvehet\u0151k, ha az esem\u00e9ny\u00fck fut vagy a d\u00e1tumuk szerint most van (pl. Christopher par\u00e1d\u00e9ja most nem); a gomb ilyenkor nem jelenik meg.",
-        "A T\u00e1rggyal indul\u00f3 kalandsorok k\u00f6z\u00f6tt az esem\u00e9nysorok a hi\u00e1nyz\u00f3 kezd\u0151 t\u00e1rggyal is l\u00e1tszanak, am\u00edg az esem\u00e9ny el\u00e9rhet\u0151 (pl. Halloween).",
-        "A Halloween befejez\u00e9se k\u00e9t \u00fatk\u00e9nt l\u00e1tszik (Henry \u00e9s Maria egy-egy r\u00e9sze); a 609 ut\u00e1n a 612 is megmarad.",
-        "Felvett r\u00e9sz ut\u00e1n es\u0151 t\u00e1rgyn\u00e1l (pl. Halottak napi k\u00f6r\u00f6mvir\u00e1gok) a forr\u00e1s b\u00e1rmelyik munka, nem ismeretlen.",
-        "A legend\u00e1s arany szablya: napi 04:00-10:00 ablak, a h\u00e1rom lehet\u0151s\u00e9gb\u0151l egy v\u00e1laszthat\u00f3, a Term\u00e9kek list\u00e1j\u00e1t viselni kell.",
-        "V\u00e1laszt\u00e1sn\u00e1l, ha az egyik \u00e1gat felvetted, az \u00d6sszes\u00edt\u0151 a t\u00f6bbi \u00e1g t\u00e1rgyig\u00e9ny\u00e9t m\u00e1r nem adja hozz\u00e1."
+        "Az \u00faj kalandadatok (adatb\u00e1zis, esem\u00e9nylista) m\u00e1r minden oldalbet\u00f6lt\u00e9skor meg\u00e9rkeznek, nem csak naponta egyszer; ha nincs v\u00e1ltoz\u00e1s, semmit nem t\u00f6lt le.",
+        "Sok kalandr\u00e9szn\u00e9l megjelent a munk\u00e1k ideje is (pl. Egy szomor\u00fa \u00fcnnep), a tud\u00e1sb\u00e1zis adatai alapj\u00e1n."
     ];
     /* VALTOZASOK VEGE */
 
@@ -4414,7 +4409,7 @@ const RECEPT_TEKERCS = {
         if (tm.targy || tm.resz) h = `<button type="button" class="tgyidougras" data-tgyidougras="1">↓ Tárggyal induló: ${[tm.targy ? tm.targy + " tárgy most esik" : "", tm.resz ? tm.resz + " rész most nyitva" : ""].filter(Boolean).join(" · ")}</button>` + h;
         const eltol = (most.off >= 0 ? "+" : "-") + Math.abs(most.off / 60);
         /* t88u (2-es pont A): az esemenylista (jatekKulcs) az Idozitett fulon is
-           kell; GitHub Pages, ETag, legfeljebb 24 orankent 1 keres (a jatek
+           kell; GitHub Pages, ETag, oldalbetoltesenkent legfeljebb 1 keres (t88ze; eddig 24 orankent; a jatek
            szervere nem kap kerest) */
         ksFajlFrissit(KS_ESEM, KS_ESEM_URL, ksEsemJo);
         const eszk = ksFutoEsemenyHTML() + `<div class="iinfo"><span>Szerveridő: <b>${esc(KS_NAP_NEV[most.nap])} ${esc(most.hhmm)}</b> (UTC${eltol})${ksMegbFut ? " · a kocsmai megbízók időablakainak lekérése…" : ""}</span></div>`;
@@ -7310,7 +7305,6 @@ const RECEPT_TEKERCS = {
        jon, a tw-calc-hoz csak az megy, ami nincs benne (vagy a kezi ↻). */
     const KS_DB = "smcz-kalandsegito-db";
     const KS_DB_URL = WEBOLDAL + "kalandsegito-db.json";
-    const KS_DB_KOZ = 24 * 60 * 60 * 1000;
     const KS_URL = "https://tw-calc.net/quests/group/";
     const KS_SZUNET = 2000;
     /* t16c: a tarolt sor-adat formaja. A t16a-ban tarolt sorokban nincs
@@ -8796,7 +8790,7 @@ const RECEPT_TEKERCS = {
         const allK = ksAllKulcs();
         if (!jatekos || !allK) return;
         const felv = ksFelvettek();
-        /* t59: az adatbazis (naponta legfeljebb egyszer) */
+        /* t59: az adatbazis (t88ze: oldalbetoltesenkent legfeljebb egyszer) */
         ksDbFrissit();
         const adat = ksOlvas(ksAdatKulcs());
         const all = ksOlvas(allK);
@@ -9144,11 +9138,15 @@ const RECEPT_TEKERCS = {
        szkript verziojat (szv); uj verzional (TESZT-ben uj epitesnel is) az
        elso nyitaskor letolti, nem var 24 orat. */
     const KS_DB_SZV = VERZIO + (EPITES ? " · " + EPITES : "");
+    /* t88ze (MrA, 2026-10-31 09:58, "programozhatod a leírtakkal együtt"): MINDEN OLDALBETOLTESKOR egy
+       ellenorzes (a 24 oras varakozas megszunt). Egy betoltesen belul tovabbra is legfeljebb egy kerés
+       (ksDbAll.allapot). A kerés a weboldalra megy (ETag), a jatekszerverre nem; 304-nel nincs letoltes.
+       304-nel a tarolt masolatot NEM irjuk ujra (eddig az ido miatt a teljes 2,2 MB-ot irta vissza),
+       csak ha a szkriptverzio-jelzo (szv) regi. Az "ido" mostantol az utolso tenyleges letoltes ideje. */
     function ksDbFrissit(kenyszer) {
         if (ksDbAll.allapot === "folyamatban") return;
         const o = ksDbOlvas();
         if (!kenyszer && ksDbAll.allapot) return;
-        if (!kenyszer && o && o.szv === KS_DB_SZV && Date.now() - (o.ido || 0) < KS_DB_KOZ) { ksDbAll.allapot = "kesz"; return; }
         ksDbAll.allapot = "folyamatban";
         const fej = {};
         if (o && o.etag) fej["If-None-Match"] = o.etag;
@@ -9157,9 +9155,7 @@ const RECEPT_TEKERCS = {
                 method: "GET", url: KS_DB_URL, headers: fej, nocache: true, timeout: 60000,
                 onload: r => {
                     if (r.status === 304 && o) {
-                        o.ido = Date.now();
-                        o.szv = KS_DB_SZV;
-                        try { GM_setValue(KS_DB, JSON.stringify(o)); } catch (e) { /* nem baj */ }
+                        if (o.szv !== KS_DB_SZV) { o.szv = KS_DB_SZV; try { GM_setValue(KS_DB, JSON.stringify(o)); } catch (e) { /* nem baj */ } }
                         ksDbVege(null);
                         return;
                     }
@@ -9231,7 +9227,7 @@ const RECEPT_TEKERCS = {
         if (all.allapot === "folyamatban") return;
         const o = ksFajlTar(kulcs, jo);
         if (!kenyszer && all.allapot) return;
-        if (!kenyszer && o && Date.now() - (o.ido || 0) < KS_DB_KOZ) { all.allapot = "kesz"; return; }
+        /* t88ze: minden oldalbetolteskor egy ellenorzes (lasd ksDbFrissit); 304-nel nincs iras */
         all.allapot = "folyamatban";
         const vege = h => { all.allapot = h ? "hiba" : "kesz"; all.hiba = h || ""; if (latszik && beall.ful === "fel") frissitKesobb(); else if (!h && latszik && beall.ful === "sor") ksSorRajzKesobb(); };
         const fej = {};
@@ -9241,8 +9237,6 @@ const RECEPT_TEKERCS = {
                 method: "GET", url, headers: fej, nocache: true, timeout: 60000,
                 onload: r => {
                     if (r.status === 304 && o) {
-                        o.ido = Date.now();
-                        try { GM_setValue(kulcs, JSON.stringify(o)); } catch (e) { /* nem baj */ }
                         vege(null);
                         return;
                     }
@@ -9930,7 +9924,7 @@ const RECEPT_TEKERCS = {
     let ksLeadElozo = null, ksLeadUjG = [];
     function ksTgyUjNezet() { ksTgyNezet++; }
     function ksTargyasAdat(kerNelkul) {
-        /* az adatbazis akkor is kell, ha nincs felvett kaland (naponta legfeljebb 1 keres) */
+        /* az adatbazis akkor is kell, ha nincs felvett kaland (t88ze: oldalbetoltesenkent legfeljebb 1 keres) */
         /* t72: az Idozitett ful kerNelkul hivja: csak a mar meglevo adatbol */
         if (!kerNelkul) ksDbFrissit();
         const d = ksDbAdat();
