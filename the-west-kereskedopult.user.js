@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Kereskedőpult
 // @namespace    the-west-beszerzo-ingame
-// @version      1.0.2
+// @version      1.0.3
 // @description  Gyűjtés és piac a játékon belül: kinek, miből mennyit gyűjtesz, és egy helyen adhatsz el, vehetsz és vehetsz át a játék piacán.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -67,7 +67,7 @@
 (function () {
     "use strict";
 
-    const VERZIO = "1.0.2";
+    const VERZIO = "1.0.3";
 
     /* A fajlnev ALLANDO, nem tartalmaz verziot: igy a repoban mindig ugyanaz
        a fajl frissul, es a Tampermonkey kovetni tudja. A verzio csak a
@@ -94,7 +94,10 @@
        A ket jelolo sor nem valtozhat. */
     /* VALTOZASOK KEZDETE */
     const VALTOZASOK = [
-        "\u00daj Minimum\u00e1r kapcsol\u00f3 az Elad\u00e1sban: az Azonnali \u00e1r mag\u00e1t\u00f3l a minimumra \u00e1ll."
+        "V\u00e9teli k\u00e9r\u00e9sn\u00e9l egyszerre t\u00f6bb egyforma k\u00e9r\u00e9s is feladhat\u00f3 (\u00c1rver\u00e9sek).",
+        "A fizet\u00e9sn\u00e9l a k\u00e9szp\u00e9nz \u00e9s a bank egy\u00fctt sz\u00e1m\u00edt, a panel ki\u00edrja, mennyi megy melyikb\u0151l.",
+        "Elad\u00e1s \u00e9s \u00e1tv\u00e9tel ut\u00e1n a N\u00e1lam \u00e9s a K\u00e9szletem r\u00f6gt\u00f6n a val\u00f3s darabsz\u00e1mot mutatja.",
+        "A nagy \u00e1tv\u00e9tel soronk\u00e9nt, sz\u00fcnettel megy, \u00e9s le\u00e1ll\u00edthat\u00f3."
     ];
     /* VALTOZASOK VEGE */
     /* A TESZT-epito ide irja a belyeget. Kiadasi alakban ures. */
@@ -375,6 +378,22 @@
         }
         return null;
     }
+
+    /* t102: TASKA. A panel muveletei (eladas keresre, feladas, atvetel)
+       utan a panel EventHandler.signal("inventory_changed")-et kuld; erre a
+       jatek maga futtatja a sajat taskafrissiteset (Bag.handleInventoryChange:
+       inventory / inventory_changed -> Bag.updateChanges), MERVE 2026-10-31.
+       A hiba az volt, hogy a panel ezt nem varta meg: a jelzes utan rogton
+       rajzolt, a jatek frissitese elott, es utana nem. Ezert a jatek
+       inventory_changed valaszat a piacFigyelo ajaxComplete-je figyeli, es
+       utana a panel ujrarajzol (osszevonva). Sajat keres nincs: a t101-es
+       kulon inventory_changed kerest kivettuk (a jatek mar elkuldte). */
+    let taskaOra = 0;
+    function taskaValtozott() {
+        clearTimeout(taskaOra);
+        taskaOra = setTimeout(() => { taskaOra = 0; rajzolHaSzabad(); }, 100);
+    }
+    const TASKA_URL = /window=inventory\b.*[?&]action=inventory_changed(&|$)|[?&]action=inventory_changed(&|$).*window=inventory\b/;
 
     /* KESZLET: hany darab van a taskaban, elohen. null = a Bag meg nem
        tolt be (ilyenkor "?" es nincs szazalek). */
@@ -2411,7 +2430,6 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
 .osor .kdb{ color:var(--dim) }
 /* A tavoli visszavonas felirata ket sorban fer ki a gomboszlopban. */
 .osor .agomb{ white-space:nowrap }
-.osor .agomb.ket{ white-space:normal; line-height:1.15; padding-top:2px; padding-bottom:2px }
 
 .ujform{ display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) 74px auto auto;
   gap:8px; align-items:center; margin-bottom:14px }
@@ -3336,6 +3354,8 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
 .lach{ display:flex; align-items:center; gap:8px }
 .kall{ font-size:11.5px; color:var(--dim); line-height:1.25 }
 .krsor .aelado{ white-space:normal }
+/* t103: Arverések mezo */
+.krarveressz:empty{ display:none }
 `;
 
     /* -----------------------------------------------------------------
@@ -5707,12 +5727,15 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
           <div class="kinalat-fej">
             <span class="kallapot" style="flex:1 1 auto;margin:0">${esc(licitAllapotSzoveg())}</span>
             ${extra || ""}
+            <button type="button" class="gomb agomb" data-atv-leall${atvSor.fut ? "" : " hidden"}>Leállítás</button>
             <button type="button" class="gomb" data-licit-friss ${licitek.allapot === "tolt" ? "disabled" : ""}>Frissítés</button>
           </div>
           <div class="kvuzenet${licitNezet.uzenetHiba ? " kvhiba" : ""}" id="lvUzenet" role="status" style="margin-top:6px">${esc(licitNezet.uzenet)}</div>`;
     }
 
     function licitFrissKotes() {
+        const ll = gyoker.querySelector("[data-atv-leall]");
+        if (ll) ll.addEventListener("click", () => { if (atvSor.fut) { atvSor.leall = true; ll.disabled = true; } });
         const g = gyoker.querySelector("[data-licit-friss]");
         if (g) g.addEventListener("click", () => {
             if (licitek.allapot === "tolt") return;
@@ -5939,11 +5962,19 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
          A teljesult keres (bidder kitoltve) helye az Atvetel (2. kor).
        ----------------------------------------------------------------- */
     const kerek = { allapot: "ures", sorok: [], ido: 0, uzenet: "", uzenetHiba: false, futas: 0 };
-    const kerNezet = { kereses: "", valasztott: null, mezok: {}, megjegyzes: "", javAkt: 0 };
+    /* t103: arveres = hany egyforma keres menjen fel egy hivassal
+       (putup auctioncount, MERVE 2026-10-31: 3 -> 3 kulon keres, levonas
+       3 x ar + costs). A t100-as sorozatos feladas es a Masolas kikerult
+       (a fejleszto dontese, B). */
+    const kerNezet = { kereses: "", valasztott: null, mezok: {}, megjegyzes: "", javAkt: 0, arveres: "1" };
     let kerKuldes = false;
     const KER_LICIT_HIBA = "Az árverési árnak magasabbnak kell lennie az azonnali vételárnál.";
     const KER_MIN_HIBA = "A tárgy aukciós ára alacsonyabb a megengedett minimumnál.";
-    const KER_PENZ_HIBA = "Nincs elég pénz ehhez a forráshoz.";
+    /* t100: a ket gomb csak a sorrendet donti el, a jatek a hianyzo reszt
+       a masik forrasbol potolja (MERVE 2026-10-31, ket karakterrel), ezert
+       a fedezet a keszpenz es a bank egyutt. */
+    const KER_PENZ_HIBA = "Nincs elég pénz.";
+    const KER_VISSZA_SZ = "Visszavonáskor az ár oda jön vissza, ahonnan levonta, a díj elvész.";
     const KER_EXPRESS_CIM = "Expressz kézbesítés";
     const KER_EXPRESS_SZOVEG = "Nem tartózkodsz piac közelében, ahol feltehetnéd az árut, de néhány aranyrögért cserébe ez innen is megoldható. Szeretnéd feltenni innen az ajánlatot?";
 
@@ -6115,6 +6146,31 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         const m = eladSzam(kerMezok(id).menny);
         return m != null && !isNaN(m) ? m : 1;
     }
+    /* Hany arveres (egyforma keres). Varoson kivul mindig 1 (a fejleszto
+       dontese 2026-10-31; az expresssell tobb arverese nem mert).
+       Ervenytelen: NaN. */
+    function kerArveres(cel) {
+        if (!cel || !cel.mehet || !cel.helyben) return 1;
+        const d = eladSzam(kerNezet.arveres);
+        return d == null ? NaN : d;
+    }
+    /* Honnan megy a penz: elobb a valasztott forras, utana a masik. */
+    function kerMegoszt(kell, elso, masik) {
+        const a = Math.min(kell, Math.max(0, elso));
+        return { elso: a, masik: Math.max(0, kell - a) };
+    }
+    function kerMegosztSzoveg(kell, p) {
+        if (!(kell > 0)) return "";
+        const sz = (bank) => {
+            const m = bank ? kerMegoszt(kell, p.bank, p.keszpenz) : kerMegoszt(kell, p.keszpenz, p.bank);
+            const sajat = bank ? "a bankból" : "a készpénzből", masik = bank ? "a készpénzből" : "a bankból";
+            if (m.masik <= 0) return `mind ${sajat}`;
+            if (m.elso <= 0) return `mind ${masik}`;
+            return `${kinalatSzam(m.elso)} $ ${sajat}, ${kinalatSzam(m.masik)} $ ${masik}`;
+        };
+        if (kell <= p.keszpenz && kell <= p.bank) return "";
+        return `Készpénz gombbal: ${sz(false)}. Bankszámla gombbal: ${sz(true)}.`;
+    }
     function kerMinOssz(id) {
         const min = eladMinimum(id);
         return min > 0 ? min * kerMennySzam(id) : 0;
@@ -6161,6 +6217,8 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
               <span class="emz">Legnagyobb licit <input id="krLicit" inputmode="numeric" autocomplete="off" aria-label="Legnagyobb licit" value="${esc(m.licit)}"${phSz}> ${`<span class="edollar" data-krdollar="krLicit" title="A halvány szám beírása">$</span>`}</span>
               <span class="emz">Azonnali vételár <input id="krAzonnali" inputmode="numeric" autocomplete="off" aria-label="Azonnali vételár" value="${esc(m.azonnali)}"${phSz}> ${`<span class="edollar" data-krdollar="krAzonnali" title="A halvány szám beírása">$</span>`}</span>
               <label class="emz">Mennyiség <input id="krMenny" class="rovid" inputmode="numeric" autocomplete="off" value="${esc(m.menny)}"></label>
+              <label class="emz" title="Hány egyforma kérés menjen fel">\u00C1rver\u00E9sek <input id="krArveres" class="rovid" inputmode="numeric" autocomplete="off" value="${esc(kerNezet.arveres)}"></label>
+              <span class="halvany krarveressz" id="krArveresSz"></span>
             </div>
             <div class="emezok">
               <span class="emz">Időtartam
@@ -6170,7 +6228,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             <label class="emz eszeles">Megjegyzés a vásárláshoz <input id="krMegj" autocomplete="off" spellcheck="false" value="${esc(kerNezet.megjegyzes)}"></label>
             <div class="kvhiba ehiba" id="krHiba"></div>
             <div class="elab">
-              <span><span id="krOssz"></span><span class="krpenz" id="krPenz"></span></span>
+              <span><span id="krOssz"></span><span class="krpenz" id="krMegoszt"></span><span class="krpenz" id="krPenz"></span></span>
               <span class="egombok">
                 <button type="button" class="gomb agomb" data-krmegse>Mégse</button>
                 <button type="button" class="gomb" data-krfizet="0">Készpénz</button>
@@ -6188,6 +6246,17 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         const cel = eladCel();
         const dij = kerDij(e, cel);
         const p = kerPenz();
+        const arv = kerArveres(cel);
+        if (!e.hiba && isNaN(arv)) e.hiba = "Az árverések száma pozitív egész szám legyen.";
+        const db = isNaN(arv) ? 1 : arv;
+        const dEl = gyoker.getElementById("krArveres");
+        const dSz = gyoker.getElementById("krArveresSz");
+        if (dEl) {
+            const kint = cel.mehet && !cel.helyben;
+            if (kint && dEl.value !== "1") { dEl.value = "1"; kerNezet.arveres = "1"; }
+            dEl.disabled = kint || !cel.mehet;
+            if (dSz) dSz.textContent = kint ? "Több árverés csak városban." : "";
+        }
         const hibaEl = gyoker.getElementById("krHiba");
         const ossz = gyoker.getElementById("krOssz");
         const penz = gyoker.getElementById("krPenz");
@@ -6198,8 +6267,11 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             else if (e.hiba) ossz.innerHTML = "";
             else {
                 const dijSz = !cel.mehet ? "-" : (cel.helyben ? (dij != null ? `kb. <b>${kinalatSzam(dij)} $</b>` : "-") : "nem ismert");
-                ossz.innerHTML = `Levonás most: <b>${kinalatSzam(e.ar)} $</b> + díj ${dijSz}` +
-                    (dij != null ? ` = <b>${kinalatSzam(e.ar + dij)} $</b>` : "");
+                ossz.innerHTML = db > 1
+                    ? `Levonás most: <b>${db} × (${kinalatSzam(e.ar)} $ + díj ${dij != null ? `kb. ${kinalatSzam(dij)} $` : "-"})</b>` +
+                      (dij != null ? ` = <b>kb. ${kinalatSzam(db * (e.ar + dij))} $</b>` : "")
+                    : `Levonás most: <b>${kinalatSzam(e.ar)} $</b> + díj ${dijSz}` +
+                      (dij != null ? ` = <b>${kinalatSzam(e.ar + dij)} $</b>` : "");
             }
         }
         if (penz) penz.textContent = `Készpénz: ${kinalatSzam(p.keszpenz)} $ · Bankszámla: ${kinalatSzam(p.bank)} $`;
@@ -6210,15 +6282,17 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             const celSz = !cel.mehet ? cel.ok
                 : (cel.helyben ? "" : `Aranyrögért, a játék saját ablakával. Cél: ${cel.celSzoveg}.`);
             info.textContent = [minSz, "A licitnek nagyobbnak kell lennie az azonnali vételárnál.",
-                "Visszavonáskor az ár készpénzbe jön vissza, a díj elvész.", celSz].filter(Boolean).join(" ");
+                KER_VISSZA_SZ, celSz].filter(Boolean).join(" ");
             info.classList.toggle("kvhiba", !cel.mehet);
         }
-        const kell = e.ar != null ? e.ar + (dij || 0) : 0;
+        const kell = e.ar != null ? db * (e.ar + (dij || 0)) : 0;
+        const nincs = !e.hiba && kell > p.keszpenz + p.bank;
+        const megoszt = gyoker.getElementById("krMegoszt");
+        if (megoszt) megoszt.textContent = (e.hiba || nincs || !cel.mehet) ? "" : kerMegosztSzoveg(kell, p);
         sav.querySelectorAll("[data-krfizet]").forEach(g => {
             const bank = g.getAttribute("data-krfizet") === "1";
             const felirat = (bank ? "Bankszámla" : "Készpénz") + (cel.mehet && !cel.helyben ? " aranyrögért" : "");
             if (!g.dataset.eredeti && g.textContent !== felirat) g.textContent = felirat;
-            const nincs = !e.hiba && kell > (bank ? p.bank : p.keszpenz);
             g.disabled = kerKuldes || !!e.hiba || !cel.mehet || nincs;
             g.title = e.hiba || (!cel.mehet ? cel.ok : (nincs ? KER_PENZ_HIBA : ""));
         });
@@ -6271,6 +6345,15 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         mezo("krAzonnali", "azonnali");
         mezo("krMenny", "menny");
         mezo("krMegj", "megj");
+        const arvEl = gyoker.getElementById("krArveres");
+        if (arvEl) {
+            arvEl.addEventListener("focus", () => { try { arvEl.select(); } catch (e) { /* nem baj */ } });
+            arvEl.addEventListener("input", () => {
+                kerNezet.arveres = arvEl.value;
+                visszaGombok();
+                kerSavSzamol();
+            });
+        }
         sav.querySelectorAll("[data-krdollar]").forEach(d => d.addEventListener("click", () => {
             if (!d.classList.contains("aktiv")) return;
             const f = gyoker.getElementById(d.getAttribute("data-krdollar"));
@@ -6296,12 +6379,17 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             if (g.disabled || kerKuldes) return;
             const e = kerErtekel(id);
             const cel = eladCel();
-            if (e.hiba || !cel.mehet) { kerSavSzamol(); return; }
+            const arv = kerArveres(cel);
+            if (e.hiba || !cel.mehet || isNaN(arv)) { kerSavSzamol(); return; }
+            const bidtype = g.getAttribute("data-krfizet") === "1" ? 1 : 0;
             if (cel.helyben) {
                 const dij = kerDij(e, cel);
-                if (!kinalatMegerosit(g, dij != null ? `Biztos? Díj kb. ${kinalatSzam(dij)} $` : "Biztos?")) return;
+                const sz = arv > 1
+                    ? `${arv} kérés feladása, kb. ${kinalatSzam(arv * (e.ar + (dij || 0)))} $`
+                    : (dij != null ? `Biztos? Díj kb. ${kinalatSzam(dij)} $` : "Biztos?");
+                if (!kinalatMegerosit(g, sz)) return;
             }
-            kerKuld(id, e, cel, g.getAttribute("data-krfizet") === "1" ? 1 : 0);
+            kerKuld(id, e, cel, bidtype, arv);
         }));
         kerDollarFrissit();
         kerSavSzamol();
@@ -6313,20 +6401,28 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         kerTolt();
         rajzol();
     }
-    function kerKuld(id, e, cel, bidtype) {
-        const J = jatek(), A = J.Ajax;
-        if (kerKuldes) return;
+    function kerObj(id, e, cel, bidtype, arv) {
         const obj = {
-            town_id: cel.townId, item_id: Number(id), itemcount: e.menny, auctioncount: "1", sellrights: 2,
+            town_id: cel.townId, item_id: Number(id), itemcount: e.menny, auctioncount: String(arv > 1 ? arv : 1), sellrights: 2,
             auctionlength: e.napok, description: String(kerNezet.megjegyzes || ""), direction: "BUY", bidtype: bidtype
         };
         if (e.licit != null) obj.auctionprice = e.licit;
         if (e.azonnali != null) obj.maxprice = e.azonnali;
-        const leiras = `${targyNev(id)}${e.menny > 1 ? " \u00D7" + e.menny : ""}`;
+        return obj;
+    }
+    function kerLeiras(id, e, arv) {
+        return `${targyNev(id)}${e.menny > 1 ? " \u00D7" + e.menny : ""}${arv > 1 ? ", " + arv + " \u00E1rver\u00E9s" : ""}`;
+    }
+    function kerKuld(id, e, cel, bidtype, arv) {
+        const J = jatek(), A = J.Ajax;
+        if (kerKuldes) return;
+        const obj = kerObj(id, e, cel, bidtype, arv);
+        const leiras = kerLeiras(id, e, arv);
         const siker = uzenet => {
             delete kerNezet.mezok[id];
             kerNezet.valasztott = null;
             kerNezet.kereses = "";
+            kerNezet.arveres = "1";
             kerUzenet(uzenet, false);
             kerUtan();
         };
@@ -6382,6 +6478,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         }
     }
 
+
     /* --- Visszavonas: helyben ingyen, mashonnan aranyrogert (merve). --- */
     function kerOfftake(id) {
         const A = jatek().Ajax;
@@ -6395,7 +6492,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
                 if (!valasz || valasz.error) {
                     kerUzenet((valasz && typeof valasz.msg === "string" && valasz.msg) || "A visszavonás nem sikerült.", true);
                 } else {
-                    kerUzenet(`Visszavonva: ${targyNev(s.item_id)}. Az ár a készpénzedbe jött vissza.`, false);
+                    kerUzenet(`Visszavonva: ${targyNev(s.item_id)}. Az ár oda jött vissza, ahonnan levonta.`, false);
                 }
                 kerUtan();
             });
@@ -6426,7 +6523,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
                             if (ad.money != null) J.Character.setMoney(ad.money);
                         }
                     } catch (e) { /* nem baj */ }
-                    kerUzenet(`Visszavonva: ${targyNev(s.item_id)}. Az ár a készpénzedbe jött vissza.`, false);
+                    kerUzenet(`Visszavonva: ${targyNev(s.item_id)}. Az ár oda jött vissza, ahonnan levonta.`, false);
                     kerUtan();
                 },
                 () => { kerKuldes = false; kerUzenet("Kézbesítés megszakítva, semmi nem történt.", false); rajzolHaSzabad(); });
@@ -6463,9 +6560,9 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
                     ? `<span class="halvany">van aj\u00E1nlat</span>`
                     : c.itt
                     ? `<button type="button" class="gomb agomb" data-kr-vissza="${oid}"${tilt}>Visszavonom</button>`
-                    : `<button type="button" class="gomb agomb ket" data-kr-kezb="${oid}"${kerKuldes || !kezb ? " disabled" : ""}
+                    : `<button type="button" class="gomb agomb" data-kr-kezb="${oid}"${kerKuldes || !kezb ? " disabled" : ""}
                         title="${esc(kezb ? "Aranyrögért, a játék saját ablakával" : "A kézbesítés most nem érhető el.")}"
-                        aria-label="Visszavonom aranyrögért">Visszavonom<br>(aranyrög)</button>`;
+                        aria-label="Visszavonom aranyrögért">Visszavonom</button>`;
                 return `
                   <div class="osor krsor">
                     ${targyBubIkonHTML(s.item_id, targyIkon(s.item_id))}
@@ -6821,6 +6918,8 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             const $ = jatek().jQuery;
             if (typeof $ !== "function") return;
             $(jatek().document).on("ajaxComplete", (e, x, o) => {
+                /* t102: a jatek taskafrissitese utan ujrarajzolunk. */
+                if (o && TASKA_URL.test(String(o.url || ""))) { taskaValtozott(); return; }
                 if (!o || !nativAtvetelE(o.url, o.data)) return;
                 if (piacOra) clearTimeout(piacOra);
                 piacOra = setTimeout(() => { piacOra = null; nativAtvetelUtan(); }, 300);
@@ -6829,8 +6928,19 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         } catch (e) { /* enelkul is mukodik, csak kezzel kell frissiteni */ }
     }
 
+    /* t101: soronkenti atvetel (A1, keresre eladott penz mellett, illetve
+       a keres-sorok) ATV_SZUNET szunettel, allassal es Leallitassal; a
+       fejleszto dontese 2026-10-31 (a): 400 sor ne menjen egyszerre. */
+    const ATV_SZUNET = 300;
+    const atvSor = { fut: false, db: 0, kesz: 0, hiba: 0, leall: false };
+    function atvSorKiir() {
+        const g = gyoker && gyoker.querySelector("[data-atv-leall]");
+        if (g) g.hidden = !atvSor.fut;
+    }
     function atvetelUtan(megszakitva) {
         sajatAtvIdo = Date.now();
+        atvSor.fut = false;
+        atvSorKiir();
         if (licitNezet.uzenet === "Átvétel…") {
             licitUzenet(megszakitva ? "Kézbesítés megszakítva, semmi nem történt." : "", false, false);
         }
@@ -6947,13 +7057,20 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         };
 
         const egyHelyi = (t, tovabb) => {
+            const sok = atvSor.db > 1;
             try {
                 A.remoteCall("building_market", "fetch", { market_offer_id: t.s.market_offer_id }, valasz => {
                     const msg = valasz && valasz.msg;
                     if (!valasz || valasz.error || !msg || !msg.succesfull) {
-                        licitUzenet((valasz && typeof valasz.msg === "string" && valasz.msg) || "Az \u00E1tv\u00E9tel nem siker\u00FClt.", true, true);
+                        atvSor.hiba++;
+                        atvSor.hibaSz = (valasz && typeof valasz.msg === "string" && valasz.msg) || "Az \u00E1tv\u00E9tel nem siker\u00FClt.";
+                        if (!sok) licitUzenet(atvSor.hibaSz, true, true);
+                    } else if (sok) {
+                        penzAllit(msg.money, null);
+                        atvSor.kesz++;
                     } else {
                         penzAllit(msg.money, null);
+                        atvSor.kesz++;
                         licitUzenet(t.fajta === "kerpenz" ? `P\u00E9nz \u00E1tv\u00E9ve: ${targyNev(t.s.item_id)}.`
                             : (t.fajta === "kerlejart" ? `Visszavetted: ${kinalatSzam(t.s.max_price)} $ (${targyNev(t.s.item_id)}).` : `\u00C1tvetted: ${targyNev(t.s.item_id)}.`), false, true);
                     }
@@ -6965,21 +7082,42 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             }
         };
         const lepesek = [];
+        const sorosLepes = new Set();
+        const sorosan = t => { const f = k => egyHelyi(t, k); sorosLepes.add(f); return f; };
         /* t84 (A1): ha itt keresre eladott penz is var, a megvett targyak
            egyenkent (fetch), igy a penz marad. */
         const vettEgyenkent = itt(vett) && kerPenzHelybenE();
-        if (vettEgyenkent) cs.filter(c => c.itt).forEach(c => c.sorok.filter(vett).forEach(t => lepesek.push(k => egyHelyi(t, k))));
+        if (vettEgyenkent) cs.filter(c => c.itt).forEach(c => c.sorok.filter(vett).forEach(t => lepesek.push(sorosan(t))));
         else if (itt(vett)) lepesek.push(k => helyi("fetch_town_bids", k));
         if (itt(elad)) lepesek.push(k => helyi("fetch_town_offers", k));
-        soronkent.forEach(t => lepesek.push(k => egyHelyi(t, k)));
+        soronkent.forEach(t => lepesek.push(sorosan(t)));
         if (!csakItt && tavolCs(vett) && !kerPenzTavolE()) lepesek.push(k => tavoli("get_foreign_town_bids_price", "bids", tavolCs(vett),
             "A t\u00E1voli v\u00E1s\u00E1rolt t\u00E1rgyak k\u00E9zbes\u00EDt\u00E9se megt\u00F6rt\u00E9nt.", k));
         if (!csakItt && tavolCs(elad)) lepesek.push(k => tavoli("get_foreign_town_offers_price", "offers", tavolCs(elad),
             "A t\u00E1voli elad\u00E1sok k\u00E9zbes\u00EDt\u00E9se megt\u00F6rt\u00E9nt.", k));
+        Object.assign(atvSor, { fut: sorosLepes.size > 1, db: sorosLepes.size, kesz: 0, hiba: 0, hibaSz: "", leall: false });
+        atvSorKiir();
+        const allas = () => {
+            if (atvSor.db > 1) licitUzenet(`\u00C1tv\u00E9tel: ${atvSor.kesz + atvSor.hiba} / ${atvSor.db}\u2026`, false, false);
+        };
+        const zaras = () => {
+            if (atvSor.db <= 1) return;
+            const sz = `${atvSor.leall ? "Le\u00E1ll\u00EDtva: " : "\u00C1tv\u00E9ve: "}${atvSor.kesz} / ${atvSor.db} sor.`
+                + (atvSor.hiba ? ` ${atvSor.hiba} sor nem siker\u00FClt: ${atvSor.hibaSz}` : "");
+            licitUzenet(sz, atvSor.hiba > 0, false);
+        };
+        allas();
         let i = 0;
+        let elozoSoros = false;
         const tovabb = () => {
-            if (i >= lepesek.length) { atvetelUtan(megszakitva); return; }
-            lepesek[i++](tovabb);
+            if (atvSor.leall || i >= lepesek.length) { zaras(); atvetelUtan(megszakitva); return; }
+            const l = lepesek[i++];
+            const soros = sorosLepes.has(l);
+            const indit = () => { if (atvSor.leall) { zaras(); atvetelUtan(megszakitva); return; } l(() => { allas(); tovabb(); }); };
+            /* Ket soronkenti atvetel kozott szunet; mas lepes elott nem. */
+            if (soros && elozoSoros) setTimeout(indit, ATV_SZUNET);
+            else indit();
+            elozoSoros = soros;
         };
         tovabb();
     }
@@ -7684,11 +7822,15 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
     }
 
     function eladUzenet(szoveg, hiba, nativ) {
+        const elozo = eladNezet.uzenet;
         eladNezet.uzenet = szoveg;
         eladNezet.uzenetHiba = !!hiba;
-        /* Az Atvetel fulrol inditott eladasi muvelet ott is latszodjon. */
-        if (beall.ful === "atvetel") { licitNezet.uzenet = szoveg; licitNezet.uzenetHiba = !!hiba; }
-        const el = gyoker && (gyoker.getElementById("evUzenet") || gyoker.getElementById("lvUzenet"));
+        /* Az Atvetel fulrol inditott eladasi muvelet ott is latszodjon.
+           t104: torleskor a kozos sort csak akkor uritjuk, ha meg a mi
+           szovegunk all benne (kulonben egy fut atvetel allasat torolne). */
+        const kozosE = beall.ful === "atvetel" && (szoveg || licitNezet.uzenet === elozo);
+        if (kozosE) { licitNezet.uzenet = szoveg; licitNezet.uzenetHiba = !!hiba; }
+        const el = gyoker && (gyoker.getElementById("evUzenet") || (kozosE ? gyoker.getElementById("lvUzenet") : null));
         if (el) { el.textContent = szoveg; el.classList.toggle("kvhiba", !!hiba); }
         uzenetIdozit("elad", szoveg, hiba, sz => {
             if (eladNezet.uzenet === sz) eladUzenet("", false, false);
@@ -8629,8 +8771,8 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         const ok = kezb ? "Aranyr\u00F6g\u00E9rt, a j\u00E1t\u00E9k saj\u00E1t ablak\u00E1val" : "A k\u00E9zbes\u00EDt\u00E9s most nem \u00E9rhet\u0151 el.";
         const kt = eladKuldes || !kezb ? " disabled" : "";
         if (a === "visszavon") {
-            return `<button type="button" class="gomb agomb ket" data-aj-kezb="${id}" data-aj-mod="offtake"${kt} title="${esc(ok)}"
-                aria-label="Visszavon\u00E1s aranyr\u00F6g\u00E9rt">Visszavon\u00E1s<br>(aranyr\u00F6g)</button>`;
+            return `<button type="button" class="gomb agomb" data-aj-kezb="${id}" data-aj-mod="offtake"${kt} title="${esc(ok)}"
+                aria-label="Visszavon\u00E1s aranyr\u00F6g\u00E9rt">Visszavon\u00E1s</button>`;
         }
         return `<button type="button" class="gomb agomb" data-aj-kezb="${id}" data-aj-mod="fetch"${kt} title="${esc(ok)}">K\u00E9zbes\u00EDt\u00E9s</button>`;
     }
