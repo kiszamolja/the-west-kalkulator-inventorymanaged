@@ -12245,11 +12245,14 @@ span.kicsikep.ures{background:transparent}
         }
         /* 0.1.6: a tábla visszaszámlálója (MrA 13:20-13:23): egy óra felett óra:perc HÁTRALÉVŐ idő (6:29), alatta perc
            (29p), az utolsó percben másodperc (45mp), lejárva MOST. A pontos nyitási idő a buborékban. */
+        /* 1.0.18 (MrA 17:04-17:07, mockup 93j): a "6:29" orának latszott; most "6ó 29p", az egyseg kisebb betuvel, a szam
+           es az egyseg kozott vekony szokoz; a perc egyjegyu is lehet (2ó 5p), mint a jatekban. HTML-t ad (csak szamok). */
         function rovidHatra(mp) {
             mp = Math.max(0, Math.floor(mp));
-            if (mp >= 3600) return Math.floor(mp / 3600) + ":" + String(Math.floor(mp % 3600 / 60)).padStart(2, "0");
-            if (mp >= 60) return Math.floor(mp / 60) + "p";
-            return Math.max(1, mp) + "mp";
+            const e = t => `<span class="u">${t}</span>`;
+            if (mp >= 3600) return Math.floor(mp / 3600) + e("ó") + "\u2009" + Math.floor(mp % 3600 / 60) + e("p");
+            if (mp >= 60) return Math.floor(mp / 60) + e("p");
+            return Math.max(1, mp) + e("mp");
         }
         function hatraSzoveg(mp) {
             mp = Math.max(0, Math.round(mp));
@@ -12414,16 +12417,19 @@ span.kicsikep.ures{background:transparent}
     .f{position:absolute;top:0;width:180px;height:36px;background:${SPR} no-repeat 50% 0}
     .b{position:absolute;top:0;width:115px;height:25px;background:${SPR} no-repeat 0 -36px}
     .ert{position:absolute;left:${TAB_VEG}px;top:3px;width:${W - 2 * TAB_VEG}px;height:25px;display:flex;justify-content:center;align-items:center}
-    .tart{display:inline-flex;align-items:center;gap:6px;line-height:25px}
-    .el{display:inline-flex;align-items:center;gap:4px}
-    .el img{width:20px;height:20px;box-sizing:border-box;border:1px solid #1a1008;border-radius:3px;object-fit:contain}
+    .tart{display:inline-flex;align-items:center;gap:5px;line-height:25px}
+    .el{display:inline-flex;align-items:center;gap:3px}
+    .ert .sz{font-size:14px}
+    .u{font-size:11px}
+    .el img{width:18px;height:18px;box-sizing:border-box;border:1px solid #1a1008;border-radius:3px;object-fit:contain}
     .el.m img{border-color:#6fbf3a;box-shadow:0 0 5px 1px #8fe04f}</style>
     ${tablaKeret(W)}<div class="ert"><span class="tart">${elemek}</span></div>`;
             };
             rajz(TAB_MIN);
-            /* szélesség a tartalomhoz: a betét két széle (8-8 px) és egy kis levegő */
+            /* szélesség a tartalomhoz: a két vég (33-33 px) és a betét szélétől 6-6 px (1.0.18, mockup 93j; előtte -2 volt,
+               ezért a szöveg a betét lekerekített falára ért, MrA 17:04 képe) */
             const t = h.shadowRoot.querySelector(".tart"), tw = t ? Math.ceil(t.getBoundingClientRect().width || t.scrollWidth || 0) : 0;
-            const W = Math.max(TAB_MIN, tw + 2 * TAB_VEG - 2);
+            const W = Math.max(TAB_MIN, tw + 2 * TAB_VEG + 12);
             if (W !== TAB_MIN) rajz(W);
             bubKot(h, bubHTML(a));
         }
