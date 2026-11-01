@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Kalandsegítő
 // @namespace    the-west-kalandsegito
-// @version      1.0.17
+// @version      1.0.18
 // @description  A felvett kalandok munkái és sétái egy helyen: melyik munkát hány kaland kéri, mennyi van még hátra, és egy kattintással megnyitja a munkát vagy megmutatja a helyet a térképen.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -82,7 +82,7 @@
     const setTimeout = (f, ms, ...a) => window.setTimeout(f, ksVarIdo(ms), ...a);
     const setInterval = (f, ms, ...a) => window.setInterval(f, ksVarIdo(ms), ...a);
 
-    const VERZIO = "1.0.17";
+    const VERZIO = "1.0.18";
     /* A TESZT-epito ide irja a belyeget. Kiadasi alakban ures. */
     const EPITES = "";
 
@@ -108,8 +108,9 @@
        visszaper nelkul (JSON-kent olvassuk). A ket jelolo sor nem valtozhat. */
     /* VALTOZASOK KEZDETE */
     const VALTOZASOK = [
-        "Az \u00faj kalandadatok (adatb\u00e1zis, esem\u00e9nylista) m\u00e1r minden oldalbet\u00f6lt\u00e9skor meg\u00e9rkeznek, nem csak naponta egyszer; ha nincs v\u00e1ltoz\u00e1s, semmit nem t\u00f6lt le.",
-        "Sok kalandr\u00e9szn\u00e9l megjelent a munk\u00e1k ideje is (pl. Egy szomor\u00fa \u00fcnnep), a tud\u00e1sb\u00e1zis adatai alapj\u00e1n."
+        "\u00daj: esem\u00e9nyjelz\u0151 az aranyr\u00f6g alatt. A fut\u00f3 esem\u00e9ny nyithat\u00f3 t\u00e1rgyai (pl. Vir\u00e1gcser\u00e9p) visszasz\u00e1ml\u00e1l\u00f3val; kattint\u00e1sra a felszerel\u00e9s ezekre a t\u00e1rgyakra sz\u0171rve ny\u00edlik.",
+        "Jav\u00edt\u00e1s: a csak egy mesters\u00e9g \u00e1ltal gy\u00e1rthat\u00f3, nem kereskedhet\u0151 t\u00e1rgyat k\u00e9r\u0151 kalandr\u00e9szek (pl. Lovag f\u00e9nyes p\u00e1nc\u00e9lban) csak az adott mesters\u00e9gn\u00e9l l\u00e1tszanak.",
+        "Jav\u00edt\u00e1s: a m\u00e1r nem vehet\u0151 fel r\u00e9sz jutalma elt\u0171nik, ha az a kaland, amelyikhez kellett, m\u00e1r k\u00e9sz."
     ];
     /* VALTOZASOK VEGE */
 
@@ -7775,7 +7776,64 @@ const RECEPT_TEKERCS = {
        = 1, Sarlatan = 2, Kovacs = 3, Nyerges = 4 (MrA: Sarlatan, Character.
        professionId = 2). A szamolas kozelitesehez nem nyul. */
     const KS_MESTER_M = { master_fieldcook: 1, master_tonicpeddler: 2, master_blacksmith: 3, master_saddler: 4 };
-    function ksReszM(r) { return (r && (Number(r.m) || KS_MESTER_M[String(r.mb || "")])) || 0; }
+    /* t88zf (MrA, 2026-11-01 13:36-13:49, "ez jó ... javítsuk"): MESTERSÉGHEZ KÖTÖTT KÉRT TÁRGY. MÉRT (MrA konzol,
+       kérés nélkül, konzol/meres-zart-gyartott-2026-11-01.json): 228 recept, 40 gyártott tárgy se piacra nem tehető, se
+       nem cserélhető (auctionable és tradeable false). Az Apróságok "Lovag fényes páncélban" négy változata (43360-43363)
+       ilyet kér: chili (Tábori szakács), Legendás ellenanyag (Sarlatán), Pony expressz lószerszámok (Istállómester),
+       Arany zenedoboz (Kovács); egy karakter csak a saját mesterségéét tudja megszerezni, a megbízó láthatósága ezzel
+       nem függ össze. Szabály, fix lista nélkül: ha a rész kért tárgya (t, et) csak EGY mesterség receptjéből készül,
+       se piac, se csere, és az adatbázis szerint semmilyen kaland nem adja jutalmul (targyForras üres), akkor a rész
+       ennek a mesterségnek az ága; a meglévő mesterség-szűrés (r.m, mester-megbízó) ugyanúgy kezeli. Az adatbázis
+       szerint 14 rész (Apróságok 8, A legjobb mesterember 1, Kovács vagy? 1, Különleges ital 3, Fort Mencer 1).
+       Ha a játék tárgylistája vagy receptjei még nincsenek betöltve, nem dönt (0), és később újra próbálja. */
+    let ksGyartM = null, ksGyartMIdo = 0;
+    function ksGyartProfTerkep() {
+        if (ksGyartM && (ksGyartM.size || Date.now() - ksGyartMIdo < 30000)) return ksGyartM;
+        const m = new Map();
+        try {
+            const IM = jatek().ItemManager, all = IM && typeof IM.getAll === "function" ? IM.getAll() : null;
+            Object.keys(all || {}).forEach(k => {
+                const o = all[k];
+                if (!o || o.type !== "recipe" || !o.craftitem) return;
+                const c = Number(o.craftitem), p = Number(o.profession_id) || 0;
+                if (!c || !p) return;
+                if (!m.has(c)) m.set(c, new Set());
+                m.get(c).add(p);
+            });
+        } catch (e) { /* kesobb ujra */ }
+        ksGyartM = m; ksGyartMIdo = Date.now();
+        return m;
+    }
+    const ksZartTargyTar = new Map();
+    let ksZartTargyDb = null;
+    function ksZartTargyM(id) {
+        id = Number(id);
+        if (!id) return 0;
+        const d = ksDbAdat();
+        if (d !== ksZartTargyDb) { ksZartTargyTar.clear(); ksZartTargyDb = d; }
+        if (ksZartTargyTar.has(id)) return ksZartTargyTar.get(id);
+        const terk = ksGyartProfTerkep();
+        if (!terk.size) return 0;
+        const t = targyAdat(id);
+        if (!t) return 0;
+        const pr = terk.get(id);
+        let p = 0;
+        if (pr && pr.size === 1 && t.auctionable === false && t.tradeable === false &&
+            !(d && d.targyForras && (d.targyForras[String(id)] || []).length)) p = [...pr][0];
+        ksZartTargyTar.set(id, p);
+        return p;
+    }
+    function ksReszTargyM(r) {
+        let p = 0;
+        for (const x of [].concat((r && r.t) || [], (r && r.et) || [])) {
+            const q = ksZartTargyM(x && x[0]);
+            if (!q) continue;
+            if (p && q !== p) return 0;
+            p = q;
+        }
+        return p;
+    }
+    function ksReszM(r) { return (r && (Number(r.m) || KS_MESTER_M[String(r.mb || "")] || ksReszTargyM(r))) || 0; }
     function ksIsmE(r) {
         if (!r || !r.i) return false;
         /* az eseményfajl vagy az adatbazis tarolt masolata nelkul (a Felkeszules
@@ -9817,20 +9875,27 @@ const RECEPT_TEKERCS = {
         return ki;
     }
     /* a kizart resz jutalma, ha egy masik reszhez kell (targy, viselendo, kezdo targy) */
-    function ksKizartJutalom(r) {
+    /* t88zf (MrA, 2026-11-01 13:53): a jutalom csak addig kell, amig a cel-kaland nincs kesz. MERT (MrA, keres nelkul):
+       QuestLog.solved_group[18] = Hernando kardja 129 + Az atok 130, megis latszott a Megorzott jegyzet (160) jutalma
+       ("ide kell: Hernando kardja"). A kesz cel-kalandu jutalom kimarad; ha igy egy sem marad, a resz is (lasd a hivast).
+       Ha a jutalom tobb kaland kerese, a meg nem kesz cel szamit. kesz nelkul a regi viselkedes. */
+    function ksKizartJutalom(r, kesz) {
         const d = ksDbAdat();
         if (!d) return [];
         const ki = [];
         ((r && r.k) || []).forEach(tid => {
             tid = Number(tid);
-            let cel = null;
+            let cel = null, keszCel = false;
             Object.keys(d.sorok || {}).some(g => ((d.sorok[g] || {}).reszek || []).some(x => {
                 if (Number(x.id) === Number(r.id)) return false;
                 const kell = (x.t || []).some(y => Number(y[0]) === tid) || (x.w || []).some(y => Number(y) === tid) || (x.et || []).some(y => Number(y[0]) === tid);
-                if (kell) cel = { n: x.n || ("#" + x.id), cim: d.sorok[g].cim || "" };
-                return kell;
+                if (!kell) return false;
+                if (kesz && kesz.has(Number(x.id))) { keszCel = true; return false; }
+                cel = { n: x.n || ("#" + x.id), cim: d.sorok[g].cim || "" };
+                return true;
             }));
             if (cel) ki.push({ tid, cel });
+            else if (keszCel) ki.kesz = (ki.kesz || 0) + 1;
         });
         return ki;
     }
@@ -9983,8 +10048,11 @@ const RECEPT_TEKERCS = {
                 /* t88e (Terv 68 B): korabbi dontessel kizart resz */
                 const kiz = ksKizartOk(r, g, kesz);
                 if (kiz.length) {
+                    /* t88zf: ha a jutalma mar csak lezart kalandhoz kellett, a kizart resz sem latszik */
+                    const jutK = ksKizartJutalom(r, kesz);
+                    if (!jutK.length && jutK.kesz) return;
                     reszek.push({ r, s, g, targyak: [], hiany: [], kulso: [], kulsoIds: [], nap: "", ora: "", datumos: false, esemeny: esemenySor, kh: [],
-                        kizart: kiz, jutalmak: ksKizartJutalom(r), kezdheto: false });
+                        kizart: kiz, jutalmak: jutK, kezdheto: false });
                     return;
                 }
                 let belso = false;
@@ -12146,5 +12214,256 @@ span.kicsikep.ures{background:transparent}
         varo++;
         setTimeout(indit, 500);
     }
+    /* t88zf (MrA, 2026-11-01 13:27 "kerüljön be ... a Kalandsegítőbe", 13:49 "javítsuk és rakjuk bele"): ESEMÉNYTÁRGY-JELZŐ.
+       A külön próbaszkript (Eseménytárgy-jelző 0.1.7, esemenytargy/ATADAS-esemenytargy-0.1.0.md) tábla-része, a kapszula
+       nélkül. Önálló blokk: saját változók, saját elemek (smcz-et-tabla, shadow DOM), saját hibakezelés; a Kalandsegítő
+       semmijét nem hívja és nem írja. Kérés nincs; a játékban csak olvas (Bag, ItemManager, Game.sesData, BuffList,
+       ServerDate), a játék jelzéseire saját figyelőt tesz. A futó esemény pénznemét adó tárgyak: időkapusok
+       visszaszámlálóval (legfeljebb kettő), azonnal nyithatók egy zöld ikonnal; a tábla az aranyrög fölött; kattintás:
+       felszerelés ezekre a tárgyakra szűrve; buborék: pontos idők, darab, összeg, aláírás. */
+    function ksEsemenyJelzo() {
+        const JEL = "kalandsegito" + (EPITES ? "-" + EPITES : "");
+        const CDN = "https://westhu.innogamescdn.com/images/";
+        const ID_TABLA = "smcz-et-tabla";
+        /* MÉRT (The West Essentials QIS, 'events' minták): eseménykulcs (Game.sesData) -> a pénznemet adó minta-tárgy alapja.
+           A pénznem SZAVÁT a játék tárgylistájából olvassuk (pl. "Körömvirág"), így a nyelv is a játéké. */
+        const PENZ_MINTA = { Hearts: 2561, Easter: 2590, Independence: 2619, Octoberfest: 371, DayOfDead: 2675 };
+
+        const J = () => (typeof unsafeWindow !== "undefined" ? unsafeWindow : window);
+        const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[c]);
+        const norm = s => String(s == null ? "" : s).replace(/\+|\d/g, "").replace(/[.,]/g, "").replace(/:.+/, ":").replace(/\s+/g, " ").trim().toLowerCase();
+        const szam = s => { const m = /(\d[\d.,]*)/.exec(String(s || "")); return m ? Number(m[1].replace(/[.,]/g, "")) || 0 : 0; };
+        const kep = u => { u = String(u || ""); if (!u) return ""; if (/^https?:/i.test(u)) return u; if (u[0] === "/") return CDN.replace(/\/images\/$/, "") + u; if (/^images\//.test(u)) return CDN.replace(/images\/$/, "") + u; return CDN + u; };
+
+        function szerverMs() {
+            try { const SD = J().ServerDate; if (typeof SD === "function") return new SD().getTime(); } catch (e) { /* - */ }
+            return Date.now();
+        }
+        function helyiIdo(szervMp) {
+            const d = new Date(Date.now() + (szervMp * 1000 - szerverMs()));
+            return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+        }
+        /* 0.1.6: a tábla visszaszámlálója (MrA 13:20-13:23): egy óra felett óra:perc HÁTRALÉVŐ idő (6:29), alatta perc
+           (29p), az utolsó percben másodperc (45mp), lejárva MOST. A pontos nyitási idő a buborékban. */
+        function rovidHatra(mp) {
+            mp = Math.max(0, Math.floor(mp));
+            if (mp >= 3600) return Math.floor(mp / 3600) + ":" + String(Math.floor(mp % 3600 / 60)).padStart(2, "0");
+            if (mp >= 60) return Math.floor(mp / 60) + "p";
+            return Math.max(1, mp) + "mp";
+        }
+        function hatraSzoveg(mp) {
+            mp = Math.max(0, Math.round(mp));
+            const n = Math.floor(mp / 86400), o = Math.floor(mp % 86400 / 3600), p = Math.floor(mp % 3600 / 60);
+            if (n) return n + " nap" + (o ? " " + o + " ó" : "");
+            if (o) return o + " ó " + p + " p";
+            return Math.max(1, p) + " p";
+        }
+
+        /* ---- adat ---- */
+        function penz() {
+            const G = J(), ses = (G.Game && G.Game.sesData) || {}, IM = G.ItemManager;
+            for (const ev of Object.keys(ses)) {
+                const b = PENZ_MINTA[ev];
+                if (!b || !IM) continue;
+                let o = null;
+                try { o = typeof IM.getByBaseId === "function" ? IM.getByBaseId(b) : null; } catch (e) { o = null; }
+                if (!o) try { o = IM.get(b * 1000); } catch (e) { o = null; }
+                const ub = o && Array.isArray(o.usebonus) ? o.usebonus.find(x => norm(x)) : null;
+                if (ub) return { ev, szo: norm(ub), nev: String(ub).replace(/^[\s\d.,+]+/, "").trim() };
+            }
+            return null;
+        }
+        function taskaDarabok() {
+            const G = J(), B = G.Bag;
+            if (!B) return [];
+            if (B.items_by_id && typeof B.items_by_id === "object") return Object.keys(B.items_by_id).map(k => B.items_by_id[k]).filter(Boolean);
+            const l = [], lat = new Set(), M = G.ItemManager && typeof G.ItemManager.getAll === "function" ? G.ItemManager.getAll() : {};
+            Object.keys(M).forEach(k => {
+                const o = M[k]; if (!o) return;
+                const b = o.item_base_id != null ? o.item_base_id : Math.floor(Number(o.item_id) / 1000);
+                if (lat.has(b)) return; lat.add(b);
+                try { (B.getItemsByBaseItemId(b) || []).forEach(x => l.push(x)); } catch (e) { /* - */ }
+            });
+            return l;
+        }
+        function adat() {
+            const p = penz();
+            if (!p) return null;
+            const G = J(), cd = (G.BuffList && G.BuffList.cooldowns) || {}, most = szerverMs() / 1000;
+            const ido = [], azonnal = [];
+            taskaDarabok().forEach(it => {
+                const o = it && it.obj;
+                if (!o || o.usetype !== "use") return;
+                const ub = (Array.isArray(o.usebonus) ? o.usebonus : []).find(x => norm(x) === p.szo);
+                if (!ub) return;
+                if (typeof it.lifetime === "number" && it.lifetime <= 0) return;
+                let c = Number(it.cooldown);
+                if (!(c > 0)) { const b = cd[o.item_id]; if (b && Number(b.time) > 0) c = Number(b.time) / 1000; }
+                const db = Number(it.count) || 1, ad = szam(ub);
+                const x = { it, nev: o.name, kep: kep(o.image), ad, db, lejar: typeof it.lifetime === "number" ? it.lifetime : null };
+                if (c > 0) { x.mikor = c; x.most = c <= most; ido.push(x); } else azonnal.push(x);
+            });
+            ido.sort((a, b) => a.mikor - b.mikor);
+            const osszeg = azonnal.reduce((s, x) => s + x.ad * x.db, 0);
+            return { penz: p, ido, azonnal, osszeg, most };
+        }
+
+        /* ---- buborék és kattintás ---- */
+        function bubHTML(a, csakIdo) {
+            const s = [];
+            a.ido.forEach(x => {
+                s.push("<b>" + esc(x.nev) + "</b>: " + esc(x.ad + " " + a.penz.nev) +
+                    "<br>" + (x.most ? "<span style='color:#2e7d1a'><b>Most nyitható</b></span>" : "Nyitható: <b>" + helyiIdo(x.mikor) + "</b> (" + hatraSzoveg(x.mikor - a.most) + " múlva)") +
+                    (x.lejar != null ? "<br><i>Megsemmisül: " + hatraSzoveg(x.lejar) + " múlva</i>" : ""));
+            });
+            if (!csakIdo) a.azonnal.forEach(x => s.push("<b>" + esc(x.nev) + "</b>" + (x.db > 1 ? " ×" + x.db : "") + ": " + esc(x.ad * x.db + " " + a.penz.nev) + " <span style='color:#2e7d1a'>(most nyitható)</span>"));
+            if (!csakIdo && (a.azonnal.length > 1 || (a.azonnal.length && a.osszeg))) s.push("Azonnal nyitható összesen: <b>" + esc(a.osszeg + " " + a.penz.nev) + "</b>");
+            s.push("<span style='font-size:11px;color:#6a5030'>Kattintás: felszerelés, ezekre a tárgyakra szűrve</span>");
+            /* smcZ aláírás, a Kalandsegítő frissítés-ablakának mintájára (11px Arial, halvány, jobbra; piros szív) */
+            return "<div style='max-width:280px;line-height:16px'>" + s.join("<br>") +
+                "<div style='margin-top:6px;text-align:right;font:11px Arial,sans-serif;color:rgba(43,33,25,.45)'>Crafted with <span style='color:#d7473f;font-size:13px;padding:0 2px'>\u2665</span> by smcZ</div></div>";
+        }
+        function bubKot(host, html) {
+            try {
+                const G = J(), jq = G.jQuery || G.$;
+                if (!jq || typeof G.MousePopup !== "function") return;
+                jq(host).removeMousePopup && jq(host).removeMousePopup();
+                jq(host).addMousePopup(new G.MousePopup(html));
+            } catch (e) { /* buborék nélkül is működik */ }
+        }
+        function felszereles(csakIdo) {
+            const a = utolso;
+            if (!a) return;
+            const l = (csakIdo ? a.ido : a.ido.concat(a.azonnal)).map(x => x.it);
+            try {
+                const G = J();
+                if (G.Wear && typeof G.Wear.open === "function") G.Wear.open();
+                const szur = () => { try { if (G.Inventory && typeof G.Inventory.showSearchResult === "function") G.Inventory.showSearchResult(l); } catch (e) { /* - */ } };
+                szur(); setTimeout(szur, 400);
+            } catch (e) { /* - */ }
+        }
+
+        /* ---- közös rajz ---- */
+        const STILUS = `:host{all:initial}
+    .sz{font:400 17.3333px Arial,Verdana,sans-serif;color:rgb(248,197,124);text-shadow:1px 1px 1px #000;white-space:nowrap}
+    .most{color:#9be35a;text-shadow:1px 1px 1px #000,0 0 6px #5fbf2a;animation:p 1.6s ease-in-out infinite}
+    @keyframes p{50%{opacity:.55}}`;
+        let utolso = null, ui = null;
+        function uiSzulo() { return document.getElementById("user-interface") || document.body; }
+        function gazda(id) {
+            let h = document.getElementById(id);
+            if (h) return h;
+            h = document.createElement("div"); h.id = id;
+            h.style.cssText = "position:fixed;z-index:16;display:none";
+            h.attachShadow({ mode: "open" });
+            uiSzulo().appendChild(h);
+            return h;
+        }
+
+        /* ---- 1) TÁBLA az aranyrög alatt (nem mozgatható) ----
+           0.1.3 (mockup 93g): csak az időkapus tárgyak, legfeljebb kettő, mindegyik a saját ikonjával és idejével (vagy zöld
+           MOST). A tábla a tartalomhoz nyúlik: a játék számlálóképéből (180x36, MÉRT) három részből rakjuk össze. Mindkét vég a
+           kép JOBB vége (a bal tükrözve, így nincs az ikonhoz tervezett bal oldal és illesztési vonal), a közép ismétlődő szelet;
+           a betét (115x25, a kép 0 -36 része) ugyanígy: tükrözött jobb vég, ismétlődő közép, jobb vég. */
+        const TAB_H = 36, TAB_VEG = 33, TAB_MIN = 180, TAB_MAX = 2;
+        const SPR = `url("${CDN}interface/custom_unit_counter_sprite.png?2")`;
+        const szelet = (x, y, w, h, cls, bx, tukor) => `<div class="sl" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px${tukor ? ";transform:scaleX(-1)" : ""}"><div class="${cls}" style="left:${-bx}px"></div></div>`;
+        function tablaKeret(W) {
+            const l = [szelet(0, 0, TAB_VEG, TAB_H, "f", 180 - TAB_VEG, true), szelet(W - TAB_VEG, 0, TAB_VEG, TAB_H, "f", 180 - TAB_VEG, false)];
+            for (let x = TAB_VEG; x < W - TAB_VEG; x += 30) l.push(szelet(x, 0, Math.min(30, W - TAB_VEG - x), TAB_H, "f", 75, false));
+            const bL = TAB_VEG, bW = W - 2 * TAB_VEG, VB = 8;
+            l.push(szelet(bL, 3, VB, 25, "b", 115 - VB, true), szelet(bL + bW - VB, 3, VB, 25, "b", 115 - VB, false));
+            for (let x = bL + VB; x < bL + bW - VB; x += 50) l.push(szelet(x, 3, Math.min(50, bL + bW - VB - x), 25, "b", 30, false));
+            return l.join("");
+        }
+        function tablaRajz(a) {
+            const h = gazda(ID_TABLA);
+            if (!h.__kotve) {
+                h.__kotve = true;
+                ["mousedown", "touchstart", "pointerdown", "dblclick", "wheel", "contextmenu"].forEach(tp => h.addEventListener(tp, e => e.stopPropagation()));
+                /* 0.1.6: telefonon hosszan nyomva (fél mp) nem nyílik a felszerelés, hogy a buborék olvasható legyen.
+                   0.1.7 (MrA iPhone képe): a játék saját buboréka (MousePopup) iOS-en hosszú nyomásra magától megjelenik,
+                   ezért a saját panel megszűnt (két ablak volt); a rövid koppintás marad felszerelés. */
+                let nyom = null, hosszu = false;
+                const elenged = () => { if (nyom) { clearTimeout(nyom.t); nyom = null; } };
+                h.addEventListener("pointerdown", e => {
+                    hosszu = false; elenged();
+                    if (e.pointerType !== "touch" && e.pointerType !== "pen") return;
+                    nyom = { x: e.clientX, y: e.clientY, t: setTimeout(() => { nyom = null; hosszu = true; }, 500) };
+                });
+                h.addEventListener("pointermove", e => { if (nyom && Math.hypot(e.clientX - nyom.x, e.clientY - nyom.y) > 10) elenged(); });
+                h.addEventListener("pointerup", elenged);
+                h.addEventListener("pointercancel", elenged);
+                h.addEventListener("contextmenu", e => { if (hosszu || nyom) e.preventDefault(); });
+                h.addEventListener("click", e => { e.stopPropagation(); if (hosszu) { hosszu = false; return; } felszereles(); });
+            }
+            const buy = document.getElementById("buy"), szaml = document.querySelector(".custom_unit_counter");
+            if (!a || (!a.ido.length && !a.azonnal.length) || !buy) { h.style.display = "none"; return; }
+            /* 0.1.4 (mockup 93h 2. eset): időkapus tárgyak (legfeljebb kettő) idővel vagy zöld MOST, a végén az azonnal
+               nyitható tárgyak EGY zöld fényű ikonnal (az elsőé), szám nélkül; a darabok és az összeg a buborékban. */
+            const elemek = a.ido.slice(0, TAB_MAX).map(x => `<span class="el${x.most ? " m" : ""}"><img src="${esc(x.kep)}" alt=""><span class="sz${x.most ? " most" : ""}">${x.most ? "MOST" : rovidHatra(x.mikor - a.most)}</span></span>`).join("") +
+                (a.azonnal.length ? `<span class="el m az"><img src="${esc(a.azonnal[0].kep)}" alt=""></span>` : "");
+            const rb = buy.getBoundingClientRect();
+            const top = Math.round(szaml ? szaml.getBoundingClientRect().top : rb.bottom - 12);
+            const rajz = W => {
+                const left = Math.round(rb.left + rb.width / 2 - W / 2);
+                h.style.cssText = `position:fixed;z-index:16;left:${left}px;top:${top}px;width:${W}px;height:${TAB_H}px;cursor:pointer;display:block;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none`;
+                /* 0.1.4: a tábla az aranyrög FÖLÖTT (MrA: a rög alsó íve takarva lehet), nincs kivágás */
+                h.shadowRoot.innerHTML = `<style>${STILUS}
+    .sl{position:absolute;overflow:hidden}
+    .f{position:absolute;top:0;width:180px;height:36px;background:${SPR} no-repeat 50% 0}
+    .b{position:absolute;top:0;width:115px;height:25px;background:${SPR} no-repeat 0 -36px}
+    .ert{position:absolute;left:${TAB_VEG}px;top:3px;width:${W - 2 * TAB_VEG}px;height:25px;display:flex;justify-content:center;align-items:center}
+    .tart{display:inline-flex;align-items:center;gap:6px;line-height:25px}
+    .el{display:inline-flex;align-items:center;gap:4px}
+    .el img{width:20px;height:20px;box-sizing:border-box;border:1px solid #1a1008;border-radius:3px;object-fit:contain}
+    .el.m img{border-color:#6fbf3a;box-shadow:0 0 5px 1px #8fe04f}</style>
+    ${tablaKeret(W)}<div class="ert"><span class="tart">${elemek}</span></div>`;
+            };
+            rajz(TAB_MIN);
+            /* szélesség a tartalomhoz: a betét két széle (8-8 px) és egy kis levegő */
+            const t = h.shadowRoot.querySelector(".tart"), tw = t ? Math.ceil(t.getBoundingClientRect().width || t.scrollWidth || 0) : 0;
+            const W = Math.max(TAB_MIN, tw + 2 * TAB_VEG - 2);
+            if (W !== TAB_MIN) rajz(W);
+            bubKot(h, bubHTML(a));
+        }
+
+        /* ---- frissítés ---- */
+        let idozito = null, kesleltet = null;
+        function rajzol() {
+            if (idozito) { clearTimeout(idozito); idozito = null; }
+            let a = null;
+            try { a = adat(); } catch (e) { a = null; }
+            if (a && !a.ido.length && !a.osszeg) a = null;
+            utolso = a;
+            try { tablaRajz(a); } catch (e) { /* a jelző hibája a Kalandsegítőt nem állítja meg */ }
+            if (a && a.ido.length) {
+                /* 0.1.6: a visszaszámláló váltásakor rajzol újra: az utolsó percben másodpercenként, egyébként amikor a kiírt
+                   perc változik (legfeljebb 60 mp). Helyi óra, kérés nincs. */
+                const kov = a.ido.filter(x => !x.most).map(x => x.mikor - a.most);
+                const mp = kov.length ? Math.min(...kov.map(r => r <= 60 ? (r - Math.floor(r)) || 1 : (r % 60) || 60)) : 60;
+                idozito = setTimeout(rajzol, Math.max(250, Math.round(mp * 1000) + 30));
+            }
+        }
+        function kesobb() { if (kesleltet) clearTimeout(kesleltet); kesleltet = setTimeout(() => { kesleltet = null; rajzol(); }, 1000); }
+
+        let varo = 0;
+        function indit() {
+            const G = J();
+            /* egy oldalon csak egy jelző fusson (éles és TESZT Kalandsegítő együtt) */
+            if (G.__smczEsemenyJelzo && G.__smczEsemenyJelzo !== JEL) return;
+            G.__smczEsemenyJelzo = JEL;
+            if (!(G.Bag && G.ItemManager && G.Game && G.EventHandler) && varo++ < 120) { setTimeout(indit, 500); return; }
+            try {
+                ["inventory_loaded", "inventory_changed", "cooldown_changed", "item_lifetime_changed", "item_used", "bag_add"].forEach(n => G.EventHandler.listen(n, kesobb));
+            } catch (e) { /* - */ }
+            window.addEventListener("resize", () => { if (utolso) tablaRajz(utolso); });
+            rajzol();
+            setTimeout(rajzol, 3000);
+        }
+        try { if (J().__smczEtProba) J().__smczEt = { adat, rajzol, penz, helyiIdo }; } catch (e) { /* - */ }
+        indit();
+    }
     indit();
+    try { ksEsemenyJelzo(); } catch (e) { /* a Kalandsegítő enélkül is fut */ }
 })();
