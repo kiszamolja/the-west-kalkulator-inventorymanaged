@@ -12300,8 +12300,12 @@ span.kicsikep.ures{background:transparent}
                 const ub = (Array.isArray(o.usebonus) ? o.usebonus : []).find(x => norm(x) === p.szo);
                 if (!ub) return;
                 if (typeof it.lifetime === "number" && it.lifetime <= 0) return;
-                let c = Number(it.cooldown);
-                if (!(c > 0)) { const b = cd[o.item_id]; if (b && Number(b.time) > 0) c = Number(b.time) / 1000; }
+                /* 1.0.18/t88zh (MrA 18:57-18:58, MÉRT kérés nélkül): nyitás után a táska tárgyán a RÉGI, lejárt idő marad
+                   (Virágcserép cooldown 526 mp-cel a múltban), az új a BuffList.cooldowns-ban van (time ms-ban, +11 ó 22 p);
+                   ezért a jelző MOST-ot mutatott. A kettő közül a későbbi számít. */
+                let c = Number(it.cooldown) || 0;
+                const b = cd[o.item_id] || cd[String(o.item_id)];
+                if (b && Number(b.time) > 0) c = Math.max(c, Number(b.time) / 1000);
                 const db = Number(it.count) || 1, ad = szam(ub);
                 const x = { it, nev: o.name, kep: kep(o.image), ad, db, lejar: typeof it.lifetime === "number" ? it.lifetime : null };
                 if (c > 0) { x.mikor = c; x.most = c <= most; ido.push(x); } else azonnal.push(x);
