@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Kereskedőpult
 // @namespace    the-west-beszerzo-ingame
-// @version      1.0.3
+// @version      1.0.4
 // @description  Gyűjtés és piac a játékon belül: kinek, miből mennyit gyűjtesz, és egy helyen adhatsz el, vehetsz és vehetsz át a játék piacán.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -67,7 +67,7 @@
 (function () {
     "use strict";
 
-    const VERZIO = "1.0.3";
+    const VERZIO = "1.0.4";
 
     /* A fajlnev ALLANDO, nem tartalmaz verziot: igy a repoban mindig ugyanaz
        a fajl frissul, es a Tampermonkey kovetni tudja. A verzio csak a
@@ -94,10 +94,9 @@
        A ket jelolo sor nem valtozhat. */
     /* VALTOZASOK KEZDETE */
     const VALTOZASOK = [
-        "V\u00e9teli k\u00e9r\u00e9sn\u00e9l egyszerre t\u00f6bb egyforma k\u00e9r\u00e9s is feladhat\u00f3 (\u00c1rver\u00e9sek).",
-        "A fizet\u00e9sn\u00e9l a k\u00e9szp\u00e9nz \u00e9s a bank egy\u00fctt sz\u00e1m\u00edt, a panel ki\u00edrja, mennyi megy melyikb\u0151l.",
-        "Elad\u00e1s \u00e9s \u00e1tv\u00e9tel ut\u00e1n a N\u00e1lam \u00e9s a K\u00e9szletem r\u00f6gt\u00f6n a val\u00f3s darabsz\u00e1mot mutatja.",
-        "A nagy \u00e1tv\u00e9tel soronk\u00e9nt, sz\u00fcnettel megy, \u00e9s le\u00e1ll\u00edthat\u00f3."
+        "A nyit\u00f3gomb telefonon is h\u00fazhat\u00f3, \u00e9s minden eszk\u00f6z\u00f6n egyforma m\u00e9ret\u0171.",
+        "A leny\u00edl\u00f3 s\u00e1v kattint\u00e1skor teljesen l\u00e1tszik, nem kell g\u00f6rgetni.",
+        "A soronk\u00e9nti \u00e1tv\u00e9tel lassabban megy, hogy ne terhelje t\u00fal a szervert."
     ];
     /* VALTOZASOK VEGE */
     /* A TESZT-epito ide irja a belyeget. Kiadasi alakban ures. */
@@ -2142,10 +2141,6 @@ const RECEPT_TEKERCS = {
        mert a készletfigyelő újrarajzolhatja a teljes stage-et, miközben a
        felhasználó már beillesztette a listát, de még nem nyomott Entert. */
     const gyorsImportok = new Map();
-
-    /* A launcher karaktere szandekosan szoveges Unicode-jel, nem SVG.
-       A variation selector a szines emoji-megjelenitest kikapcsolja. */
-    const LAUNCHER_JEL = "\u2692\uFE0E";
 
     const CSS = `
 @import url("https://fonts.googleapis.com/css2?family=Alegreya+Sans:wght@400;500;600;700&family=Rye&display=swap&subset=latin-ext");
@@ -4875,6 +4870,24 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         return [...gyoker.querySelectorAll("#kinalatLista .ksor2, #figyeloLista .ksor2")].find(x => x.getAttribute("data-kid") === k) || null;
     }
 
+    /* t106: a lenyilo sav teljesen latsszon: csak a lista gorog, annyit,
+       amennyi kell; ha a sav magasabb a lista lathato reszenel, a sor kerul
+       a lista tetejere. A panel nem mozdul. A fejleszto kerese 2026-11-01
+       (Masok keresei, Kinalat, Keszletem). Csak kattintasra hivjuk. */
+    function savLathatova(listaId, savId) {
+        requestAnimationFrame(() => {
+            try {
+                const lista = gyoker && gyoker.getElementById(listaId);
+                const sav = gyoker && gyoker.getElementById(savId);
+                const sor = sav && sav.previousElementSibling;
+                if (!lista || !sav || !sav.isConnected || !sor || !lista.contains(sav)) return;
+                const l = lista.getBoundingClientRect(), v = sav.getBoundingClientRect(), so = sor.getBoundingClientRect();
+                if (v.bottom > l.bottom) lista.scrollTop += Math.min(v.bottom - l.bottom, so.top - l.top);
+                else if (so.top < l.top) lista.scrollTop -= l.top - so.top;
+            } catch (x) { /* nem baj */ }
+        });
+    }
+
     function kinalatSavFrissit() {
         const regi = gyoker.getElementById("kinalatSav");
         if (regi) regi.remove();
@@ -4927,6 +4940,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             const id = sor.getAttribute("data-kid");
             kinalatNezet.valasztott = kinalatNezet.valasztott === id ? null : id;
             kinalatSavFrissit();
+            if (kinalatNezet.valasztott) savLathatova("kinalatLista", "kinalatSav");
         });
     }
 
@@ -5478,6 +5492,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
                 const id = sor.getAttribute("data-mkid");
                 kerelemNezet.valasztott = kerelemNezet.valasztott === id ? null : id;
                 kerelemSavFrissit();
+                if (kerelemNezet.valasztott) savLathatova("kerelemLista", "kerelemSav");
             });
         }
         lapozoKotes("kerelemLapozo", "mklap", kerelmek, KER_CFG);
@@ -5889,6 +5904,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
                 const id = sor.getAttribute("data-kid");
                 kinalatNezet.valasztott = kinalatNezet.valasztott === id ? null : id;
                 kinalatSavFrissit();
+                if (kinalatNezet.valasztott) savLathatova("figyeloLista", "kinalatSav");
             });
         }
         gyoker.querySelectorAll("[data-fig-le]").forEach(g => {
@@ -6931,7 +6947,8 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
     /* t101: soronkenti atvetel (A1, keresre eladott penz mellett, illetve
        a keres-sorok) ATV_SZUNET szunettel, allassal es Leallitassal; a
        fejleszto dontese 2026-10-31 (a): 400 sor ne menjen egyszerre. */
-    const ATV_SZUNET = 300;
+    /* t106: 1 mp (a fejleszto 300 ms-nal szerverhibat kapott, 2026-11-01). */
+    const ATV_SZUNET = 1000;
     const atvSor = { fut: false, db: 0, kesz: 0, hiba: 0, leall: false };
     function atvSorKiir() {
         const g = gyoker && gyoker.querySelector("[data-atv-leall]");
@@ -8235,15 +8252,8 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         const sav = gyoker.getElementById("eladSav");
         sav.addEventListener("click", e => e.stopPropagation());
         /* A lista gorgetese, hogy a sav gombjai is latszanak (csak a lista
-           mozdul, a panel nem). */
-        requestAnimationFrame(() => {
-            try {
-                const lista = gyoker.getElementById("eladLista");
-                if (!lista || !sav.isConnected) return;
-                const l = lista.getBoundingClientRect(), v = sav.getBoundingClientRect(), so = sor.getBoundingClientRect();
-                if (v.bottom > l.bottom) lista.scrollTop += Math.min(v.bottom - l.bottom, so.top - l.top);
-            } catch (x) { /* nem baj */ }
-        });
+           mozdul, a panel nem); t106: a kozos savLathatova. */
+        savLathatova("eladLista", "eladSav");
 
         const visszaGomb = () => kinalatMegerositesVissza(sav.querySelector("[data-efelad]"));
         const mezo = (azon, kulcs) => {
@@ -10426,12 +10436,22 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
 
     /* Lebego beszerzes-launcher, huzhato, a pozicio GM-be mentve
        (a panel launcher-mintaja alapjan). */
+    /* t106: rajzolt (SVG) kalapacs es csakany, 22 px, mint a Kalandsegito
+       cicaja: a "\u2692" szovegjel telefonon mas betukeszletbol jott, es
+       kisebbnek latszott (a fejleszto jelzese 2026-11-01). */
+    function launcherSVG(px) {
+        return '<svg viewBox="0 0 24 24" width="' + px + '" height="' + px + '" aria-hidden="true" focusable="false" style="display:block;pointer-events:none">' +
+            '<path d="M20 20 L6.4 6.4" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" fill="none"/>' +
+            '<path d="M1.8 11.8 Q2.8 2.8 11.8 1.8 Q6.3 6.3 1.8 11.8 Z" fill="currentColor"/>' +
+            '<path d="M4 20 L16.4 7.6" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" fill="none"/>' +
+            '<path d="M15.44 2.9 L21.1 8.56 L18.56 11.1 L12.9 5.44 Z" fill="currentColor"/></svg>';
+    }
     function gombKi() {
         if (document.getElementById("smcz-beszerzo-btn")) return;
         const b = document.createElement("button");
         b.id = "smcz-beszerzo-btn";
         b.type = "button";
-        b.textContent = LAUNCHER_JEL;
+        b.innerHTML = launcherSVG(22);
         b.title = "Keresked\u0151pult";
         b.setAttribute("aria-label", "Keresked\u0151pult megnyit\u00E1sa");
 
@@ -10440,6 +10460,19 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             const s = JSON.parse(GM_getValue(GOMB_POS, "null"));
             if (s && typeof s.top === "number") pos = s;
         } catch (e) { /* alap */ }
+        /* t106 (a Kalandsegito t88l-es, bevalt megoldasa): telefonon az ikon
+           nem volt huzhato (csak egeresemenyek). Most pointer-esemenyek
+           (eger, erintes, toll); touch-action:none, hogy huzas kozben ne
+           gorogjon az oldal; a koppintas (mozgas nelkul) nyit. Az ikon a
+           kepernyon belul marad (huzaskor, betolteskor es atmeretezeskor,
+           pl. a telefon elforgatasa); a mentett hely csak huzas utan
+           valtozik. */
+        const MERET = 32;
+        const korlat = (top, right) => ({
+            top: Math.max(0, Math.min(Number(top) || 0, Math.max(0, (window.innerHeight || 0) - MERET))),
+            right: Math.max(0, Math.min(Number(right) || 0, Math.max(0, (window.innerWidth || 0) - MERET)))
+        });
+        if (window.innerHeight > MERET && window.innerWidth > MERET) pos = Object.assign({}, pos, korlat(pos.top, pos.right));
 
         b.style.cssText = [
             "position:fixed", "z-index:2147483001",
@@ -10447,7 +10480,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             "width:32px", "height:32px", "display:flex", "align-items:center", "justify-content:center",
             "background:#2f261d", "border:1px solid #b8863b", "border-radius:6px",
             "color:#d5a13a", "font:700 18px/1 \"Segoe UI Symbol\",\"Noto Sans Symbols 2\",sans-serif",
-            "padding:0", "cursor:pointer", "user-select:none", "appearance:none",
+            "padding:0", "cursor:pointer", "user-select:none", "appearance:none", "touch-action:none",
             "box-shadow:0 1px 4px rgba(0,0,0,.6),0 0 0 rgba(213,161,58,0)"
         ].join(";");
 
@@ -10460,32 +10493,52 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             b.style.color = "#d5a13a";
         });
 
-        let huz = false, mozgott = false, y0 = 0, x0 = 0, t0 = 0, r0 = 0;
-        b.addEventListener("mousedown", e => {
-            huz = true; mozgott = false;
-            y0 = e.clientY; x0 = e.clientX;
-            t0 = parseInt(b.style.top) || 0;
-            r0 = parseInt(b.style.right) || 0;
+        let huz = false, mozgott = false, y0 = 0, x0 = 0, t0 = 0, r0 = 0, pid = null;
+        const le = (tipus, f) => b.addEventListener(tipus, f);
+        const PE = typeof window.PointerEvent === "function";
+        const kezd = e => {
+            if (e.button != null && e.button !== 0 && e.pointerType !== "touch") return;
+            huz = true; mozgott = false; y0 = e.clientY; x0 = e.clientX; pid = e.pointerId != null ? e.pointerId : null;
+            t0 = parseInt(b.style.top) || 0; r0 = parseInt(b.style.right) || 0;
+            try { if (pid != null && b.setPointerCapture) b.setPointerCapture(pid); } catch (x) { /* nem baj */ }
             e.preventDefault();
-        });
-        document.addEventListener("mousemove", e => {
+        };
+        const mozog = e => {
             if (!huz) return;
             const dy = e.clientY - y0, dx = e.clientX - x0;
             if (Math.abs(dy) > 3 || Math.abs(dx) > 3) mozgott = true;
-            b.style.top = Math.max(0, t0 + dy) + "px";
-            b.style.right = Math.max(0, r0 - dx) + "px";
-        });
-        document.addEventListener("mouseup", () => {
+            if (!mozgott) return;
+            const k = korlat(t0 + dy, r0 - dx);
+            b.style.top = k.top + "px";
+            b.style.right = k.right + "px";
+            if (e.cancelable) e.preventDefault();
+        };
+        const vege = () => {
             if (!huz) return;
             huz = false;
+            try { if (pid != null && b.releasePointerCapture) b.releasePointerCapture(pid); } catch (x) { /* nem baj */ }
+            pid = null;
             if (mozgott) {
                 try {
-                    GM_setValue(GOMB_POS, JSON.stringify({
-                        top: parseInt(b.style.top) || 0,
-                        right: parseInt(b.style.right) || 0
-                    }));
+                    GM_setValue(GOMB_POS, JSON.stringify({ top: parseInt(b.style.top) || 0, right: parseInt(b.style.right) || 0 }));
                 } catch (e) { /* nem baj */ }
             }
+        };
+        if (PE) {
+            le("pointerdown", kezd);
+            document.addEventListener("pointermove", mozog);
+            document.addEventListener("pointerup", vege);
+            document.addEventListener("pointercancel", vege);
+        } else {
+            le("mousedown", kezd);
+            document.addEventListener("mousemove", mozog);
+            document.addEventListener("mouseup", vege);
+        }
+        window.addEventListener("resize", () => {
+            if (huz) return;
+            const k = korlat(parseInt(b.style.top) || 0, parseInt(b.style.right) || 0);
+            b.style.top = k.top + "px";
+            b.style.right = k.right + "px";
         });
         b.addEventListener("click", () => {
             if (mozgott) { mozgott = false; return; }
