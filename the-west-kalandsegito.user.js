@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Kalandsegítő
 // @namespace    the-west-kalandsegito
-// @version      1.0.18
+// @version      1.0.19
 // @description  A felvett kalandok munkái és sétái egy helyen: melyik munkát hány kaland kéri, mennyi van még hátra, és egy kattintással megnyitja a munkát vagy megmutatja a helyet a térképen.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -82,7 +82,7 @@
     const setTimeout = (f, ms, ...a) => window.setTimeout(f, ksVarIdo(ms), ...a);
     const setInterval = (f, ms, ...a) => window.setInterval(f, ksVarIdo(ms), ...a);
 
-    const VERZIO = "1.0.18";
+    const VERZIO = "1.0.19";
     /* A TESZT-epito ide irja a belyeget. Kiadasi alakban ures. */
     const EPITES = "";
 
@@ -108,9 +108,7 @@
        visszaper nelkul (JSON-kent olvassuk). A ket jelolo sor nem valtozhat. */
     /* VALTOZASOK KEZDETE */
     const VALTOZASOK = [
-        "\u00daj: esem\u00e9nyjelz\u0151 az aranyr\u00f6g alatt. A fut\u00f3 esem\u00e9ny nyithat\u00f3 t\u00e1rgyai (pl. Vir\u00e1gcser\u00e9p) visszasz\u00e1ml\u00e1l\u00f3val; kattint\u00e1sra a felszerel\u00e9s ezekre a t\u00e1rgyakra sz\u0171rve ny\u00edlik.",
-        "Jav\u00edt\u00e1s: a csak egy mesters\u00e9g \u00e1ltal gy\u00e1rthat\u00f3, nem kereskedhet\u0151 t\u00e1rgyat k\u00e9r\u0151 kalandr\u00e9szek (pl. Lovag f\u00e9nyes p\u00e1nc\u00e9lban) csak az adott mesters\u00e9gn\u00e9l l\u00e1tszanak.",
-        "Jav\u00edt\u00e1s: a m\u00e1r nem vehet\u0151 fel r\u00e9sz jutalma elt\u0171nik, ha az a kaland, amelyikhez kellett, m\u00e1r k\u00e9sz."
+        "Jav\u00edt\u00e1s: a Munk\u00e1k f\u00fcl\u00f6n a \u201e!\u201d jel a p\u00e1rbajos \u00e9s m\u00e1s egy\u00e9b feladatokn\u00e1l is megjelenik, ha egy k\u00e9s\u0151bbi kalandr\u00e9sz is k\u00e9ri, akkor is, ha a j\u00e1t\u00e9k \u00e9s a kalandle\u00edr\u00e1s egyes, illetve t\u00f6bbes sz\u00e1mban \u00edrja (pl. Megnyert p\u00e1rbaj / Megnyert p\u00e1rbajok)."
     ];
     /* VALTOZASOK VEGE */
 
@@ -3232,6 +3230,19 @@ const RECEPT_TEKERCS = {
        körözések" es a "Kihelyezett halálos körözések" KULON dolog). MERT
        (2026-09-27, MrA kalandsorai): a tw-calc csak a celszamot adja. */
     const KS_EGYEB_NEV = { "Aludni mentem": "Alvás", "Megnyert erődharcok": "Megnyert erődharc" };
+    /* t88zi (MrA, 2026-11-05 18:01-18:12, egy felhasználó képei): a játék és a tw-calc ugyanazt a feladatot egyes, illetve
+       többes számban írja ("Megnyert párbaj" / "Megnyert párbajok", "Párbaj során szerzett pénz" / "Párbajok során
+       szerzett pénz"), ezért a "!" (későbbi rész is kéri) nem jelent meg. Az egyeztetés kulcsa: kisbetű, minden szó végéről
+       a többes szám jele (-ok, -ek, -ök, -ak, -k) le, ha legalább 3 betű marad; mindkét oldalon ugyanígy. A kijelzett
+       szöveg nem változik. A "Kihelyezett körözések" és a "Kihelyezett halálos körözések" továbbra is külön (más szó).
+       Az adatbázis 86 feladatneve között ez nem von össze kettőt (MÉRT, 10-31b). */
+    function ksEgyebKulcs(nev) {
+        const n = String(nev || "").replace(/\s+/g, " ").trim();
+        return (KS_EGYEB_NEV[n] || n).toLowerCase().split(" ").map(w => {
+            const m = /^(.{3,}?)(ok|ek|ök|ak|k)$/.exec(w);
+            return m ? m[1] : w;
+        }).join(" ");
+    }
     function ksEgyebBevarhato() {
         const m = new Map();
         try {
@@ -3240,8 +3251,7 @@ const RECEPT_TEKERCS = {
                 (r.szoveg || []).forEach(t => {
                     const x = /^\s*([^:]+?)\s*:\s*(\d[\d.\s]*)\s*$/.exec(String(t || ""));
                     if (!x) return;
-                    const nev0 = x[1].replace(/\s+/g, " ");
-                    const nev = KS_EGYEB_NEV[nev0] || nev0;
+                    const nev = ksEgyebKulcs(x[1]);
                     if (!m.has(nev)) m.set(nev, []);
                     m.get(nev).push({ group: s.group, cim: s.cim, reszNev: r.nev, resz: r.id, tav: r.tav, elobbFel: (r.felvElobb || []).join(", "), zart: r.tav === 0 ? ((ksReszEsemZart(r) || {}).txt || ksElAblakZartTxt(r)) : "", db: Number(x[2].replace(/[.\s]/g, "")) });
                 });
@@ -3251,7 +3261,7 @@ const RECEPT_TEKERCS = {
         return m;
     }
     function ksEgyebBevarhatoHTML(nev, bv) {
-        const mas = bv.get(nev);
+        const mas = bv.get(ksEgyebKulcs(nev));
         if (!mas || !mas.length) return "";
         const tavSz = h => h.tav > 0 ? "még " + h.tav + " rész" : h.elobbFel ? "előbb vedd fel: " + h.elobbFel : h.zart ? h.zart : "most felvehető";
         /* t18 (MrA, Terv 16): lenyilo lista, az osszes, a legkozelebbi elol.
