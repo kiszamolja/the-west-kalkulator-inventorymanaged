@@ -1861,6 +1861,8 @@ var ErodharcMag = (function () {
     l.forEach(function (p) { var e = ehAdat(p.id)[0]; if (e) { nEh++; if (e.ido === legujabb) nUj++; ossz += e.hp || 0; } else ossz += p.eletMax || 0; });
     return { ossz: ossz, nEh: nEh, nUj: nUj, legujabb: legujabb, nHarc: Object.keys(ehArch.b).length };
   }
+  var NAP_RAG = ['', 'jén', 'án', 'án', 'én', 'én', 'án', 'én', 'án', 'én', 'én', 'én', 'én', 'án', 'én', 'én', 'án', 'én', 'án', 'én', 'án', 'én', 'én', 'án', 'én', 'én', 'án', 'én', 'án', 'én', 'án', 'én'];
+  function napRagos(ms) { var c = napCim(ms), d = new Date(ms).getDate(); return c.slice(0, -1) + '-' + NAP_RAG[d]; }
   function napCim(ms) { var d = new Date(ms), H = ['jan.', 'febr.', 'márc.', 'ápr.', 'máj.', 'jún.', 'júl.', 'aug.', 'szept.', 'okt.', 'nov.', 'dec.']; return H[d.getMonth()] + ' ' + d.getDate() + '.'; }
   function varhHtml(t) {
     var F = felkLista(t), h = [];
@@ -1908,18 +1910,20 @@ var ErodharcMag = (function () {
     s.forEach(function (p) {
       var e0 = p.eh0, nev = p.id != null ? '<a class="efp-nev efp-nevk" data-efp="profil:' + p.id + '">' + esc(p.nev) + '</a>' : esc(p.nev);
       var hp = p.varh || 0, sav = '<span class="efp-ep k ' + (e0 ? 'eh' : 'mo') + '"><span class="efp-epb" style="width:100%"></span><span class="efp-ept">' + fmt(hp) + '</span></span>';
-      var bub = [p.nev];
+      var bub = [];
       if (e0) {
-        if (p.valt) bub.push('↕ erősen változó életerő; a legutóbbi harc értéke számít');
+        if (p.valt) {
+          var elt = p.eh.reduce(function (a, x) { return x.hp > 0 && (!a || Math.abs(x.hp - e0.hp) > Math.abs(a.hp - e0.hp)) ? x : a; }, null);
+          if (elt) bub.push('↕ ' + napRagos(elt.ido) + ' még ' + fmt(elt.hp) + ' ÉP volt');
+        }
         if (legujabb && e0.ido < legujabb) bub.push('az utolsó harcot kihagyta');
-        p.eh.slice(0, 5).forEach(function (x, i) { bub.push(napCim(x.ido) + ' ' + x.erod + ' (' + (x.vedo ? 'védő' : 'támadó') + '): ' + fmt(x.hp) + (i === 0 ? ' (ez számít)' : '') + (x.wmax ? ' · fegyver ' + x.wmin + '-' + x.wmax : '')); });
       } else {
         bub.push('Nincs EH adat ' + (nHarc ? 'az utolsó ' + nHarc + ' harcból' : '(még nincs letöltve)') + '. Ez a mostani életerő a jelenlegi ruhával, erődharc ruhában több lehet.');
         var ru = p.id != null ? ruhaErtek(p.id) : null;
         if (ru && ru.health) bub.push('Ruhabónusz: ÉP +' + ru.health);
       }
       var src = e0 ? napCim(e0.ido) + ' ' + esc(e0.erod) + (legujabb && e0.ido < legujabb ? ' ⓘ' : '') : 'nincs EH adat' + (p.erodnel === false ? ' · nincs ott' : '');
-      t2 += '<tr data-cella="' + p.cella + '" class="' + (p.erodnel === false ? 'nl' : '') + '" title="' + esc(bub.join('\n')) + '"><td>' + osztIkon(p.osztaly) + '</td><td>' + nev + '</td><td class="r">' + (p.szint || '') + '</td>' +
+      t2 += '<tr data-cella="' + p.cella + '" class="' + (p.erodnel === false ? 'nl' : '') + '"' + (bub.length ? ' title="' + esc(bub.join('\n')) + '"' : '') + '><td>' + osztIkon(p.osztaly) + '</td><td>' + nev + '</td><td class="r">' + (p.szint || '') + '</td>' +
         '<td>' + sav + (p.valt ? '<span class="efp-ing">' + ING_SVG + '</span>' : '') + (e0 ? '' : ' <span class="efp-src">most</span>') + '</td><td class="efp-src">' + src + '</td>' +
         '<td class="r">' + (p.eletMax ? fmt(p.eletMax) : '') + '</td><td class="r">' + (e0 && e0.wmax ? e0.wmin + '-' + e0.wmax : '-') + '</td>' +
         '<td class="r">' + (e0 ? fmt(e0.ok) : '-') + '</td><td class="r">' + (e0 ? e0.hit + ' / ' + (e0.hit + e0.miss) : '-') + '</td><td class="r">' + (e0 ? e0.dodge + ' / ' + (e0.dodge + e0.th) : '-') + '</td></tr>';
