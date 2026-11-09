@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Fegyverbe!
 // @namespace    smcZproject
-// @version      1.0.1
+// @version      1.0.2
 // @description  Erődharc segítő a natív erődharc ablakhoz: egér buborék (ki kit lő várhatóan), veszélyzóna, Most / Felkészülés / Várható erő / Statisztika panel, jelölés a térkép és a panel között. A natív ablak szerver válaszait passzívan olvassa; saját kérést csak a gombok küldenek (Lista, Ruhák, Korábbi EH, rangosztás).
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -11,6 +11,7 @@
 // @noframes
 // @grant        GM_getValue
 // @grant        GM_setValue
+// @grant        GM_deleteValue
 // @grant        GM_openInTab
 // @grant        GM_xmlhttpRequest
 // @grant        unsafeWindow
@@ -384,13 +385,10 @@ var ErodharcMag = (function () {
   return { uj: uj, rangDekod: rangDekod, RANG_KULCS: RANG_KULCS, OSZTALY: OSZTALY };
 })();
   var W = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
-  var NEV = 'The West Fegyverbe!', VERZIO = '1.0.1';
+  var NEV = 'The West Fegyverbe!', VERZIO = '1.0.2';
   /* VALTOZASOK KEZDETE */
   var VALTOZASOK = [
-    "Az Erődharc címsávjában a két csapat életereje: balra a támadók, jobbra a védők.",
-    "A Statisztika fülön is balra a támadók, jobbra a védők.",
-    "A térképen a saját buborék mellett a játék név / életerő buboréka nem jelenik meg.",
-    "A címsávban az is látszik, mennyi életerőt vesztett a két csapat az előző körben."
+    "Javítva: több világon játszva a világok adatai (ruhák, várható erő) összekeveredtek."
   ];
   /* VALTOZASOK VEGE */
   var FRISS_PROBA = false;
@@ -401,8 +399,12 @@ var ErodharcMag = (function () {
     'connection_opened', 'connection_closed', 'connection_error'];
   var HO_KOROK = 3;
   var NINCS_POZ = -1;
-  function olvas(k, alap) { try { var v = GM_getValue(k); return v === undefined ? alap : v; } catch (e) { return alap; } }
-  function ir(k, v) { try { GM_setValue(k, v); } catch (e) { } }
+  var VILAG = String((location && location.hostname) || '').toLowerCase();
+  var VILAGOS = { ruha_tar: 1, varos_tar: 1, harc_ertek: 1, eh_archiv: 1, harc_mentes: 1 };
+  function kulcs(k) { return VILAGOS[k] && VILAG ? k + '@' + VILAG : k; }
+  function olvas(k, alap) { try { var v = GM_getValue(kulcs(k)); return v === undefined ? alap : v; } catch (e) { return alap; } }
+  function ir(k, v) { try { GM_setValue(kulcs(k), v); } catch (e) { } }
+  Object.keys(VILAGOS).forEach(function (k) { try { if (GM_getValue(k) !== undefined) GM_deleteValue(k); } catch (e) { } });
   var magok = {};
   var aktivFort = null;
   var valtozott = true;
