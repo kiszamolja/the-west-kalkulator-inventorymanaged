@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Fegyverbe!
 // @namespace    smcZproject
-// @version      1.0.2
+// @version      1.0.3
 // @description  Erődharc segítő a natív erődharc ablakhoz: egér buborék (ki kit lő várhatóan), veszélyzóna, Most / Felkészülés / Várható erő / Statisztika panel, jelölés a térkép és a panel között. A natív ablak szerver válaszait passzívan olvassa; saját kérést csak a gombok küldenek (Lista, Ruhák, Korábbi EH, rangosztás).
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -385,10 +385,10 @@ var ErodharcMag = (function () {
   return { uj: uj, rangDekod: rangDekod, RANG_KULCS: RANG_KULCS, OSZTALY: OSZTALY };
 })();
   var W = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
-  var NEV = 'The West Fegyverbe!', VERZIO = '1.0.2';
+  var NEV = 'The West Fegyverbe!', VERZIO = '1.0.3';
   /* VALTOZASOK KEZDETE */
   var VALTOZASOK = [
-    "Javítva: több világon játszva a világok adatai (ruhák, várható erő) összekeveredtek."
+    "Az egér buborékban a karakter életereje is látszik."
   ];
   /* VALTOZASOK VEGE */
   var FRISS_PROBA = false;
@@ -605,26 +605,12 @@ var ErodharcMag = (function () {
     s.push('</svg>');
     return s.join('');
   }
-  function targyEset(nev) {
-    var s = String(nev || ''), u = s.slice(-1), k = u.toLowerCase();
-    if (k === 'a') return s.slice(0, -1) + (u === 'A' ? 'Át' : 'át');
-    if (k === 'e') return s.slice(0, -1) + (u === 'E' ? 'Ét' : 'ét');
-    if ('iouöüáéíóőúűlrnszjy'.indexOf(k) >= 0) return s + 't';
-    if (/[0-9]/.test(u)) {
-      var E = { 1: 'et', 2: 't', 3: 'at', 4: 'et', 5: 'öt', 6: 'ot', 7: 'et', 8: 'at', 9: 'et' }, T = { 0: 'at', 1: 'et', 2: 'at', 3: 'at', 4: 'et', 5: 'et', 6: 'at', 7: 'et', 8: 'at', 9: 'et' };
-      var e2 = s.slice(-2, -1);
-      return s + '-' + (u !== '0' ? E[u] : /[0-9]/.test(e2) ? T[e2] : 't');
-    }
-    if (!/[a-zà-ž]/i.test(u)) return s + '-t';
-    var m = s.toLowerCase().match(/[aáoóuúeéiíöőüű](?=[^aáoóuúeéiíöőüű]*$)/), v = m ? m[0] : 'e';
-    return s + ('aáoóuú'.indexOf(v) >= 0 ? 'ot' : 'öőüű'.indexOf(v) >= 0 ? 'öt' : 'et');
-  }
   function egerSvg(A, m, cella) {
     var M = modell(A.terkep), sajat = sajatJatekos(A);
     if (!M || !sajat || cella == null) return '';
     var cs = CELLA, so = !!sajat.tamado, s = [], gy = [];
     var ott = null; A.jatekosok.forEach(function (p) { if (!ott && !p.halott && p.pozicio === cella) ott = p; });
-    var v, l, sz1, sz2, sz3 = '', kozel, nevek;
+    var v, l, sz1, sz2, sz3 = '', kozel, nevek, fej = null;
     var nevL = function (L) { return L.slice(0, 3).map(function (p) { return p === sajat ? 'te' : esc(p.nev); }).join(', ') + (L.length > 3 ? ' ...' : ''); };
     if (!ott) {
       v = varhatoLovok(A, m, cella, so, sajat); l = lohetIde(A, m, cella, so); kozel = !so;
@@ -632,7 +618,7 @@ var ErodharcMag = (function () {
       sz2 = 'Láthatja: ' + l.length + ' ellenfél';
     } else if (!!ott.tamado === so) {
       v = varhatoLovok(A, m, cella, so, null); l = lohetIde(A, m, cella, so); kozel = !so;
-      sz1 = ott === sajat ? 'Rád várhatóan ' + v.length + ' ellenfél lő' : esc(targyEset(ott.nev)) + ' várhatóan ' + v.length + ' ellenfél lövi';
+      sz1 = ott === sajat ? 'rád várhatóan ' + v.length + ' ellenfél lő' : 'várhatóan ' + v.length + ' ellenfél lövi';
       sz2 = 'Láthatja: ' + l.length + ' ellenfél';
       if (!v.length && ott !== sajat && l.length) {
         var leg = null, legL = [];
@@ -647,9 +633,10 @@ var ErodharcMag = (function () {
       }
     } else {
       v = varhatoLovok(A, m, cella, !so, null); l = lohetIde(A, m, cella, !so); kozel = so;
-      sz1 = esc(targyEset(ott.nev)) + ' várhatóan ' + v.length + ' társad lövi';
+      sz1 = 'várhatóan ' + v.length + ' társad lövi';
       sz2 = 'Láthatja: ' + l.length + ' társad';
     }
+    if (ott) fej = [ott === sajat ? 'Te' : esc(ott.nev), fmt(Math.max(0, ott.elet)) + ' / ' + fmt(ott.eletMax) + ' ÉP'];
     v.forEach(function (p) { gy.push([p, '#ff2a1a', false]); });
     nevek = v.length ? nevL(v) : '';
     if (!v.length) kozel = false;
@@ -658,13 +645,14 @@ var ErodharcMag = (function () {
       var p = g[0], x = (p.pozicio % M.w) * cs + cs / 2, y = Math.floor(p.pozicio / M.w) * cs + cs / 2, sd = g[2] ? ' stroke-dasharray="3 2"' : '';
       s.push('<circle cx="' + x + '" cy="' + y + '" r="9" fill="none" stroke="#000" stroke-width="3.4" stroke-opacity=".6"/><circle cx="' + x + '" cy="' + y + '" r="9" fill="none" stroke="' + g[1] + '" stroke-width="2"' + sd + '/>');
     });
-    var sorok = [[sz1, 10.5, '#2a170a', 'bold', 6.2]];
+    var hossz = function (t) { return String(t).replace(/&[a-z]+;/g, 'x').length; };
+    var sorok = fej ? [[fej[0] + '<tspan dx="6" font-size="9.5" fill="#7a0f0a">' + fej[1] + '</tspan>', 10.5, '#2a170a', 'bold', 0, hossz(fej[0]) * 6.2 + 6 + hossz(fej[1]) * 5.7],
+      [sz1, 9.5, '#2a170a', 'normal', 5.4]] : [[sz1, 10.5, '#2a170a', 'bold', 6.2]];
     if (nevek) sorok.push([nevek, 9.5, '#b3201a', 'normal', 5.4]);
     if (sz3) sorok.push([sz3, 9.5, '#7a5a00', 'normal', 5.4]);
     if (kozel) sorok.push(['közelítő: a védők előbb lépnek', 9, '#6b5a40', 'normal', 5.1]);
     sorok.push([sz2, 9.5, '#5a4a30', 'normal', 5.4]);
-    var hossz = function (t) { return String(t).replace(/&[a-z]+;/g, 'x').length; };
-    var w = Math.min(M.w * cs - 4, Math.max.apply(null, sorok.map(function (r) { return hossz(r[0]) * r[4]; })) + 10), h = sorok.length * 12 + 6;
+    var w = Math.min(M.w * cs - 4, Math.max.apply(null, sorok.map(function (r) { return r[5] != null ? r[5] : hossz(r[0]) * r[4]; })) + 10), h = sorok.length * 12 + 6;
     var ex = (cella % M.w) * cs, ey = Math.floor(cella / M.w) * cs;
     var lx = Math.min(Math.max(2, ex - w / 2 + 7), M.w * cs - w - 2), ly = ey - h - 6;
     if (ly < 2) ly = ey + cs + 6;
