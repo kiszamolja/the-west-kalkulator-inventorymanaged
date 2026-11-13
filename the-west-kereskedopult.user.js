@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Kereskedőpult
 // @namespace    the-west-beszerzo-ingame
-// @version      1.0.4
+// @version      1.0.5
 // @description  Gyűjtés és piac a játékon belül: kinek, miből mennyit gyűjtesz, és egy helyen adhatsz el, vehetsz és vehetsz át a játék piacán.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -67,7 +67,7 @@
 (function () {
     "use strict";
 
-    const VERZIO = "1.0.4";
+    const VERZIO = "1.0.5";
 
     /* A fajlnev ALLANDO, nem tartalmaz verziot: igy a repoban mindig ugyanaz
        a fajl frissul, es a Tampermonkey kovetni tudja. A verzio csak a
@@ -94,9 +94,8 @@
        A ket jelolo sor nem valtozhat. */
     /* VALTOZASOK KEZDETE */
     const VALTOZASOK = [
-        "A nyit\u00f3gomb telefonon is h\u00fazhat\u00f3, \u00e9s minden eszk\u00f6z\u00f6n egyforma m\u00e9ret\u0171.",
-        "A leny\u00edl\u00f3 s\u00e1v kattint\u00e1skor teljesen l\u00e1tszik, nem kell g\u00f6rgetni.",
-        "A soronk\u00e9nti \u00e1tv\u00e9tel lassabban megy, hogy ne terhelje t\u00fal a szervert."
+        "\u00DAj sz\u0171r\u0151 a K\u00EDn\u00E1latban \u00E9s a M\u00E1sok k\u00E9r\u00E9seiben: Mindenki, V\u00E1rosiak, Sz\u00F6vets\u00E9g, a sorokon \u201Ev\u00E1ros\u201D \u00E9s \u201Esz\u00F6vets\u00E9g\u201D jellel.",
+        "A M\u00E1sok k\u00E9r\u00E9seiben a saj\u00E1t k\u00E9r\u00E9seid is l\u00E1tszanak, jel\u00F6lve."
     ];
     /* VALTOZASOK VEGE */
     /* A TESZT-epito ide irja a belyeget. Kiadasi alakban ures. */
@@ -280,6 +279,9 @@
     beall.eladNapok = Math.max(1, Math.min(7, Math.floor(Number(beall.eladNapok) || 1)));
     if ([0, 1, 2].indexOf(Number(beall.eladJog)) === -1) beall.eladJog = 2;
     beall.eladJog = Number(beall.eladJog);
+    /* t108: a Kitol szuro a Kinalatban es a Masok kereseiben, nezetenkent
+       kulon (visibility: 2 mindenki, 0 varosiak, 1 szovetseg; elsore 2). */
+    ["kitolKin", "kitolKer"].forEach(k => { if ([0, 1, 2].indexOf(beall[k]) === -1) beall[k] = 2; });
     function beallMent() {
         try { GM_setValue(BEALL_KULCS, JSON.stringify(beall)); } catch (e) { /* nem baj */ }
     }
@@ -2259,6 +2261,28 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
 .kallapotsor{ display:flex; align-items:center; gap:4px 10px; flex-wrap:wrap; margin:6px 0 8px }
 .kallapotsor .kallapot{ margin:0; flex:1 1 220px; min-width:0 }
 .kallapotsor .kmester{ margin-left:auto }
+/* t108: a Kitol szuro az allapotsor jobb vegen, kisebb gombokkal, hogy a
+   sor ne legyen magasabb. */
+.kallapotsor .kkitol{ margin-left:auto }
+.pkatvalaszto.kkitol .pkat{ font-size:11px; line-height:14px; padding:0 7px }
+/* t108: kinek szol (varos, szovetseg) es a sajat keres cimkeje */
+.ksor2 .knev2.knj{ display:flex; flex-direction:column; min-width:0; line-height:14.4px }
+.knev2.knj > .kn{ display:flex; align-items:baseline; gap:4px; min-width:0 }
+.knev2.knj > .kn .knn{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0 }
+.knev2.knj > .kn .kdb{ flex:none; white-space:nowrap }
+.knev2.knj > .kjsor{ display:flex; gap:4px; align-items:center }
+.kjog{ flex:none; align-self:center; font-size:10px; font-weight:700; line-height:14px; padding:0 6px;
+  border-radius:8px; color:#fff; white-space:nowrap }
+.kjv{ background:#7a4a8c }
+.kjs{ background:var(--vart2) }
+.kjsaj{ background:var(--dim) }
+.ksor2.mksajat{ color:var(--dim) }
+.ksor2.mksajat:not(.valasztott){ background:rgba(111,90,65,.07) }
+.ksor2.mksajat img, .ksor2.mksajat .kikon{ opacity:.55 }
+.ksor2.mksajat .kazon{ color:var(--dim) }
+.kvsav.kvsajat{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:12px; color:var(--ink) }
+.kvsav.kvsajat span{ flex:1 1 260px; min-width:0; line-height:1.5 }
+.kvsav.kvsajat .gomb{ flex:none }
 .kallapotsor .kmester[hidden]{ display:none }
 /* Arak szine (t20): az egysegar csak tajekoztat, az azonnali ar az, amit
    fizetsz, a licit futo arveres, a csillagos a sajat vezeto licit. */
@@ -4117,7 +4141,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             pattern: f.pattern, nav, page: oldal,
             sort: r || "buynow", order: r && kerdes.irany < 0 ? "desc" : "asc", type: f.type,
             level_range_min: "0", level_range_max: "",
-            usable: false, has_effect: false, visibility: 2,
+            usable: false, has_effect: false, visibility: kerdes.kitol != null ? kerdes.kitol : 2,
             direction_sell: cfg.irany !== "BUY", direction_buy: cfg.irany === "BUY"
         };
     }
@@ -4144,7 +4168,8 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         if (mod === "uj" || !L.kerdes) {
             const regi = L.kerdes || {
                 kereses: "", kat: cfg.nezet().kategoria, rendez: cfg.nezet().rendez,
-                irany: cfg.nezet().irany, mes: cfg.nezet().mesterseg || null
+                irany: cfg.nezet().irany, mes: cfg.nezet().mesterseg || null,
+                kitol: cfg.kitol ? cfg.kitol() : 2
             };
             L.kerdes = Object.assign({}, regi, felulir || {});
             L.kerdes.kereses = String(L.kerdes.kereses || "").replace(/\s+/g, " ").trim();
@@ -4245,9 +4270,8 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
                         const k = String(s && s.market_offer_id);
                         if (lattam.has(k)) return;
                         lattam.add(k);
-                        /* t84 (C): a sajat veteli keres nem latszik a Masok
-                           kereseiben (a kereses a sajatot is visszaadja). */
-                        if (cfg.irany === "BUY" && sajatJatekosE(s && s.seller_player_id)) return;
+                        /* t108: a sajat veteli keres is latszik, mint a natív
+                           ablakban (a t84 rejtese rovid oldalakat adott). */
                         ujak.push(s);
                     });
                     if (L.osszes && f.next) {
@@ -4292,6 +4316,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         if (!L.kerdes) return "Még nincs letöltve.";
         const n = L.sorok.length, fn = cfg.fonev;
         const k = L.kerdes;
+        const db = `${n} ${fn}${cfg.utotag ? cfg.utotag(L) : ""}`;
         if (L.osszes) {
             const nz = cfg.nezet();
             const mes = (mestersegLista().find(m => m.id === nz.mesterseg) || {}).nev || "";
@@ -4300,9 +4325,9 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         }
         const rk = k.rendez ? LAP_RENDEZ_CIMKE[k.rendez] + (k.irany < 0 ? " ↓" : " ↑") : "azonnali ár ↑";
         let eleje;
-        if (k.kereses) eleje = `„${L.minta.join(" / ")}” keresés: ${L.oldal}. oldal, ${n} ${fn}`;
-        else if (k.kat === "viselet") eleje = `Viselet: ${lapTipusok("viselet").length} típus ${L.oldal}. oldala, ${n} ${fn}`;
-        else eleje = `${L.oldal}. oldal, ${n} ${fn}`;
+        if (k.kereses) eleje = `„${L.minta.join(" / ")}” keresés: ${L.oldal}. oldal, ${db}`;
+        else if (k.kat === "viselet") eleje = `Viselet: ${lapTipusok("viselet").length} típus ${L.oldal}. oldala, ${db}`;
+        else eleje = `${L.oldal}. oldal, ${db}`;
         return `${eleje} · rendezés: ${rk} · ${L.keresDb} kérés · ${lapMikor(L)}`;
     }
     /* A kereses elkuldese (Enter vagy Frissites): uj kerdes a beirt
@@ -4321,7 +4346,8 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         L.mentes = null;
         if (L.allapot === "tolt") L.futas++;
         if (m && L.kerdes && m.kerdes.kat === L.kerdes.kat && m.kerdes.rendez === L.kerdes.rendez
-            && m.kerdes.irany === L.kerdes.irany && (m.kerdes.mes || null) === (L.kerdes.mes || null)) {
+            && m.kerdes.irany === L.kerdes.irany && (m.kerdes.mes || null) === (L.kerdes.mes || null)
+            && m.kerdes.kitol === L.kerdes.kitol) {
             lapVisszaallit(L, m);
             cfg.vege();
             return;
@@ -4339,6 +4365,63 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             if (!g || g.disabled) return;
             lapLep(L, cfg, g.getAttribute("data-" + attr));
         });
+    }
+
+    /* t108: KITOL SZURO. MERVE 2026-11-12: a search visibility parametere
+       az elado (keresnel a kero) tagsaga szerint szur, nem az ajanlat
+       lathatosaga szerint: 0 = a varos lakoinak minden ajanlata, 1 = a
+       szovetseg tagjaie (a varose is), 2 = mindenkie. Valtasonkent egy uj
+       kerdes az 1. oldaltol (1 keres; a teljes recept-listanal annyi, ahany
+       oldal). A valasztas a beall-ban marad, nezetenkent kulon. */
+    const KITOL = [
+        { v: 2, cimke: "Mindenki" },
+        { v: 0, cimke: "V\u00E1rosiak" },
+        { v: 1, cimke: "Sz\u00F6vets\u00E9g" }
+    ];
+    function kitolCim(v, mi) {
+        if (v === 0) return `A v\u00E1rosod lak\u00F3inak minden ${mi}, b\u00E1rkinek sz\u00F3l.`;
+        if (v === 1) return `A sz\u00F6vets\u00E9ged tagjainak minden ${mi}, a v\u00E1rosod\u00E9 is, b\u00E1rkinek sz\u00F3l.`;
+        return `Mindenki ${mi}.`;
+    }
+    function kitolHTML(attr, akt, mi) {
+        return `<span class="pkatvalaszto kkitol" role="group" aria-label="Kit\u0151l">${KITOL.map(o => {
+            const a = o.v === akt;
+            return `<button type="button" class="pkat${a ? " aktiv" : ""}" data-${attr}="${o.v}" aria-pressed="${a ? "true" : "false"}"
+                  title="${kitolCim(o.v, mi)}">${o.cimke}</button>`;
+        }).join("")}</span>`;
+    }
+    function kitolKotes(attr, kulcs, L, cfg) {
+        const gombok = gyoker.querySelectorAll(`[data-${attr}]`);
+        gombok.forEach(b => b.addEventListener("click", () => {
+            if (L.allapot === "tolt") return;
+            const v = Number(b.getAttribute("data-" + attr));
+            if (beall[kulcs] === v) return;
+            beall[kulcs] = v;
+            beallMent();
+            gombok.forEach(x => {
+                const a = x === b;
+                x.classList.toggle("aktiv", a);
+                x.setAttribute("aria-pressed", a ? "true" : "false");
+            });
+            lapLep(L, cfg, "uj", { kitol: v });
+        }));
+    }
+    /* t108: kinek szol az ajanlat vagy keres (offer_rights a sorban, MERVE
+       2026-11-12: 0 varos, 1 szovetseg, 2 vilag). A vilagnak szolo sor
+       cimke nelkul marad. 0 extra keres. */
+    /* t108 (A): a cimkek a nev alatt, kulon sorban, hogy a hosszu nev
+       kiferjen. A sor amugy is ketsoros (elado, alatta a varos), ezert nem
+       lesz magasabb. Cimke nelkul a nevcella a regi. */
+    function nevCellaHTML(nev, jelek) {
+        if (!jelek) return `<div class="knev2 kn">${nev}</div>`;
+        return `<div class="knev2 knj"><div class="kn">${nev}</div><div class="kjsor">${jelek}</div></div>`;
+    }
+    function jogJelHTML(s, mi) {
+        if (!s || s.offer_rights == null || s.offer_rights === "") return "";
+        const r = Number(s.offer_rights);
+        if (r === 0) return `<span class="kjog kjv" title="Csak a v\u00E1rosnak feltett ${mi}">v\u00E1ros</span>`;
+        if (r === 1) return `<span class="kjog kjs" title="A sz\u00F6vets\u00E9gnek feltett ${mi}">sz\u00F6vets\u00E9g</span>`;
+        return "";
     }
 
     /* VETEL / KINALAT (t4; t92: lapozo, lasd fent). */
@@ -4410,6 +4493,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
     const KIN_CFG = {
         irany: "SELL", fonev: "aj\u00E1nlat",
         nezet: () => kinalatNezet,
+        kitol: () => beall.kitolKin,
         osszesE: k => k.kat === "recept" && !!k.mes,
         rendezoErtek: (s, k) => kinalatRendezoErtek(s, k),
         kiir: () => {
@@ -4575,7 +4659,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             data-kmes="${esc(String((receptAdat(s.item_id) || {}).mes || ""))}"
             ${kinalatLathatoE(s) ? "" : "hidden"}>
             ${targyBubIkonHTML(s.item_id, kep)}
-            <div class="knev2 kn"><span class="knn">${esc(nev)}</span>${db > 1 ? `<span class="kdb">&times;${db}</span>` : ""}</div>
+            ${nevCellaHTML(`<span class="knn">${esc(nev)}</span>${db > 1 ? `<span class="kdb">&times;${db}</span>` : ""}`, jogJelHTML(s, "aj\u00E1nlat"))}
             <div class="jobb kegy">${kinalatSzam(kinalatEgysegAr(s))}</div>
             <div class="jobb kazon">${kinalatSzam(s.max_price)}</div>
             <div class="jobb${kinalatLicit(s) == null ? " halvany" : (s.is_highest_bidder ? " kvez" : " klic")}"${s.is_highest_bidder ? ' title="Te vezetsz"' : ""}>${s.is_highest_bidder ? "&#9733; " : ""}${kinalatSzam(kinalatLicit(s))}</div>
@@ -4620,7 +4704,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         if (!ures) return;
         const van = !!gyoker.querySelector("#kinalatLista .ksor2:not([hidden])");
         ures.hidden = van || kinalat.allapot === "tolt" || kinalat.allapot === "ures";
-        ures.textContent = kinalat.sorok.length
+        ures.textContent = kinalat.sorok.length || (kinalat.kerdes && kinalat.kerdes.kitol != null && kinalat.kerdes.kitol !== 2)
             ? "Nincs a sz\u0171r\u00E9snek megfelel\u0151 aj\u00E1nlat."
             : "Nincs aj\u00E1nlat.";
     }
@@ -4963,6 +5047,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             </div>
             <div class="kallapotsor">
               <div class="kallapot" id="kinalatAllapot">${esc(kinalatAllapotSzoveg())}</div>
+              ${kitolHTML("kkitol", beall.kitolKin, "aj\u00E1nlata")}
               <span class="pkatvalaszto kmester" role="group" aria-label="Mesters\u00E9g"${kinalatNezet.kategoria === "recept" ? "" : " hidden"}>
                 ${mestersegLista().map(m => {
                     const a = kinalatNezet.mesterseg === m.id;
@@ -5071,6 +5156,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             });
         });
         lapozoKotes("kinalatLapozo", "klap", kinalat, KIN_CFG);
+        kitolKotes("kkitol", "kitolKin", kinalat, KIN_CFG);
         kinalatFejlecKotes();
         kinalatListaKotes();
         kinalatSavFrissit();
@@ -5159,6 +5245,12 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
     const KER_CFG = {
         irany: "BUY", fonev: "k\u00E9r\u00E9s",
         nezet: () => kerelemNezet,
+        kitol: () => beall.kitolKer,
+        /* t108: hany sor a tiéd az oldalon */
+        utotag: L => {
+            const m = L.sorok.filter(x => sajatJatekosE(x && x.seller_player_id)).length;
+            return m ? ` (${m} a ti\u00E9d)` : "";
+        },
         osszesE: () => false,
         rendezoErtek: (s, k) => kerelemRendezoErtek(s, k),
         kiir: () => { kerelemKiir(); kerelemLapozoKiir(); },
@@ -5215,18 +5307,22 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         const megj = s.description ? String(s.description) : "";
         const ajanlat = kerelemAjanlat(s);
         const id = esc(String(s.market_offer_id));
+        /* t108: a sajat keres halvanyabb, "saját" cimket kap, eladni nem lehet ra. */
+        const sajat = sajatJatekosE(s.seller_player_id);
         return `
-          <div class="ksor2 mksor${kerelemNezet.valasztott === String(s.market_offer_id) ? " valasztott" : ""}" data-mkid="${id}">
+          <div class="ksor2 mksor${sajat ? " mksajat" : ""}${kerelemNezet.valasztott === String(s.market_offer_id) ? " valasztott" : ""}" data-mkid="${id}"${sajat ? ` title="${KER_SAJAT_CIM}"` : ""}>
             ${targyBubIkonHTML(s.item_id, targyIkon(s.item_id))}
-            <div class="knev2 kn"><span class="knn">${esc(targyNev(s.item_id))}</span>${db > 1 ? `<span class="kdb">&times;${db}</span>` : ""}</div>
-            <div class="mnalam${kerelemEleg(s) ? " van" : " halvany"}">${nalam == null ? "?" : kinalatSzam(nalam)}</div>
+            ${nevCellaHTML(`<span class="knn">${esc(targyNev(s.item_id))}</span>${db > 1 ? `<span class="kdb">&times;${db}</span>` : ""}`,
+                (sajat ? `<span class="kjog kjsaj">saj\u00E1t</span>` : "") + jogJelHTML(s, "k\u00E9r\u00E9s"))}
+            <div class="mnalam${kerelemEleg(s) && !sajat ? " van" : " halvany"}">${nalam == null ? "?" : kinalatSzam(nalam)}</div>
             <div class="jobb kazon">${kinalatSzam(s.max_price)}</div>
             <div class="jobb${ajanlat == null ? " halvany" : (s.is_highest_bidder ? " kvez" : " klic")}"${s.is_highest_bidder ? ' title="A te aj\u00E1nlatod a legjobb"' : (ajanlat == null ? ' title="Fels\u0151 \u00E1r"' : "")}>${s.is_highest_bidder ? "&#9733; " : ""}${kinalatSzam(ajanlat != null ? ajanlat : s.auction_price)}</div>
             <div class="jobb">${esc(kinalatIdo(kerelemHatra(s)))}</div>
-            <div class="khely"><span>${megjJelHTML(megj)}${jatekosLinkHTML(s.seller_name, s.seller_player_id)}</span>
+            <div class="khely"><span>${megjJelHTML(megj)}${sajat ? "te" : jatekosLinkHTML(s.seller_name, s.seller_player_id)}</span>
               <span class="kvaros">${megjJelHTML("")}${varosLinkHTML(s.market_town_name, s.market_town_x, s.market_town_y, odaut)}${odaut != null ? " &middot; " + (odaut > 0 ? odautLinkHTML(kinalatIdo(odaut), s.market_town_id, s.market_town_x, s.market_town_y, s.market_town_name, odaut) : "itt vagy") : ""}</span></div>
           </div>`;
     }
+    const KER_SAJAT_CIM = "A saj\u00E1t k\u00E9r\u00E9sed. A V\u00E9tel / K\u00E9r\u00E9seim n\u00E9zetben kezeled.";
 
     function kerelemFejlecHTML() {
         const gomb = o => {
@@ -5245,6 +5341,13 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
 
     /* t83: az azonnali eladas el; t86: az Ajanlat is (MERVE 2026-10-08). */
     function kerelemSavHTML(s) {
+        /* t108: a sajat keresre nincs eladas, csak egy rovid sor. */
+        if (sajatJatekosE(s.seller_player_id)) {
+            return `<div class="kvsav kvsajat" id="kerelemSav">
+              <span>Ez a saj\u00E1t v\u00E9teli k\u00E9r\u00E9sed. Visszavonni \u00E9s \u00FAj k\u00E9r\u00E9st feladni a K\u00E9r\u00E9seimben tudsz.</span>
+              <button type="button" class="gomb" data-mkkereseim>K\u00E9r\u00E9seimhez</button>
+            </div>`;
+        }
         const hatra = kerelemHatra(s);
         if (hatra != null && hatra <= 0) {
             return `<div class="kvsav" id="kerelemSav"><p class="kvhiba">A k\u00E9r\u00E9s lej\u00E1rt.</p></div>`;
@@ -5323,6 +5426,18 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
                 kerelemElad(ag.getAttribute("data-mkajanlat"), v);
             });
         }
+        /* t108: a Kereseimhez gomb atvalt a Vetel / Kereseim nezetre. A mar
+           letoltott lista marad (nincs plusz keres); ha meg nincs, 1 keres. */
+        const kg = sav && sav.querySelector("[data-mkkereseim]");
+        if (kg) kg.addEventListener("click", () => {
+            kerelemNezet.valasztott = null;
+            beall.ful = "vetel";
+            beall.nezet.vetel = "kereseim";
+            licitNezet.uzenet = "";
+            licitNezet.uzenetHiba = false;
+            beallMent();
+            rajzol();
+        });
         const eg = sav && sav.querySelector("[data-mkelad]");
         if (eg) eg.addEventListener("click", () => {
             if (eg.disabled || kerelemKuldes) return;
@@ -5338,7 +5453,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
     function kerelemElad(id, ajanlat) {
         const J = jatek(), A = J.Ajax;
         const s = kerelmek.sorok.find(x => String(x.market_offer_id) === String(id));
-        if (kerelemKuldes || !s) return;
+        if (kerelemKuldes || !s || sajatJatekosE(s.seller_player_id)) return;
         if (!A || typeof A.remoteCall !== "function") { eladUzenet("A j\u00E1t\u00E9k h\u00EDv\u00E1sa nem \u00E9rhet\u0151 el.", true, false); return; }
         if (!kerelemEleg(s)) { eladUzenet("Nincs n\u00E1lad el\u00E9g ebb\u0151l a t\u00E1rgyb\u00F3l.", true, false); return; }
         const nev = `${targyNev(s.item_id)}${Number(s.item_count) > 1 ? " \u00D7" + s.item_count : ""}`;
@@ -5380,7 +5495,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         if (!ures) return;
         const van = !!gyoker.querySelector("#kerelemLista .mksor");
         ures.hidden = van || kerelmek.allapot === "tolt" || kerelmek.allapot === "ures";
-        ures.textContent = kerelmek.kerdes && (kerelmek.kerdes.kereses || kerelmek.kerdes.kat !== "mind")
+        ures.textContent = kerelmek.kerdes && (kerelmek.kerdes.kereses || kerelmek.kerdes.kat !== "mind" || (kerelmek.kerdes.kitol != null && kerelmek.kerdes.kitol !== 2))
             ? "Nincs a sz\u0171r\u00E9snek megfelel\u0151 k\u00E9r\u00E9s."
             : "Nincs veteli k\u00E9r\u00E9s a piacon.";
     }
@@ -5416,6 +5531,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             </div>
             <div class="kallapotsor">
               <div class="kallapot" id="kerelemAllapot">${esc(kerelemAllapotSzoveg())}</div>
+              ${kitolHTML("mkkitol", beall.kitolKer, "k\u00E9r\u00E9se")}
             </div>
             ${eladUzenetHTML()}
             ${kerelemFejlecHTML()}
@@ -5496,6 +5612,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             });
         }
         lapozoKotes("kerelemLapozo", "mklap", kerelmek, KER_CFG);
+        kitolKotes("mkkitol", "kitolKer", kerelmek, KER_CFG);
         kerelemFejlecKotes();
         kerelemSavFrissit();
         kerelemUresJelzes();
