@@ -95,7 +95,8 @@
     /* VALTOZASOK KEZDETE */
     const VALTOZASOK = [
         "\u00DAj sz\u0171r\u0151 a K\u00EDn\u00E1latban \u00E9s a M\u00E1sok k\u00E9r\u00E9seiben: Mindenki, V\u00E1rosiak, Sz\u00F6vets\u00E9g, a sorokon \u201Ev\u00E1ros\u201D \u00E9s \u201Esz\u00F6vets\u00E9g\u201D jellel.",
-        "A M\u00E1sok k\u00E9r\u00E9seiben a saj\u00E1t k\u00E9r\u00E9seid is l\u00E1tszanak, jel\u00F6lve."
+        "A M\u00E1sok k\u00E9r\u00E9seiben a saj\u00E1t k\u00E9r\u00E9seid is l\u00E1tszanak, jel\u00F6lve.",
+        "Vizu\u00E1lis jav\u00EDt\u00E1s."
     ];
     /* VALTOZASOK VEGE */
     /* A TESZT-epito ide irja a belyeget. Kiadasi alakban ures. */
@@ -164,7 +165,9 @@
                                  piacraAr: Number(x.piacraAr) || 0,
                                  piacraEgysegar: Number(x.piacraEgysegar) || 0,
                                  piacraMinimumAr: Number(x.piacraMinimumAr) || 0,
-                                 piacraMikor: x.piacraMikor || "" };
+                                 piacraMikor: x.piacraMikor || "",
+                                 /* t109: "keszleten felul" felvett feladat */
+                                 alap: !!x.alap };
                     }
                     /* regi 0.1.x alak: {i, q, k} */
                     if (x.i != null && x.q != null) {
@@ -199,12 +202,74 @@
             }
         }
         beszerzok = nyers == null ? [] : feladatokOlvas(nyers);
+        regiBetolt();
         if (fuggo.length) {
             const van = new Set(beszerzok.map(x => String(x.kulcs)));
             fuggo.forEach(x => { if (!van.has(String(x.kulcs))) beszerzok.push(x); });
             ment();
         }
         return true;
+    }
+
+    /* t109: A "KESZLETEN FELUL" FELADATOK REGI KESZLETE. A feladat (alap:
+       true) csak a felvetele utan gyujtott darabokat kapja; a felvetelkor
+       a taskaban levo darabszam targyankent "regi keszlet" (r), amit a
+       feladat nem lat. A taska fogyasakor eloszor a regi fogy (az utoljara
+       latott darabszamhoz, u, merve); a novekedes gyujtottnek szamit. A
+       tobbi feladat a regi keszletbol kap eloszor. A szkript csak futas
+       kozben lat: zart jatek mellett a netto valtozast eszleli. Ami nem
+       tartozik egy alap-feladathoz sem, az kikerul. */
+    let regiKeszlet = {};
+    function regiBetolt() {
+        regiKeszlet = {};
+        if (!tarKulcsAkt) return;
+        try {
+            const b = JSON.parse(GM_getValue(tarKulcsAkt + ":regi", "{}") || "{}");
+            if (b && typeof b === "object") Object.keys(b).forEach(id => {
+                const e = b[id];
+                if (e && Number.isFinite(Number(e.r)) && Number.isFinite(Number(e.u))) regiKeszlet[String(id)] = { r: Number(e.r), u: Number(e.u) };
+            });
+        } catch (e) { regiKeszlet = {}; }
+    }
+    function regiMent() {
+        if (!tarKulcsAkt) return;
+        try { GM_setValue(tarKulcsAkt + ":regi", JSON.stringify(regiKeszlet)); } catch (e) { /* nem baj */ }
+    }
+    /* A taska valtozasanak kovetese. Minden szamolas elejen fut. */
+    function regiKovet() {
+        const horgony = new Set(beszerzok.filter(f => f.alap).map(f => String(f.id)));
+        let valt = false;
+        Object.keys(regiKeszlet).forEach(id => { if (!horgony.has(id)) { delete regiKeszlet[id]; valt = true; } });
+        horgony.forEach(id => {
+            const most = keszlet(id);
+            if (most == null) return;
+            const e = regiKeszlet[id];
+            /* A Bag meg nem toltott be a felvetelkor: az elso ismert ertek a regi. */
+            if (!e) { regiKeszlet[id] = { r: most, u: most }; valt = true; return; }
+            if (e.u !== most) {
+                if (most < e.u) e.r = Math.max(0, e.r - (e.u - most));
+                e.u = most;
+                valt = true;
+            }
+        });
+        if (valt) regiMent();
+    }
+    function regiResz(id) {
+        const e = regiKeszlet[String(id)];
+        return e ? Math.max(0, e.r) : 0;
+    }
+    /* Uj alap-feladat felvetele elott: ami most a taskaban van, az regi,
+       kiveve amit a mar meglevo alap-feladatok erre a targyra gyujtottek. */
+    function regiHorgonyoz(id) {
+        regiKovet();
+        const k = String(id);
+        const most = keszlet(k);
+        if (most == null) return;
+        const regiMost = Math.min(regiResz(k), most);
+        const tartott = Math.min(most - regiMost,
+            beszerzok.filter(f => f.alap && String(f.id) === k).reduce((o, f) => o + Number(f.db || 0), 0));
+        regiKeszlet[k] = { r: most - tartott, u: most };
+        regiMent();
     }
 
     function ment() {
@@ -1551,28 +1616,36 @@ const RECEPT_TEKERCS = {
                gyartas kijon; kulonben tiltott, es kerest sem kuld. */
         const listaVan = tanultak.size > 0;
 
-        /* A taskakeszlet masolata, amit a feladatok sorban fogyasztanak. */
+        /* A taskakeszlet masolata, amit a feladatok sorban fogyasztanak.
+           t109: ket resz: a regi keszlet (r) es a tobbi (u). Az alap-feladat
+           sajat termeke csak az u-bol kap, minden mas eloszor az r-bol. */
+        regiKovet();
         const maradek = new Map();
         const keszletbol = id => {
             const k = String(id);
             if (!maradek.has(k)) {
                 const v = keszlet(k);
-                maradek.set(k, v == null ? 0 : Math.max(0, Number(v) || 0));
+                const ossz = v == null ? 0 : Math.max(0, Number(v) || 0);
+                const r = Math.min(regiResz(k), ossz);
+                maradek.set(k, { r, u: ossz - r });
             }
             return maradek.get(k);
         };
-        const elvesz = (id, mennyi) => {
-            const k = String(id);
-            const van = Math.min(keszletbol(k), Math.max(0, mennyi));
-            maradek.set(k, keszletbol(k) - van);
-            return van;
+        const elvesz = (id, mennyi, csakUj) => {
+            const m = keszletbol(id);
+            const kell = Math.max(0, mennyi);
+            let van = 0;
+            if (!csakUj) { const a = Math.min(m.r, kell); m.r -= a; van += a; }
+            const b = Math.min(m.u, kell - van);
+            m.u -= b;
+            return van + b;
         };
 
-        const csomo = (id, kell, melyseg, ut) => {
+        const csomo = (id, kell, melyseg, ut, csakUj) => {
             const r = GYART_MAP.get(String(id));
             const sajat = !!(r && gyartProfIds(r.p).indexOf(prof) !== -1);
             const tanult = tanultak.has(String(id));
-            const van = elvesz(id, kell);
+            const van = elvesz(id, kell, csakUj);
             const hianyzo = Math.max(0, kell - van);
             const node = {
                 id: String(id), nev: targyNev(id), kell, van, hianyzo,
@@ -1614,7 +1687,7 @@ const RECEPT_TEKERCS = {
             const kellMost = Math.max(0, f.db - kint);
             /* t65: minden feladat kap csomopontot, a nem gyarthato is, mert a
                termek sora is ebbol a prioritasos elosztasbol szamol. */
-            const gyoker = csomo(f.id, kellMost, 0, []);
+            const gyoker = csomo(f.id, kellMost, 0, [], !!f.alap);
             gyoker.cimzett = String(f.nev || "");
             gyartOsszevon(gyoker);
             terv.set(String(f.kulcs), gyoker);
@@ -2014,17 +2087,26 @@ const RECEPT_TEKERCS = {
         });
 
         const eredmeny = new Map();
-        csoportok.forEach(g => {
+        regiKovet();
+        csoportok.forEach((g, gid) => {
             const ismert = g.keszlet != null;
-            let marad = ismert ? Math.max(0, Number(g.keszlet) || 0) : null;
+            const ossz = ismert ? Math.max(0, Number(g.keszlet) || 0) : 0;
+            /* t109: a regi keszletbol az alap-feladat nem kap (lasd gyartTerv). */
+            let regi = Math.min(regiResz(gid), ossz), uj = ossz - regi;
             g.tetelek.forEach(f => {
                 /* A piacra már kihelyezett mennyiség nem fogyasztja tovább a
                    jelenlegi táskakészletet. Ha csak részben került ki, a
                    hiányzó részhez viszont továbbra is rendelhetünk táskát. */
                 const kint = piacraMennyiseg(f);
                 const maradekKell = Math.max(0, f.db - kint);
-                const hozzarendelve = ismert ? Math.min(maradekKell, marad) : null;
-                if (ismert) marad -= hozzarendelve;
+                let hozzarendelve = null;
+                if (ismert) {
+                    const a = f.alap ? 0 : Math.min(regi, maradekKell);
+                    regi -= a;
+                    const b = Math.min(uj, maradekKell - a);
+                    uj -= b;
+                    hozzarendelve = a + b;
+                }
                 eredmeny.set(String(f.kulcs), {
                     keszlet: g.keszlet,
                     hozzarendelve,
@@ -2058,7 +2140,10 @@ const RECEPT_TEKERCS = {
         const t = terv || gyartTervMost();
         const e = elosztas && elosztas.get(String(f.kulcs));
         const g = t && t.get(String(f.kulcs));
-        const megvan = g ? (g.van + g.hianyzo > 0 ? g.van : keszlet(f.id)) : (e ? e.keszlet : keszlet(f.id));
+        /* t109: az alap-feladatnal a "megvan" a felvetel ota gyujtott resz. */
+        const megvan = f.alap
+            ? (keszlet(f.id) == null ? null : (g ? g.van : (e ? e.hozzarendelve : null)))
+            : g ? (g.van + g.hianyzo > 0 ? g.van : keszlet(f.id)) : (e ? e.keszlet : keszlet(f.id));
         const felosztva = g ? g.van
             : (e ? e.hozzarendelve : (megvan == null ? null : Math.min(f.db, megvan)));
         const kint = piacraMennyiseg(f);
@@ -2069,7 +2154,7 @@ const RECEPT_TEKERCS = {
         const kesz = piacon || (megvan != null && van >= f.db);
         const oi = kesz ? { szoveg: "kesz", orak: null } : oraInfo(f.id, hianyzo);
         const vanMunka = !!munkaForras(f.id);
-        return { megvan, van, hianyzo, szazalek, kesz, piacon, kint, oi, vanMunka,
+        return { megvan, van, hianyzo, szazalek, kesz, piacon, kint, oi, vanMunka, alap: !!f.alap,
                  kozos: !!(e && e.kozos), valtozott: keszletKiemeltIds.has(String(f.id)) };
     }
 
@@ -2083,7 +2168,16 @@ const RECEPT_TEKERCS = {
         const szemely = new Map();   /* nev -> {kell, van} */
         const kozos = new Map();     /* id -> {id, kell, van, tetelDb} */
         const orakTetel = [];        /* {nev, id, ora, munkazhato} */
+        /* t109: az osszesites a Szemelyek szurot koveti (a felhasznalo kerese):
+           mind -> mindenki, kivalasztott nevek -> csak az ovek. Az elosztas
+           (prioritas) tovabbra is az osszes feladatbol szamol. A "csak
+           hianyzo" az osszesitest nem valtoztatja. */
+        const nevek = csoportNevek();
+        const szuro = (Array.isArray(beall.szemelySzuro) ? beall.szemelySzuro : [])
+            .map(x => String(x)).filter(x => nevek.includes(x));
+        const szuroSet = new Set(szuro);
         beszerzok.forEach(f => {
+            if (szuroSet.size && !szuroSet.has(String(f.nev || ""))) return;
             const a = sorAdat(f, e, t);
             kellSum += f.db;
             vanSum += Math.min(a.van, f.db);
@@ -2130,7 +2224,9 @@ const RECEPT_TEKERCS = {
                          munkazhato: !!munkaForras(x.id) }))
             .sort((a, b) => b.hiany - a.hiany || b.kell - a.kell);
         orakTetel.sort((a, b) => b.ora - a.ora);
-        return { keszDb, ossz: beszerzok.length, szaz, oraSum, hianySum, kellSum, vanSum,
+        const ossz = szuroSet.size ? beszerzok.filter(f => szuroSet.has(String(f.nev || ""))).length : beszerzok.length;
+        return { keszDb, ossz, szaz, oraSum, hianySum, kellSum, vanSum,
+                 szuroNevek: nevek.filter(x => szuroSet.has(x)),
                  dolgozniDb, gyartottDb, szemelyek, orakTetel, kozosAnyagok };
     }
 
@@ -2476,6 +2572,8 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
 .dash-fej{ display:flex; align-items:center; gap:10px; width:100%; background:none; border:0;
   cursor:pointer; text-align:left; padding:0; color:inherit; font:inherit }
 .dash-fej .cim{ font-family:"Rye",Georgia,serif; font-size:14px; color:var(--rust) }
+/* t109: a Szemelyek szuro nevei az Osszesites mellett */
+.dash-fej .cim .dash-szuro{ font-family:Arial,Verdana,sans-serif; font-size:11.5px; font-weight:700; color:var(--dim); margin-left:6px }
 .dash-fej .osszefog{ margin-left:auto; font-family:"Segoe UI",system-ui,sans-serif; font-size:12px; font-weight:600;
   color:var(--dim); font-variant-numeric:tabular-nums }
 .dash-fej .osszefog b{ color:var(--brass) }
@@ -3658,12 +3756,14 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
 
         const ismert = a.megvan != null;
         const vanFelirat = a.kozos && ismert ? "Felosztva" : "Megvan";
+        /* t109: az alap-feladat sora csak a megbizast mutatja: Gyujtve x / db. */
+        const vanSzoveg = a.alap ? `Gy\u0171jtve ${a.van} / ${f.db}` : `${vanFelirat} ${a.van}`;
         /* A csik feliratai. Bal: mennyi van meg. Jobb: szazalek + hianyzik. */
         let bal, jobb;
         if (a.piacon) { bal = `Piacon ${a.van}`; jobb = `100% k\u00E9sz &#10003;`; }
-        else if (a.kesz) { bal = `${vanFelirat} ${a.van}`; jobb = `100% k\u00E9sz &#10003;`; }
-        else if (!ismert) { bal = `Megvan ?`; jobb = `? %`; }
-        else { bal = `${vanFelirat} ${a.van}`; jobb = `${a.szazalek}% &middot; hi\u00E1nyzik ${a.hianyzo}`; }
+        else if (a.kesz) { bal = vanSzoveg; jobb = `100% k\u00E9sz &#10003;`; }
+        else if (!ismert) { bal = a.alap ? `Gy\u0171jtve ? / ${f.db}` : `Megvan ?`; jobb = `? %`; }
+        else { bal = vanSzoveg; jobb = `${a.szazalek}% &middot; hi\u00E1nyzik ${a.hianyzo}`; }
         /* A csik felirata ket retegu: az alap sotet, a kitoltott resz
            pontosan ugyanoda vagott vilagos masolatot kap. */
         const csikFill = Math.max(0, Math.min(100, Number(a.szazalek) || 0));
@@ -3705,9 +3805,9 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
            A nev eddig blokkszintu div volt, tehat a sor teljes szelesseget
            elfoglalta, es a nev melletti ures hely is elinditotta. Most a
            szoveg sajat, soron belüli elemben all, igy a buborek a nev vegenel
-           nyilik. */
-        const nevMezo = `<div class="nev"><span class="itemArNev" data-piac-info="${esc(f.id)}" tabindex="0"
-          title="R\u00E1mutat\u00E1sra: a t\u00E1rgy k\u00E9t \u00E1ra">${esc(nev)}</span></div>`;
+           nyilik. t109: a nev title-je (natív bongeszo-buborek a sajat
+           buborek folott) kikerult, a felhasznalo kerte. */
+        const nevMezo = `<div class="nev"><span class="itemArNev" data-piac-info="${esc(f.id)}" tabindex="0">${esc(nev)}</span></div>`;
 
         const kepH = kep
             ? `<img class="kep${a.vanMunka ? " huzhato" : ""}"${a.vanMunka ? ` data-bubid="${esc(f.id)}"` : ""} src="${esc(kep)}" onerror="this.style.visibility='hidden'" alt="">`
@@ -3969,15 +4069,19 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         if (!n || !Array.isArray(sorok) || !sorok.length) return false;
 
         sorok.forEach(x => {
-            beszerzok.push({ kulcs: ujKulcs(), nev: n, id: String(x.id), db: igenySzam(x.id, x.db), mikor: ma(),
+            const db = igenySzam(x.id, x.db);
+            if (!(db > 0)) return;
+            if (beall.keszlethezAd) regiHorgonyoz(x.id);
+            beszerzok.push({ kulcs: ujKulcs(), nev: n, id: String(x.id), db, mikor: ma(),
                              piacraKint: false, piacraMennyiseg: 0, piacraAr: 0,
-                             piacraEgysegar: 0, piacraMinimumAr: 0, piacraMikor: "" });
+                             piacraEgysegar: 0, piacraMinimumAr: 0, piacraMikor: "",
+                             alap: !!beall.keszlethezAd });
         });
         ment();
         urlapTorles();
         rajzol();
         allapotSzoveg(`${sorok.length} feladat hozzáadva ${n} részére`
-            + (beall.keszlethezAd ? ", a k\u00E9szleted hozz\u00E1adva." : "."));
+            + (beall.keszlethezAd ? ", a mostani k\u00E9szleteden fel\u00FCl." : "."));
         return true;
     }
 
@@ -9458,9 +9562,8 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         const o = osszesites(elosztas, gyartasTerv);
         if (beall.orak !== false && oraHozamHianyzott) oraKeresHaKell();
 
-        /* A kimutatás mindig az összes feladatból készül, a szűrő csak a
-           részletes listát rövidíti. Így a közös készlet-elszámolás és az
-           összkép nem változik attól, hogy éppen kit nézünk. */
+        /* A közös készlet-elszámolás mindig az összes feladatból készül.
+           t109 óta az összesítés a szűrt személyeket mutatja (osszesites). */
         const teljesCsoportSorrend = csoportNevek();
         const aktivSzemelyek = new Set(
             (Array.isArray(beall.szemelySzuro) ? beall.szemelySzuro : [])
@@ -9543,7 +9646,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         const dashHTML = beszerzok.length ? `
           <div class="dash${beall.osszCsukva ? " zart" : ""}" id="dash">
             <button class="dash-fej" data-mit="dash-toggle">
-              <span class="cim">\u00D6sszes\u00EDt\u00E9s</span>
+              <span class="cim">\u00D6sszes\u00EDt\u00E9s${o.szuroNevek.length ? `<small class="dash-szuro">${esc(o.szuroNevek.map(x => kijelzoSzoveg(x || "(nincs n\u00E9v)")).join(", "))}</small>` : ""}</span>
               <span class="osszefog"><b>${o.keszDb} / ${o.ossz} feladat k\u00E9sz</b> &middot; ${o.szaz}% k\u00E9szlet${o.oraSum > 0 ? " &middot; kb. " + o.oraSum + " munka\u00F3ra h\u00E1tra" : ""}</span>
               <span class="chev">&#9662;</span>
             </button>
@@ -9566,7 +9669,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
                 const aria = `${x.nev}: ${x.van} / ${x.kell} db${x.munkazhato ? ", munka megnyitása" : ""}`;
                 return `<div class="ksor${x.munkazhato ? " munkara-link" : ""}"${x.munkazhato ? ` data-munka="${esc(x.id)}" role="button" tabindex="0" aria-label="${esc(aria)}"` : ""}><span class="knev">${ikon}<span>${esc(kijelzoSzoveg(x.nev))}</span></span><span class="track"><i class="${x.szaz >= 100 ? "kesz" : ""}" style="width:${Math.min(100, x.szaz)}%"></i></span><span class="kdb${x.hiany ? " hiany" : ""}">${x.van} / ${x.kell}</span></div>`;
               }).join("") : ""}
-              ${o.szemelyek.length ? `<div class="blokk-cim">K\u00E9sz\u00FClts\u00E9g szem\u00E9lyenk\u00E9nt</div>` + o.szemelyek.map(sz =>
+              ${o.szemelyek.length && o.szuroNevek.length !== 1 ? `<div class="blokk-cim">K\u00E9sz\u00FClts\u00E9g szem\u00E9lyenk\u00E9nt</div>` + o.szemelyek.map(sz =>
                 `<div class="psor" data-szemely="${esc(sz.nev)}" role="button" tabindex="0" aria-label="Ugrás ${esc(kijelzoSzoveg(sz.nev))} feladataihoz"><span class="nev">${esc(kijelzoSzoveg(sz.nev))}</span><span class="track"><i class="${sz.szaz >= 100 ? "kesz" : ""}" style="width:${Math.min(100, sz.szaz)}%"></i></span><span class="pc${sz.szaz >= 100 ? " kesz" : ""}">${sz.szaz}%</span></div>`
               ).join("") : ""}
               ${o.orakTetel.length ? `<div class="blokk-cim">Munkaóra-eloszlás (hol a legtöbb meló)</div>` + o.orakTetel.slice(0, 5).map(t => {
@@ -9595,7 +9698,7 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
             <input id="fDb" class="qmezo" inputmode="numeric" placeholder="Darab">
             <button type="button" id="fKeszlethez" class="keszkapcs${beall.keszlethezAd ? " aktiv" : ""}"
               aria-pressed="${beall.keszlethezAd ? "true" : "false"}"
-              title="Bekapcsolva a be\u00EDrt sz\u00E1mhoz hozz\u00E1adja a jelenlegi k\u00E9szletedet. Akkor kell, ha m\u00E1sik szkriptb\u0151l a HI\u00C1NYT m\u00E1solod \u00E1t, \u00E9s magadnak gy\u0171jtesz."
+              title="Bekapcsolva a be\u00EDrt sz\u00E1m a mostani k\u00E9szleteden fel\u00FCl sz\u00E1m\u00EDt: a feladatba csak az ezut\u00E1n gy\u0171jt\u00F6tt darabok sz\u00E1m\u00EDtanak. Akkor kell, ha m\u00E1sik szkriptb\u0151l a HI\u00C1NYT m\u00E1solod \u00E1t, \u00E9s magadnak gy\u0171jtesz."
               >+ k\u00E9szlet</button>
             <button id="fAdd" class="add">Hozz\u00E1ad\u00E1s</button>
           </div>
@@ -9630,14 +9733,12 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
     /* KOZOS PONT. Minden felvitel ezen megy at, az egyesevel felvitt
        tetel es a beillesztett gyorslista is. Korabban a tomeges ut sajat
        push-t hasznalt, ezert a kapcsolo ott nem ervenyesult. */
+    /* t109: a kapcsolo mar nem adja hozza a keszletet a szamhoz: a feladat
+       a beirt szamot kapja, alap: true jellel, es a mostani keszlet "regi"
+       lesz (regiHorgonyoz). Igy a kell a megbizas, a keszultseg 0-rol indul. */
     function igenySzam(id, dbStr) {
-        let db = Math.floor(Number(dbStr));
-        if (!(db > 0)) return 0;
-        if (beall.keszlethezAd) {
-            const van = Number(keszlet(id));
-            if (Number.isFinite(van) && van > 0) db += Math.floor(van);
-        }
-        return db;
+        const db = Math.floor(Number(dbStr));
+        return db > 0 ? db : 0;
     }
 
     function felvesz(nev, targyNevStr, dbStr) {
@@ -9645,9 +9746,11 @@ button,input{ font-family:inherit; color:inherit; font-size:inherit }
         const id = nevbolId(targyNevStr);
         const db = igenySzam(id, dbStr);
         if (!n || !id || !(db > 0)) return false;
+        if (beall.keszlethezAd) regiHorgonyoz(id);
         beszerzok.push({ kulcs: ujKulcs(), nev: n, id: String(id), db: db, mikor: ma(),
                          piacraKint: false, piacraMennyiseg: 0, piacraAr: 0,
-                         piacraEgysegar: 0, piacraMinimumAr: 0, piacraMikor: "" });
+                         piacraEgysegar: 0, piacraMinimumAr: 0, piacraMikor: "",
+                         alap: !!beall.keszlethezAd });
         ment();
         /* 0.5.39: az ujrarajzolas mar megorzi a beirt mezoket, ezert a
            felvitel utan itt kell kiuriteni oket, kulonben a most felvitt
