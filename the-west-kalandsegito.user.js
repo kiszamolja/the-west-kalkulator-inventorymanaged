@@ -108,7 +108,8 @@
        visszaper nelkul (JSON-kent olvassuk). A ket jelolo sor nem valtozhat. */
     /* VALTOZASOK KEZDETE */
     const VALTOZASOK = [
-        "Jav\u00edt\u00e1s: a felvett kaland \u201eVedd fel ezt\u201d sor\u00e1ban is l\u00e1tszik a viselend\u0151 t\u00e1rgy beszerz\u00e9se (pl. Utols\u00f3 nap a tal\u00e1lkoz\u00f3 el\u0151tt: \u00dcveg a teleszk\u00f3phoz), a l\u00e1nc minden l\u00e9p\u00e9s\u00e9vel."
+        "Jav\u00edt\u00e1s: a felvett kaland \u201eVedd fel ezt\u201d sor\u00e1ban is l\u00e1tszik a viselend\u0151 t\u00e1rgy beszerz\u00e9se (pl. Utols\u00f3 nap a tal\u00e1lkoz\u00f3 el\u0151tt: \u00dcveg a teleszk\u00f3phoz), a l\u00e1nc minden l\u00e9p\u00e9s\u00e9vel.",
+        "Jav\u00edt\u00e1s: a napos kalandr\u00e9szek c\u00edmk\u00e9j\u00e9ben csak a napok l\u00e1tszanak (pl. \u201eVas\u00e1rnap\u201d a \u201eVas\u00e1rnap 1 1 1 1 1 1 1\u201d helyett), \u00e9s a t\u00f6bb napos r\u00e9szekn\u00e9l mindegyik nap."
     ];
     /* VALTOZASOK VEGE */
 
@@ -3724,6 +3725,19 @@ const RECEPT_TEKERCS = {
        megbizo listaja legfeljebb 10 percenkent (a ful megnyitasakor,
        kalandvaltozas utan). */
     const KS_NAP_IDX = { "vasárnap": 0, "hétfő": 1, "kedd": 2, "szerda": 3, "csütörtök": 4, "péntek": 5, "szombat": 6 };
+    /* t88zm (MrA, 2026-11-13 13:25-13:27 "mehet a programozás"): A "Nap:" UTANI NAPNEVEK, MAS NELKUL. MrA kepei: A torzs >
+       Ünneplés "Vasárnap 1 1 1 1 1 1 1", A tökéletes rablás > Gyorsan és simán "Hétfő 1": a tw-calc szovegeben a "Nap:"
+       utan a kert targyak darabszamai jonnek (Ünneplés 7 targy, mind 1 db; Álarc 1 db). MERT (10-31b): 6 ilyen resz
+       ("Szerda 1 5", "Vasárnap 1 1 1 1 1 1 1", "Vasárnap 1", "Hétfő 1", "Hétfő Péntek 1 1 1", "Szerda 1 1 1 1").
+       Rokon hibak ugyanitt: az "elobb" cimke csak vesszovel / vagy / es elvalasztott napot ismert (a szokozzel felsorolt
+       tobb nap, pl. "Hétfő Péntek", ures cimket adott), a Kalandok ful "csak ..." jele csak az elso napot. Kozos fuggveny:
+       minden "Nap:" utan az egymast koveto napnevek (az idoablak-olvaso t88i szabalya), sorrendben, ismetles nelkul. */
+    function ksNapNevek(x) {
+        const l = [];
+        for (const m of String(x || "").matchAll(/Nap:\s*((?:(?:hétfő|kedd|szerda|csütörtök|péntek|szombat|vasárnap)(?:\s*(?:,|vagy|és)?\s*))+)/gi))
+            (m[1].match(/hétfő|kedd|szerda|csütörtök|péntek|szombat|vasárnap/gi) || []).forEach(v => { v = v.toLowerCase(); if (!l.includes(v)) l.push(v); });
+        return l;
+    }
     const KS_NAP_NEV = ["vasárnap", "hétfő", "kedd", "szerda", "csütörtök", "péntek", "szombat"];
     const KS_MEGB_KOZ = 600000;
     const ksMegbLim = new Map();
@@ -5418,8 +5432,8 @@ const RECEPT_TEKERCS = {
         }
         const sz = /Szerveridő:\s*(\d\d:\d\d)\s*-\s*(\d\d:\d\d)/.exec(t);
         if (sz) ki.push(sz[1] + "-" + sz[2]);
-        const nap = /Nap:\s*([^.]+?)(?=\s*(?:Dátum|Szerveridő|Hely|Kaland|Befejezetlen|$))/.exec(t);
-        if (nap) ki.push(nap[1].trim());
+        const napL = ksNapNevek(t);
+        if (napL.length) ki.push(napL.map(v => v.charAt(0).toUpperCase() + v.slice(1)).join(" vagy "));
         const utan = /A kalandot\s*(.+?)\s*után elfogadhatod/.exec(t);
         /* t16i VISSZAVONAS: a "... utan elfogadhatod" KEZDO idopont (a kaland
            ettol veheto fel), nem lejarat. A t16d idokorlatnak vette, ezert
@@ -6036,10 +6050,10 @@ const RECEPT_TEKERCS = {
             const sor = ksOlvas(ksAdatKulcs()).sorok[group];
             const r = sor && (sor.reszek || []).find(x => Number(x.id) === Number(id));
             /* t87d: a Befejezes oszlop (r.s, pl. "Nap: Szombat vagy Vasárnap") is */
-            const m = r && (/Nap:\s*([^\n]+?)(?:\s+[A-ZÁÉÍÓÖŐÚÜŰ][a-záéíóöőúüű]+:|$)/.exec(String(r.x || "")) || /Nap:\s*([^\n]+?)(?:\s+[A-ZÁÉÍÓÖŐÚÜŰ][a-záéíóöőúüű]+:|$)/.exec((r.s || []).filter(t => /^Nap:/.test(String(t))).join(" ")));
-            if (!m) return "";
-            const napok = m[1].split(/\s*(?:,|vagy|és)\s*/).map(x => KS_NAPRA[x.trim().toLowerCase()]).filter(Boolean);
-            return napok.join(" vagy ");
+            if (!r) return "";
+            let l = ksNapNevek(r.x);
+            if (!l.length) l = ksNapNevek((r.s || []).filter(t => /^Nap:/.test(String(t))).join(" "));
+            return l.map(v => KS_NAPRA[v]).filter(Boolean).join(" vagy ");
         } catch (e) { return ""; }
     }
     /* t24 (MrA, 2026-09-28, Az ejszaka 915): ORAS IDOABLAK a leadasnal. A
@@ -10075,8 +10089,7 @@ const RECEPT_TEKERCS = {
                 if (szint && ksSzintSavKivul(r, s, szint)) return;
                 const x = String(r.x || "");
                 const datumos = /Dátum:|Hónap:/.test(x);
-                const napM = /(?:^|\s)Nap:\s*([A-Za-zÁÉÍÓÖŐÚÜŰáéíóöőúüű]+)/.exec(x);
-                const nap = napM ? (KS_NAPOK[napM[1].toLowerCase()] || napM[1].toLowerCase()) : "";
+                const nap = ksNapNevek(x).map(v => KS_NAPOK[v] || v).join(" vagy ");
                 const oraM = /Szerveridő:\s*(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/.exec(x);
                 const ora = oraM ? oraM[1] + "-" + oraM[2] : "";
                 const targyak = ksEleresTargyak(r, s);
@@ -10143,10 +10156,10 @@ const RECEPT_TEKERCS = {
                 });
                 if (!jo) return;
                 if (ksFelvetelRejtett(r)) { rejtDb++; ksZarvaJelez(); return; }
-                const napM = /(?:^|\s)Nap:\s*([A-Za-zÁÉÍÓÖŐÚÜŰáéíóöőúüű]+)/.exec(x);
+                const napT = ksNapNevek(x).map(v => KS_NAPOK[v] || v).join(" vagy ");
                 const oraM = /Szerveridő:\s*(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/.exec(x);
                 const kh = ksKulonHiany(r.ek);
-                reszek.push({ r, s, g, targyak: [], hiany: [], kulso: [], nap: napM ? (KS_NAPOK[napM[1].toLowerCase()] || napM[1].toLowerCase()) : "", ora: oraM ? oraM[1] + "-" + oraM[2] : "",
+                reszek.push({ r, s, g, targyak: [], hiany: [], kulso: [], nap: napT, ora: oraM ? oraM[1] + "-" + oraM[2] : "",
                     datumos: false, esemeny: false, kh, targyNelkul: true, kezdheto: !kh.length });
             });
             reszek.sort((a, b) => R0.indexOf(a.r) - R0.indexOf(b.r));
