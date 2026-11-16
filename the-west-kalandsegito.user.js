@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Kalandsegítő
 // @namespace    the-west-kalandsegito
-// @version      1.0.21
+// @version      1.0.22
 // @description  A felvett kalandok munkái és sétái egy helyen: melyik munkát hány kaland kéri, mennyi van még hátra, és egy kattintással megnyitja a munkát vagy megmutatja a helyet a térképen.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -82,7 +82,7 @@
     const setTimeout = (f, ms, ...a) => window.setTimeout(f, ksVarIdo(ms), ...a);
     const setInterval = (f, ms, ...a) => window.setInterval(f, ksVarIdo(ms), ...a);
 
-    const VERZIO = "1.0.21";
+    const VERZIO = "1.0.22";
     /* A TESZT-epito ide irja a belyeget. Kiadasi alakban ures. */
     const EPITES = "";
 
@@ -108,8 +108,7 @@
        visszaper nelkul (JSON-kent olvassuk). A ket jelolo sor nem valtozhat. */
     /* VALTOZASOK KEZDETE */
     const VALTOZASOK = [
-        "Jav\u00edt\u00e1s: a felvett kaland \u201eVedd fel ezt\u201d sor\u00e1ban is l\u00e1tszik a viselend\u0151 t\u00e1rgy beszerz\u00e9se (pl. Utols\u00f3 nap a tal\u00e1lkoz\u00f3 el\u0151tt: \u00dcveg a teleszk\u00f3phoz), a l\u00e1nc minden l\u00e9p\u00e9s\u00e9vel.",
-        "Jav\u00edt\u00e1s: a napos kalandr\u00e9szek c\u00edmk\u00e9j\u00e9ben csak a napok l\u00e1tszanak (pl. \u201eVas\u00e1rnap\u201d a \u201eVas\u00e1rnap 1 1 1 1 1 1 1\u201d helyett), \u00e9s a t\u00f6bb napos r\u00e9szekn\u00e9l mindegyik nap."
+        "\u00daj: az Esem\u00e9nyek f\u00fcl\u00f6n a lista alj\u00e1n a kiv\u00e1lasztott kalandsorok munk\u00e1i (pl. Vas\u00fat\u00e1llom\u00e1s \u00e9p\u00edt\u00e9se 45 db) \u00e9s egy\u00e9b feladatai (pl. Aludni mentem) is l\u00e1tszanak, kalandsoronk\u00e9nt \u00e9s r\u00e9szenk\u00e9nt."
     ];
     /* VALTOZASOK VEGE */
 
@@ -9469,6 +9468,9 @@ const RECEPT_TEKERCS = {
         const kesz = new Set(), felv = new Set();
         const prof = Number(jatek().Character && jatek().Character.professionId) || 0;
         const M = new Map(), adja = new Map();
+        /* t88zn (MrA 2026-11-15 21:19 "mehet", mockup 94b): a hatralevo reszek munkai es egyeb feladatai */
+        const MU = new Map(), FE = new Map();
+        const mfHely = (T, kulcs, nev, x) => { if (!T.has(kulcs)) T.set(kulcs, { kulcs, nev, helyek: [] }); T.get(kulcs).helyek.push(x); };
         const hely = (id, g, s, db, visel, ism, nap, csak, ag, vnap) => {
             if (!M.has(id)) M.set(id, { id, sorok: new Map() });
             const t = M.get(id);
@@ -9491,7 +9493,7 @@ const RECEPT_TEKERCS = {
                 st.allapot.forEach((v, id) => { if (v === "kesz") st.allapot.set(id, R.find(r => r.id === id && ksIsmE(r)) ? "ism" : "hatra"); });
             const jut = new Set(), rejt = new Set();
             R.forEach(r => { (r.k || []).forEach(x => jut.add(Number(x))); (r.r || []).forEach(x => rejt.add(Number(x[0]))); });
-            const agok = new Map();
+            const agok = new Map(), mfAg = new Map();
             R.forEach(r => {
                 const a = st ? st.allapot.get(r.id) : "hatra";
                 if (a === "kesz" || a === "ki") return;
@@ -9514,6 +9516,20 @@ const RECEPT_TEKERCS = {
                    "N nap várakozás" jel */
                 const vnap = !napM ? ksVarRef(r).filter(x => x.id !== Number(r.id)).reduce((m, x) => Math.max(m, x.nap), 0) : 0;
                 const vg = st && st.valaszt ? st.valaszt.get(r.id) : null;
+                /* t88zn: munkak (r.j, mennyiseg a ksMenny szerint) es egyeb feladatok (r.s) */
+                {
+                    const alap = { g, cim: s.cim, resz: r.n || "", ism, nap: napM ? Number(napM[1]) : 0 };
+                    const mf = ksFelMunkaFeladat(s, r);
+                    if (vg != null) {
+                        const m = mfAg.get(vg) || { mu: new Map(), fe: new Map() };
+                        mf.munkak.forEach(x => { const q = m.mu.get(x.j); if (!q || ksFelMennyNagyobb(x, q)) m.mu.set(x.j, Object.assign({}, alap, x)); });
+                        mf.feladatok.forEach(x => { const q = m.fe.get(x.kulcs); if (!q || x.n > q.n) m.fe.set(x.kulcs, Object.assign({}, alap, x)); });
+                        mfAg.set(vg, m);
+                    } else {
+                        mf.munkak.forEach(x => mfHely(MU, x.j, x.nev, Object.assign({}, alap, x)));
+                        mf.feladatok.forEach(x => mfHely(FE, x.kulcs, x.nev, Object.assign({}, alap, x)));
+                    }
+                }
                 per.forEach((p, id) => {
                     /* t86i (MrA): a kalandsor adja; t86j (MrA): viselendonel csak "viseld" */
                     if (jut.has(id)) { if (!adja.has(id)) adja.set(id, { id, sorok: new Map(), visel: false }); adja.get(id).sorok.set(g, s.cim); if (p.visel && !p.db) adja.get(id).visel = true; return; }
@@ -9527,6 +9543,7 @@ const RECEPT_TEKERCS = {
                 });
             });
             agok.forEach(m => m.forEach((q, id) => hely(id, g, s, q.db, q.visel && !q.db, q.ism, q.nap, rejt.has(id), true, q.vnap)));
+            mfAg.forEach(m => { m.mu.forEach(x => mfHely(MU, x.j, x.nev, Object.assign({ ag: true }, x))); m.fe.forEach(x => mfHely(FE, x.kulcs, x.nev, Object.assign({ ag: true }, x))); });
         });
         const lista = [...M.values()].map(t => {
             const h = [...t.sorok.values()];
@@ -9534,7 +9551,7 @@ const RECEPT_TEKERCS = {
             const csak = h.every(x => x.csak);
             return Object.assign(t, { helyek: h, db: db > 0 ? db : 1, viselet: db === 0, csak, sorDb: h.length });
         });
-        return { lista, adja: [...adja.values()] };
+        return { lista, adja: [...adja.values()], munkak: [...MU.values()], feladatok: [...FE.values()] };
     }
     /* t86: a tudasbazis (kalandsegito-kb.json) forrasszovegei targyankent.
        MERT (2026-10-06): a reszek t-listajaban [targy, db, forras-index] a
@@ -9567,6 +9584,78 @@ const RECEPT_TEKERCS = {
         if (/alábbi munk|térképen található munk|ami a térképen/.test(t)) return "munkából";
         if (/:$/.test(t)) return "lásd leírás";
         return t.length > 28 ? t.slice(0, 26).trim() + "…" : t;
+    }
+    /* t88zn (MrA 2026-11-15 21:19 "mehet", mockup 94b): az Események fül Munkák és Egyéb feladatok blokkja.
+       Munka: a rész r.j munkái, a mennyiség a ksMenny szerint (tw-calc darab, wiki / KB óra, kézi tábla).
+       Egyéb feladat: a rész szöveges feltételei közül a "Név: szám" alakúak (mint a Munkák fül Egyéb feladatai,
+       a "Szint" kivételével), és a neves célpont ("Lövés: X", "Nyerj / Veszíts párbajt ellene: X", 1 alkalom).
+       A Hely, az Ablak megnyitása, a Szerveridő és a többi nem feladat. */
+    function ksFelMennyBont(t) {
+        const x = String(t || "").replace(/\s+/g, " ").trim();
+        let m = /^(\d+)\s*db$/.exec(x);
+        if (m) return { db: Number(m[1]), mp: 0 };
+        m = /^(?:(\d+(?:[.,]\d+)?)\s*óra)?\s*(?:(\d+)\s*perc)?$/.exec(x);
+        if (m && (m[1] || m[2])) return { db: 0, mp: Math.round(Number(String(m[1] || "0").replace(",", ".")) * 3600 + Number(m[2] || 0) * 60) };
+        return { db: 0, mp: 0 };
+    }
+    function ksFelMennyNagyobb(a, b) { return a.mp > b.mp || (a.mp === b.mp && a.db > b.db); }
+    function ksFelMunkaFeladat(s, r) {
+        const munkak = [], feladatok = [];
+        (r.j || []).forEach(j => {
+            j = Number(j);
+            if (!j || munkak.some(x => x.j === j)) return;
+            let t = "";
+            try { t = ksMenny(s, r, j); } catch (e) { t = ""; }
+            const w = ((s.wo || {})[r.id] || []).find(x => { try { return ksMunkaId(x[0]) === j; } catch (e) { return false; } });
+            munkak.push(Object.assign({ j, nev: munkaNev(j, w ? String(w[0]) : ""), menny: t }, ksFelMennyBont(t)));
+        });
+        (r.s || []).forEach(t => {
+            t = String(t || "").replace(/\s+/g, " ").trim();
+            let m = /^([^:]+?)\s*:\s*(\d[\d.\s]*)$/.exec(t);
+            if (m && !/^(Szint|Nap|Dátum)$/i.test(m[1])) {
+                const kulcs = ksEgyebKulcs(m[1]);
+                if (!feladatok.some(x => x.kulcs === kulcs)) feladatok.push({ kulcs, nev: m[1], n: Number(m[2].replace(/[.\s]/g, "")) || 1 });
+                return;
+            }
+            m = /^(Lövés|Nyerj párbajt ellene|Veszíts párbajt ellene)\s*:\s*(.+)$/.exec(t);
+            if (m) { const kulcs = t.toLowerCase(); if (!feladatok.some(x => x.kulcs === kulcs)) feladatok.push({ kulcs, nev: t, n: 1 }); }
+        });
+        return { munkak, feladatok };
+    }
+    function ksFelMunkaHTML(o) {
+        const jel = x => (x.nap ? ` <span class="jel valt" data-bub="Az ismételhető rész egyszer számolva; ha többször csinálod, szorozd fel.">${x.nap} naponta ismételhető</span>` : x.ism ? ` <span class="jel valt" data-bub="Ismételhető rész: egyszer számolva.">ismételhető</span>` : "") +
+            (x.ag ? ` <span class="jel valf" data-bub="Választható ág: csak az egyik ág kell, a nagyobb igény számít.">egyik ág</span>` : "");
+        const bontas = (h, menny) => {
+            const cs = new Map();
+            h.forEach(x => { if (!cs.has(x.g)) cs.set(x.g, { cim: x.cim, l: [] }); cs.get(x.g).l.push(esc(x.resz || "?") + (menny(x) ? ": " + esc(menny(x)) : "") + jel(x)); });
+            return [...cs.values()].map(c => esc(c.cim) + " › " + c.l.join(", › ")).join(" · ");
+        };
+        const kozep = h => { const k = new Set(h.map(x => x.g)).size; return h.length + " rész" + (k > 1 ? ", " + k + " kalandsor" : ""); };
+        const jelveny = h => { const k = new Set(h.map(x => x.g)).size; return k > 1 ? `<span class="jelveny" data-bub="Több kalandsor is kéri.">${k} kalandsor</span>` : ""; };
+        const sorHTML = (kep, nev, h, menny, jobb) => `<div class="ksor tsor egyeb felmf"><div class="oszlop helysor">${kep}<div class="oszlop"><div class="nevsor egyebnev"><b title="${esc(nev)}">${esc(nev)}</b>${jelveny(h)}</div><span class="alcim">${bontas(h, menny)}</span></div></div><div class="oszlop"><span>${esc(kozep(h))}</span></div><div class="jobb"><b>${esc(jobb)}</b></div></div>`;
+        const rend = (a, b) => new Set(b.helyek.map(x => x.g)).size - new Set(a.helyek.map(x => x.g)).size || b.helyek.length - a.helyek.length || String(a.nev).localeCompare(String(b.nev), "hu");
+        let h = "";
+        const mu = (o.munkak || []).slice().sort(rend);
+        if (mu.length) {
+            const reszDb = mu.reduce((n, x) => n + x.helyek.length, 0);
+            h += `<div class="csoport felmunka">` + ksFejHTML("fel-munka", `<span class="nev" data-bub="A bekapcsolt kalandsorok hátralevő részeinek munkái. Ha egyszerre több rész van felvéve, egy munkavégzés mindegyikbe beszámít, ezért az összeg felső becslés.">Munkák</span>`, `<b>${mu.length} munka</b> · ${reszDb} rész`);
+            if (!ksZartE("fel-munka")) h += mu.map(t => {
+                const mp = t.helyek.reduce((n, x) => n + (x.mp || 0), 0), db = t.helyek.reduce((n, x) => n + (x.db || 0), 0);
+                const ism = t.helyek.some(x => !x.mp && !x.db);
+                const jobb = [mp ? fmtIdo(mp) : "", db ? db + " db" : ""].filter(Boolean).join(" · ") + (ism && (mp || db) ? " + ?" : "");
+                let kep = "";
+                try { kep = munkaSajatKep(t.kulcs); } catch (e) { kep = ""; }
+                return sorHTML(kep ? `<img class="kicsikep" src="${esc(kep)}" alt="">` : `<span class="kicsikep ures"></span>`, t.nev, t.helyek, x => x.menny, jobb || "?");
+            }).join("");
+            h += `</div>`;
+        }
+        const fe = (o.feladatok || []).slice().sort(rend);
+        if (fe.length) {
+            h += `<div class="csoport felfeladat">` + ksFejHTML("fel-feladat", `<span class="nev" data-bub="A bekapcsolt kalandsorok hátralevő részeinek egyéb feladatai (alvás, ima, párbaj, erődharc...).">Egyéb feladatok</span>`, `<b>${fe.length} feladat</b>`);
+            if (!ksZartE("fel-feladat")) h += fe.map(t => sorHTML(`<span class="kicsikep ures"></span>`, t.nev, t.helyek, x => t.helyek.length > 1 ? String(x.n) : "", String(t.helyek.reduce((n, x) => n + (x.n || 0), 0)))).join("");
+            h += `</div>`;
+        }
+        return h;
     }
     function ksFelBontas(t) {
         return `<span class="kis felbont">` + t.helyek.map(x => esc(x.cim) + " " + (x.visel && !x.db ? "viseld" : x.db) +
@@ -9677,6 +9766,7 @@ const RECEPT_TEKERCS = {
         if (o && be) {
             const th = ksFelTargyakHTML(o);
             h += th.html;
+            try { h += ksFelMunkaHTML(o); } catch (e) { /* a Munkák / Egyéb feladatok blokk nélkül is megy */ }
             eszk = eszk.replace("<!--felossz-->", ` · <b>${th.hiany}</b> tárgy hiányzik${th.csak ? ` · ${th.csak} csak felvétel után` : ""}`);
         } else if (!be) h += `<div class="ures">Minden kalandsor ki van kapcsolva; kapcsolj be legalább egyet az összesítéshez.</div>`;
         return { eszk, html: h };
@@ -11706,6 +11796,9 @@ button.jel.most{cursor:pointer;color:#fff0cc;border-color:#2f4a26;background:#4d
 .nevsor.egyebnev b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nevsor.egyebnev .felki,.nevsor.egyebnev .jelveny{flex:0 0 auto}
 .nevsor.egyebnev .felki{margin-left:0}
+/* t88zn: az Események Munkák / Egyéb feladatok blokkjában a hosszú név tördelődik (mockup 94b) */
+.felmf .nevsor.egyebnev{flex-wrap:wrap}
+.felmf .nevsor.egyebnev b{white-space:normal;overflow:visible}
 span.kicsikep.ures{background:transparent}
 /* t14: kis gomb a feltetelsorban. */
 /* t17b: nem vegezheto munka gombja: halvanyabb, lakattal, ugyanakkora hely */
