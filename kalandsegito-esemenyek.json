@@ -1,7 +1,7 @@
 {
  "v": 1,
- "forras": "InnoGames tudásbázis 2026-10-06 + MrA jelölései + MrA besorolása (14 ünnepi kalandsor, 2026-10-07; 237 Húsvéti leszámolás, 2026-10-29); 346 Angus horrorlabirintusa és 348 (2027.02.10-től), 2026-11-15",
- "keszult": "2026-11-15T20:30:00.000Z",
+ "forras": "InnoGames tudásbázis 2026-10-06 + MrA jelölései + MrA besorolása (14 ünnepi kalandsor, 2026-10-07; 237 Húsvéti leszámolás, 2026-10-29); 346 Angus horrorlabirintusa és 348 (2027.02.10-től), 2026-11-15; upEsemeny (44 Kiárusított UP-tárgy), 2026-11-18",
+ "keszult": "2026-11-18T19:00:00.000Z",
  "jatekKulcs": {
   "DayOfDead": "Halottak napja",
   "Octoberfest": "Oktoberfest"
@@ -573,6 +573,56 @@
    51470000,
    51471000,
    51472000
+  ]
+ },
+ "upEsemeny": {
+  "megj": "Union Pacific bolt, Kiárusított fül (generic_sale), eseménykor kapható. Mérve 2026-11-18 (MrA, Tökvadászat, 2026.12.02 12:00-ig): 44 tárgy; a kalandtárgyak 10 kötvény vagy 10 aranyrög. MrA: ezek csak UP boltosak, munkából nem esnek.",
+  "ar": "10",
+  "targyak": [
+   50761000,
+   50762000,
+   50763000,
+   51777000,
+   51782000,
+   51783000,
+   51784000,
+   52727000,
+   52728000,
+   52729000,
+   52730000,
+   53107000,
+   53113000,
+   53114000,
+   53115000,
+   53116000,
+   53559000,
+   53560000,
+   53561000,
+   53562000,
+   53563000,
+   54161000,
+   54162000,
+   54163000,
+   54164000,
+   54165000,
+   54167000,
+   54173000,
+   54174000,
+   54175000,
+   54176000,
+   54177000,
+   54178000,
+   54683000,
+   54684000,
+   54685000,
+   54686000,
+   54687000,
+   54954000,
+   54955000,
+   54956000,
+   54957000,
+   54958000,
+   54959000
   ]
  }
 }
