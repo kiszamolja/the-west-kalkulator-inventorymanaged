@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The West Kalandsegítő
 // @namespace    the-west-kalandsegito
-// @version      1.0.23
+// @version      1.0.24
 // @description  A felvett kalandok munkái és sétái egy helyen: melyik munkát hány kaland kéri, mennyi van még hátra, és egy kattintással megnyitja a munkát vagy megmutatja a helyet a térképen.
 // @author       smcZ
 // @homepageURL  https://kiszamolja.github.io/the-west-kalkulator-inventorymanaged/
@@ -82,7 +82,7 @@
     const setTimeout = (f, ms, ...a) => window.setTimeout(f, ksVarIdo(ms), ...a);
     const setInterval = (f, ms, ...a) => window.setInterval(f, ksVarIdo(ms), ...a);
 
-    const VERZIO = "1.0.23";
+    const VERZIO = "1.0.24";
     /* A TESZT-epito ide irja a belyeget. Kiadasi alakban ures. */
     const EPITES = "";
 
@@ -108,10 +108,7 @@
        visszaper nelkul (JSON-kent olvassuk). A ket jelolo sor nem valtozhat. */
     /* VALTOZASOK KEZDETE */
     const VALTOZASOK = [
-        "Jav\u00edt\u00e1s: a fut\u00f3 esem\u00e9nyes kalandsorokn\u00e1l (pl. J\u00f3l ismered a t\u00f6k\u00f6ket?) nem jelenik meg t\u00e9vesen a \u201enem fut\u201d felirat, ha az esem\u00e9ny id\u00e9n kor\u00e1bban indult, mint a tw-calc r\u00e9gi d\u00e1tuma; a felirat mellett a megb\u00edz\u00f3 gombja is l\u00e1tszik.",
-        "Jav\u00edt\u00e1s: az Union Pacific bolt esem\u00e9nyes t\u00e1rgyai (pl. Vid\u00e1m t\u00f6k 2021, T\u00f6katlasz, Kis cip\u0151) helyesen \u201eUP bolt\u201d forr\u00e1st kapnak munka helyett, a bubor\u00e9kban az \u00e1rral \u00e9s a lej\u00e1rattal, \u00e9s az esem\u00e9ny ut\u00e1n is UP-forr\u00e1s\u00faak maradnak.",
-        "Jav\u00edt\u00e1s: a kalandsorok ism\u00e9tl\u0151 r\u00e9szei (pl. a 2020-as T\u00f6kvad\u00e1szat m\u00e1sodik Samhainja) nem l\u00e1tszanak duplik\u00e1ltnak: am\u00edg az els\u0151 k\u00f6r nincs k\u00e9sz, a k\u00e1rtya alj\u00e1n egy \u00f6sszecsukhat\u00f3 sorba ker\u00fclnek (\u201e3 naponta ism\u00e9telhet\u0151\u201d), \u00e9s nem sz\u00e1m\u00edtanak a h\u00e1tralev\u0151 r\u00e9szek k\u00f6z\u00e9.",
-        "Jav\u00edt\u00e1s: egy kalandsor egyetlen r\u00e9sz\u00e9nek lead\u00e1sa ut\u00e1n (pl. Apr\u00f3s\u00e1gok) a sor csak akkor marad a Kalandsorok k\u00f6z\u00f6tt, ha van folytat\u00e1sa; a m\u00e1r k\u00f6vetett, folytat\u00e1s n\u00e9lk\u00fcli sorok egyszer kiker\u00fclnek."
+        "Jav\u00edt\u00e1s: ha egy kaland megb\u00edz\u00f3j\u00e1nak t\u00f6bb kulcsa van (pl. Elt\u0171nt gyerekek \u203a M\u00e1gikus er\u0151k, Az \u00f6reg n\u0151), a kalandsor nem mutat t\u00e9vesen \u201em\u00e9g z\u00e1rva\u201d jelet, amikor a megb\u00edz\u00f3 a t\u00e9rk\u00e9pen l\u00e1that\u00f3; a Megb\u00edz\u00f3hoz gomb \u0151t nyitja."
     ];
     /* VALTOZASOK VEGE */
 
@@ -6390,6 +6387,17 @@ const RECEPT_TEKERCS = {
         return ki;
     }
     function ksFelvetelRejtett(r) {
+        /* t88zr (MrA 2026-11-19 18:41, MERT): Eltűnt gyerekek › Mágikus erők (4876): a fejlec kulcsa gypsy (Az öreg nő,
+           21-es hely, LATHATO, a jatek kinalja a kalandot), az Elfogadas helye gypsy_repeat (22-es hely, rejtett); a
+           vizsgalat az eh kulcsot nezte, ezert "még zárva" volt (F5 utan is). A jatek kulcsa a fejlece (t63, 16/16):
+           ha az LATHATO a terkepen, a resz nem rejtett. */
+        /* Szukitve (MrA 18:49 "programozhatod"): csak ha az eh ugyanannak a megbizonak a neve (pl. mindketto "Az öreg nő";
+           eltero nevu parnal, pl. Indián Táncos / Tanítónő, nincs meres: marad a regi szabaly). */
+        const mk = r && r.mb ? String(r.mb) : "";
+        const nevNorm = x => String(x || "").replace(/\s+/g, " ").trim().toLowerCase();
+        const eh0 = r && Array.isArray(r.eh) && r.eh[0];
+        const azonosNev = !eh0 || String(eh0[0] || "") === mk || (nevNorm(eh0[1]) !== "" && nevNorm(eh0[1]) === nevNorm(r.mn));
+        if (mk && azonosNev && ksMegbizoPont(mk) && !ksMegbRejtettKulcs(mk)) return false;
         const e = r && Array.isArray(r.eh) && r.eh[0] && r.eh[0][0];
         const k = String(e || (r && r.mb) || "");
         return ksMegbRejtettKulcs(k) && !ksMegbLathatoPar(k);
